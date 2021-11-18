@@ -110,6 +110,7 @@ Indexing, Slicing, Joining, Mutating Ops
     row_stack
     scatter
     scatter_add
+    _scatter_reduce
     split
     squeeze
     stack

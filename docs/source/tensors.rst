@@ -592,6 +592,7 @@ Tensor class reference
     Tensor.scatter_
     Tensor.scatter_add_
     Tensor.scatter_add
+    Tensor._scatter_reduce
     Tensor.select
     Tensor.set_
     Tensor.share_memory_
