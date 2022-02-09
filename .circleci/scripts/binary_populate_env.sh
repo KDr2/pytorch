@@ -13,6 +13,9 @@ tagged_version() {
   GIT_DESCRIBE="git --git-dir ${GIT_DIR} describe --tags --match v[0-9]*.[0-9]*.[0-9]*"
   if [[ -n "${CIRCLE_TAG:-}" ]]; then
     echo "${CIRCLE_TAG}"
+  elif [[ ! -d "${GIT_DIR}" ]]; then
+    echo "Abort, abort! Git dir ${GIT_DIR} does not exists!"
+    kill $$
   elif ${GIT_DESCRIBE} --exact >/dev/null; then
     ${GIT_DESCRIBE}
   else
@@ -58,7 +61,12 @@ if [[ -z ${IS_GHA:-} ]]; then
   fi
 else
   envfile=${BINARY_ENV_FILE:-/tmp/env}
-  workdir="/pytorch"
+  if [[ -n "${PYTORCH_ROOT}"  ]]; then
+    workdir="${PYTORCH_ROOT}/.."
+  else
+    # docker executor (binary builds)
+    workdir="/"
+  fi
 fi
 
 if [[ "$PACKAGE_TYPE" == 'libtorch' ]]; then
