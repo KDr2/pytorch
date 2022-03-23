@@ -127,12 +127,8 @@ jobs:
         run: |
           set -eux
 
-          # x86_32
-          export id_x86_32
-          id_x86_32=$(docker run -e GRADLE_OFFLINE=1 --cap-add=SYS_PTRACE --security-opt seccomp=unconfined -t -d -w /var/lib/jenkins "${DOCKER_IMAGE}")
-
           # Putting everything together
-          docker cp "${GITHUB_WORKSPACE}/." "${id_x86_32}:/var/lib/jenkins/workspace"
+          # id_x86_32 container were created at build_x86_32 step
           docker cp "${GITHUB_WORKSPACE}/build_android_install_arm_v7a" "${id_x86_32}:/var/lib/jenkins/workspace/build_android_install_arm_v7a"
           docker cp "${GITHUB_WORKSPACE}/build_android_install_x86_64" "${id_x86_32}:/var/lib/jenkins/workspace/build_android_install_x86_64"
           docker cp "${GITHUB_WORKSPACE}/build_android_install_arm_v8a" "${id_x86_32}:/var/lib/jenkins/workspace/build_android_install_arm_v8a"
@@ -158,7 +154,6 @@ jobs:
 
           mkdir -p "${GITHUB_WORKSPACE}/build_android_artifacts"
           docker cp "${id_x86_32}:/var/lib/jenkins/workspace/android/artifacts.tgz" "${GITHUB_WORKSPACE}/build_android_artifacts/"
-          echo "::set-output name=id_x86_32::${id_x86_32}"
 
       - name: Display and upload binary build size statistics (Click Me)
         # temporary hack: set CIRCLE_* vars, until we update
