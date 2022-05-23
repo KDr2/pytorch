@@ -5,6 +5,7 @@
 #include <c10/macros/Macros.h>
 #include <c10/util/Exception.h>
 #include <ATen/mps/MPSStream.h>
+#include "ATen/mps/MPSDevice.h"
 
 #ifdef __OBJC__
 #include <Foundation/Foundation.h>
