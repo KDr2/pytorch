@@ -1,11 +1,15 @@
-name: Run MPS tets
+name: mac-test-arm64
 on:
-  pull_request:
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      build-environment:
+        required: true
+        type: string
+        description: Top-level label for what's being built/tested.
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ github.event_name == 'workflow_dispatch' }}
-  cancel-in-progress: true
+defaults:
+  run:
+    shell: arch -arch arm64 bash -e -l {0}
 
 jobs:
   run_mps_test:
@@ -14,18 +18,21 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
+      - name: Download build artifacts
+        uses: ./.github/actions/download-build-artifacts
+        with:
+          name: ${{ inputs.build-environment }}
+          use-gha: true
       - name: Install PyTorch
-        shell: arch -arch arm64 bash {0}
         env:
           ENV_NAME: conda-test-env-${{ github.run_id }}
-          PY_VERS: 3.9
+          PY_VERS: 3.8
         run: |
           . ~/miniconda3/etc/profile.d/conda.sh
           set -ex
           conda create -yp ${ENV_NAME} python=${PY_VERS} numpy expecttest
-          conda run -p ${ENV_NAME} python3 -mpip install torch --pre --extra-index-url=https://download.pytorch.org/whl/nightly
+          conda run -p ${ENV_NAME} python3 -mpip install dist/*.whl
       - name: Run MPS tests
-        shell: arch -arch arm64 bash {0}
         env:
           ENV_NAME: conda-test-env-${{ github.run_id }}
         run: |
