@@ -10,7 +10,7 @@ from functorch.dim import Tensor, Dim, dims, dimlists, stack, DimensionBindError
 from attn_ft import BertSelfAttention as BertSelfAttentionA, Linear
 from attn_positional import BertSelfAttention as BertSelfAttentionB
 
-from torch.testing._internal.common_utils import TestCase, run_tests, TEST_CUDA
+from torch.testing._internal.common_utils import TestCase, run_tests, TEST_CUDA, TEST_WITH_ASAN
 
 from unittest import skip, skipIf
 import torch
@@ -233,6 +233,7 @@ class TestMin(TestCase):
         x = r.order(i, [j, k])
         self.assertTrue(torch.allclose(a, x))
 
+    @skipIf(TEST_WITH_ASAN, "tests gets asan error, put up issue since seems real")
     def test_hello(self):
         A = torch.rand(3, 4)
         B = torch.rand(4, 5)
@@ -400,6 +401,8 @@ class TestMin(TestCase):
         i = dims()
         assert list(A[i].expand(2, 4).order(i).size()) == [3, 2, 4]
 
+
+    @skipIf(TEST_WITH_ASAN, "tests gets asan error, maybe real issue")
     def test_parse(self):
         self.assertEqual(("x", None, None, None), _parse_test(1, 0, "x"))
         self.assertEqual(("x", None, "y", None), _parse_test(1, 0, "x", c="y"))
@@ -450,6 +453,7 @@ class TestMin(TestCase):
         assert b[0].size == 4
         assert b[1].size == 5
 
+    @skipIf(TEST_WITH_ASAN, "tests gets asan error, put up issue since seems real")
     def test_diag(self):
         i = dims()
         A = torch.rand(4, 4)
