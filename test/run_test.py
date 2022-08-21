@@ -1015,7 +1015,7 @@ def parse_args():
     )
     parser.add_argument(
         "--xdoctest-command",
-        default='list',
+        default='all',
         help=(
             "Control the specific doctest action. "
             "Use 'list' to simply parse doctests and check syntax. "
