@@ -658,7 +658,6 @@ def run_doctests(test_module, test_directory, options):
     import pathlib
     pkgpath = pathlib.Path(torch.__file__).parent
 
-    #
     enabled = {
         # TODO: expose these options to the user
         # Temporary disable all feature-conditional tests
