@@ -733,8 +733,8 @@ def run_doctests(test_module, test_directory, options):
     # pkgpath = os.path.join(pkgpath, 'distributions')
     # pkgpath = os.path.join(pkgpath, 'masked')  # might have issues, unclear
 
-    pkgpath = os.path.join(pkgpath, 'optim')
-    # pkgpath = os.path.join(pkgpath, 'cuda')
+    # pkgpath = os.path.join(pkgpath, 'optim')
+    pkgpath = os.path.join(pkgpath, 'cuda')
     # pkgpath = os.path.join(pkgpath, 'distributed')
     # pkgpath = os.path.join(pkgpath, 'rx')
     # pkgpath = os.path.join(pkgpath, 'monitor')
