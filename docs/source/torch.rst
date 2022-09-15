@@ -474,6 +474,7 @@ Spectral Ops
     hamming_window
     hann_window
     kaiser_window
+    cosine_window
 
 
 Other Operations
