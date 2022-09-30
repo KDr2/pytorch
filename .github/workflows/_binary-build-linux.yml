@@ -133,7 +133,7 @@ jobs:
       - name: Chown workspace
         uses: ./.github/actions/chown-workspace
       - name: "[FB EMPLOYEES] Enable SSH (Click me for login details)"
-        uses: ./.github/actions/setup-ssh
+        uses: pytorch/test-infra/.github/actions/setup-ssh@main
         with:
           github-secret: ${{ secrets.github-token }}
       - name: Clean workspace
