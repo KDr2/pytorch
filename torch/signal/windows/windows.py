@@ -49,11 +49,11 @@ def _window_function_checks(function_name: str, window_length: int, dtype: _dtyp
         return t == torch.complex64 or t == torch.complex128 or t == torch.complex32
 
     if window_length < 0:
-        raise RuntimeError(f'{function_name} requires non-negative window_length, got window_length={window_length}')
+        raise ValueError(f'{function_name} requires non-negative window_length, got window_length={window_length}')
     if layout is not torch.strided:
-        raise RuntimeError(f'{function_name} is not implemented for sparse types, got: {layout}')
+        raise ValueError(f'{function_name} is not implemented for sparse types, got: {layout}')
     if not is_floating_type(dtype) and not is_complex_type(dtype):
-        raise RuntimeError(f'{function_name} expects floating point dtypes, got: {dtype}')
+        raise ValueError(f'{function_name} expects floating point dtypes, got: {dtype}')
 
 
 @_add_docstr(
@@ -130,7 +130,7 @@ def exponential(window_length: int,
         raise ValueError('Center must be \'None\' for periodic equal True')
 
     if tau <= 0:
-        raise ValueError(f'Tau cannot must be positive, got: {tau} instead.')
+        raise ValueError(f'Tau must be positive, got: {tau} instead.')
 
     if center is None:
         center = -(window_length if periodic else window_length - 1) / 2.0
@@ -293,6 +293,9 @@ def gaussian(window_length: int,
 
     if window_length == 1:
         return torch.ones((1,), dtype=dtype, layout=layout, device=device, requires_grad=requires_grad)
+
+    if std <= 0:
+        raise ValueError(f'Standard deviation must be positive, got: {std} instead.')
 
     start = -(window_length if periodic else window_length - 1) / 2.0
 
