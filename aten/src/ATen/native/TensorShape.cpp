@@ -1136,11 +1136,12 @@ Tensor narrow_symint(const Tensor& self, int64_t dim, SymInt start, SymInt lengt
   return at::slice_symint(self, dim, start, start + length, 1);
 }
 
-Tensor narrow(const Tensor& self, int64_t dim, const Tensor& start, int64_t length) {
+Tensor narrow_tensor_symint(const Tensor& self, int64_t dim, const Tensor& start, SymInt length) {
   TORCH_CHECK(start.dim() == 0 && isIntegralType(start.scalar_type(), /*includeBool=*/false),
               "start must be an 0-dim integral Tensor.");
-  int64_t st = start.item<int64_t>();
-  return at::narrow(self, dim, st, length);
+  SymInt st = start.item<int64_t>();
+  st.guard_int(__FILE__, __LINE__);
+  return at::narrow_symint(self, dim, st, length);
 }
 
 std::tuple<DimVector, DimVector, std::vector<int64_t>>
