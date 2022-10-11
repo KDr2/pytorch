@@ -425,7 +425,7 @@ SourceRangeRecords getBackendSourceRanges(const Module& m) {
 }
 
 auto& mobileInterfaceCallExport() {
-  static std::atomic<bool> flag{false};
+  static std::atomic<bool> flag{true};
   return flag;
 }
 
