@@ -22,7 +22,7 @@
 #include <torch/csrc/jit/runtime/instruction.h>
 #include <torch/csrc/jit/serialization/mobile_bytecode_generated.h> // NOLINT
 
-#if defined(FBCODE_CAFFE2) or defined(FB_XPLAT_BUILD)
+#if defined(FBCODE_CAFFE2) || defined(FB_XPLAT_BUILD)
 namespace flatbuffers = flatbuffers_fbsource;
 #define FLATBUFFERS_MAX_ALIGNMENT FLATBUFFERS_FBSOURCE_MAX_ALIGNMENT
 #endif
