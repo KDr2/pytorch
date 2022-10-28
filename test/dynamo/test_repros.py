@@ -1758,6 +1758,23 @@ class ReproTests(torch._dynamo.test_case.TestCase):
         args = (torch.randn(3, 4),)
         self.assertTrue(same(mod(*args), opt_mod(*args)))
 
+    def test_modules(self):
+        class Foo(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.fc = torch.nn.Linear(4, 3)
+
+            def forward(self, inp):
+                res = torch.zeros(3, 3)
+                for mod in self.modules():
+                    res += self.fc(inp)
+                return res
+
+        mod = Foo()
+        inp = torch.ones(3, 4)
+        opt_mod = dynamo.optimize("eager", nopython=True)(mod)
+        self.assertTrue(same(mod(*args), opt_mod(*args)))
+
 
 if __name__ == "__main__":
     from torch._dynamo.test_case import run_tests
