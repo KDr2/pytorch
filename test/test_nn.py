@@ -805,6 +805,18 @@ class TestNN(NNTestCase):
         self.assertEqual(names(m.named_buffers(remove_duplicate=False)),
                          ["buffer1", "buffer2"])
 
+        class M(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.param1 = nn.Parameters(torch.empty(3, 3))
+                self.param2 = self.param1
+
+        m = M()
+        self.assertEqual(names(m.named_buffers()),
+                         ["param1"])
+        self.assertEqual(names(m.named_buffers(remove_duplicate=False)),
+                         ["param1", "param2"])
+
     def test_call_supports_python_dict_output(self):
         class Net(nn.Module):
             def __init__(self):
