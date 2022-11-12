@@ -782,7 +782,10 @@ class TritonKernel(Kernel):
         self._load_mask = prior
 
     def load(self, name: str, index: sympy.Expr):
-        var = self.args.input(name)
+        if name in self.args.inplace_buffers:
+            var = self.args.inplace_buffers[name].inner_name
+        else:
+            var = self.args.input(name)
         indirect_indexing = self.is_indirect_indexing(index)
         index, mask = self.indexing(index)
 
@@ -825,7 +828,10 @@ class TritonKernel(Kernel):
         return tmp
 
     def store(self, name, index, value, mode=None):
-        var = self.args.output(name)
+        if name in self.args.inplace_buffers:
+            var = self.args.inplace_buffers[name].inner_name
+        else:
+            var = self.args.output(name)
         index, mask = self.indexing(index, dense_indexing=True)
         if mode is None:
             line = f"tl.store({var} + ({index}), {value}, {mask})"

@@ -330,7 +330,16 @@ def template_codegen(scheduler, scheduler_node, epilogue):
     kernel_buf_replace_name = None
     if could_remove_kernel_buf:
         for node in epilogue:
-            if kernel.args.output_buffers[node.get_name()] != "REMOVED":
+            if (
+                node.get_name() in kernel.args.output_buffers
+                and kernel.args.output_buffers[node.get_name()] != "REMOVED"
+            ):
+                kernel_buf_replace_name = node.get_name()
+                break
+            if (
+                node.get_name() in kernel.args.inplace_buffers
+                and kernel.args.inplace_buffers[node.get_name()] != "REMOVED"
+            ):
                 kernel_buf_replace_name = node.get_name()
                 break
         assert kernel_buf_replace_name is not None

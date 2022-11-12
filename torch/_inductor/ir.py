@@ -2676,7 +2676,13 @@ class MatrixMultiply(ExternKernelOut):
         k2, n = b.get_size()
         V.graph.sizevars.guard_equals(k1, k2)
         a = cls.realize_input(a)
+        if isinstance(a, ReinterpretView):
+            a.realize()
+            a = cls.copy_input(a)
         b = cls.realize_input(b)
+        if isinstance(b, ReinterpretView):
+            b.realize()
+            b = cls.copy_input(b)
         if len(m) != 1 and not a.get_layout().is_contiguous():
             a = cls.copy_input(a)
         else:
