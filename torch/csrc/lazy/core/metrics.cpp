@@ -106,8 +106,16 @@ MetricsArena* MetricsArena::Get() {
   return arena;
 }
 
-void MetricsArena::Reset() {
+void MetricsArena::ResetCounters() {
   for (auto& pair : counters_) {
+    if (pair.second) {
+      pair.second->Reset();
+    }
+  }
+}
+
+void MetricsArena::ResetMetrics() {
+  for (auto& pair : metrics_) {
     if (pair.second) {
       pair.second->Reset();
     }
@@ -157,7 +165,9 @@ std::vector<std::string> MetricsArena::GetMetricNames() {
   std::vector<std::string> names;
   std::lock_guard<std::mutex> lock(lock_);
   for (auto& name_data : metrics_) {
-    names.push_back(name_data.first);
+    if (name_data.second->TotalSamples() > 0) {
+      names.push_back(name_data.first);
+    }
   }
   return names;
 }
@@ -165,7 +175,7 @@ std::vector<std::string> MetricsArena::GetMetricNames() {
 MetricData* MetricsArena::GetMetric(const std::string& name) {
   std::lock_guard<std::mutex> lock(lock_);
   auto it = metrics_.find(name);
-  return it != metrics_.end() ? it->second.get() : nullptr;
+  return (it != metrics_.end() && it->second->TotalSamples() > 0) ? it->second.get() : nullptr;
 }
 
 std::vector<std::string> MetricsArena::GetCounterNames() {
@@ -226,6 +236,14 @@ std::vector<Sample> MetricData::Samples(
     *total_samples = count_;
   }
   return samples;
+}
+
+void MetricData::Reset() {
+  std::lock_guard<std::mutex> lock(lock_);
+  count_ = 0;
+  // Don't clear. samples_ are init with placeholders.
+  samples_ = std::vector<Sample>(samples_.size());
+  accumulator_ = 0.0;
 }
 
 Metric::Metric(std::string name, MetricReprFn repr_fn, size_t max_samples)

@@ -55,6 +55,8 @@ class TORCH_API MetricData {
     return repr_fn_(value);
   }
 
+  void Reset();
+
  private:
   mutable std::mutex lock_;
   MetricReprFn repr_fn_;
@@ -89,7 +91,8 @@ class TORCH_API MetricsArena {
  public:
   static MetricsArena* Get();
 
-  void Reset();
+  void ResetCounters();
+  void ResetMetrics();
 
   // Registers a new metric in the global arena.
   void RegisterMetric(
