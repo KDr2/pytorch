@@ -102,9 +102,8 @@ def cpp_compiler_search(search):
     for cxx in search:
         try:
             if cxx is None:
-                # gxx package is only available for Linux
-                # according to https://anaconda.org/conda-forge/gxx/
-                if sys.platform != "linux":
+                # Do not attempt to install gcc-12 by default
+                if os.getenv("TORCH_INDUCTOR_INSTALL_GCC_VIA_CONDA"):
                     continue
                 from filelock import FileLock
 
