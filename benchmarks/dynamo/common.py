@@ -1699,6 +1699,7 @@ def run(runner, args, original_dir=None):
         # Remove sources of randomness
         if runner.suite_name != "timm_models":
             args.use_eval_mode = True
+        inductor_config.fallback_random = True
 
         # Remove randomeness when torch manual seed is called
         patch_torch_manual_seed()
