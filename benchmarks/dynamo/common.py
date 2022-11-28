@@ -1697,7 +1697,8 @@ def run(runner, args, original_dir=None):
                 args.batch_size = 2
 
         # Remove sources of randomness
-        args.use_eval_mode = True
+        if runner.suite_name != "timm_models":
+            args.use_eval_mode = True
 
         # Remove randomeness when torch manual seed is called
         patch_torch_manual_seed()
