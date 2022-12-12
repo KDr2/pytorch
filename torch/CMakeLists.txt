@@ -134,8 +134,6 @@ if(USE_CUDA)
     if(USE_CUDNN)
         list(APPEND TORCH_PYTHON_COMPILE_DEFINITIONS USE_CUDNN)
     endif()
-
-    list(APPEND TORCH_PYTHON_LINK_LIBRARIES torch::nvtoolsext)
 endif()
 
 if(USE_ROCM)

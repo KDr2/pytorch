@@ -2,7 +2,7 @@
 
 #include <torch/csrc/jit/codegen/cuda/utils.h>
 
-#include <nvToolsExt.h>
+#include <nvtx3/nvToolsExt.h>
 
 // NOLINTNEXTLINE(modernize-deprecated-headers)
 #include <stdio.h>
