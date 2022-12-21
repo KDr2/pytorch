@@ -1189,7 +1189,7 @@ Tensor min_max_mps
   (const Tensor& input_t,
    MPSReductionType reduction_type,
    const std::string& func_name) {
-  TORCH_INTERNAL_ASSERT(input_t.scalar_type() != ScalarType::Long, "min/max not supported for Long dtype on MPS");
+  TORCH_CHECK(input_t.scalar_type() != ScalarType::Long, "min/max not supported for Long dtype on MPS");
 
   namespace native_mps = at::native::mps;
   using CachedGraph = native_mps::MPSUnaryCachedGraph;
