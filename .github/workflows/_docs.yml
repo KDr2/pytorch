@@ -30,7 +30,7 @@ on:
           job with the same `sync-tag` is identical.
 
     secrets:
-      GH_PYTORCHBOT_TOKEN:
+      GITHUB_PYTORCHBOT_TOKEN:
         required: false
         description: Permissions for pushing to the docs site.
 
@@ -92,7 +92,7 @@ jobs:
 
       - name: Generate netrc (only for docs-push)
         env:
-          GITHUB_PYTORCHBOT_TOKEN: ${{ secrets.GH_STALEBOT_TOKEN }}
+          GITHUB_PYTORCHBOT_TOKEN: ${{ secrets.GITHUB_PYTORCHBOT_TOKEN }}
         run: |
           # set credentials for https pushing
           echo "machine github.com" > "${RUNNER_TEMP}/.netrc"
