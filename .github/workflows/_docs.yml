@@ -92,7 +92,7 @@ jobs:
 
       - name: Generate netrc (only for docs-push)
         env:
-          GITHUB_PYTORCHBOT_TOKEN: ${{ secrets.GH_PYTORCHBOT_TOKEN }}
+          GITHUB_PYTORCHBOT_TOKEN: ${{ secrets.GH_STALEBOT_TOKEN }}
         run: |
           # set credentials for https pushing
           echo "machine github.com" > "${RUNNER_TEMP}/.netrc"
