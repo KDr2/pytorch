@@ -40,7 +40,7 @@ git commit -m "Generate Python docs from pytorch/pytorch@${GITHUB_SHA}" || true
 git status
 
 if [[ "${WITH_PUSH:-}" == true ]]; then
-  git push -u origin gh-pages
+  GIT_CURL_VERBOSE=1 git push -u origin gh-pages
 fi
 
 popd
