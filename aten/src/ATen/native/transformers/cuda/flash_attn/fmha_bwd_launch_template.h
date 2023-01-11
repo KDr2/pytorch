@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <ATen/cuda/CUDAContext.h>
+
 #include <ATen/native/transformers/cuda/flash_attn/static_switch.h>
 #include <ATen/native/transformers/cuda/flash_attn/fmha.h>
 #include <ATen/native/transformers/cuda/flash_attn/fmha_dgrad_kernel_1xN_loop.h>

@@ -25,6 +25,8 @@
  *
  ******************************************************************************/
 
+#include <ATen/cuda/CUDAContext.h>
+
 #include <ATen/native/transformers/cuda/flash_attn/fmha.h>
 #include <ATen/native/transformers/cuda/flash_attn/fmha_block_fprop_kernel_1xN.h>
 

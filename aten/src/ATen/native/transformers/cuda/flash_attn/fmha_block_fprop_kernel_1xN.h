@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include <ATen/cuda/CUDAContext.h>
+
 #include <ATen/native/transformers/cuda/flash_attn/fmha_fprop_kernel_1xN.h>
 #include <ATen/native/transformers/cuda/flash_attn/fmha_kernel.h>
 #include <ATen/native/transformers/cuda/flash_attn/fmha_blockmask.h>
@@ -531,4 +533,3 @@ inline __device__ void device_block_1xN_loop(const Params &params) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 } // namespace fmha
-

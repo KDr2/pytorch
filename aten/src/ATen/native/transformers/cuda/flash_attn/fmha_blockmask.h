@@ -26,6 +26,9 @@
  ******************************************************************************/
 
 #pragma once
+
+#include <ATen/cuda/CUDAContext.h>
+
 #include <ATen/native/transformers/cuda/flash_attn/fmha.h>
 #include <ATen/native/transformers/cuda/flash_attn/utils.h>
 #include <ATen/native/transformers/cuda/flash_attn/smem_tile.h>

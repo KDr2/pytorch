@@ -1,6 +1,8 @@
 /* Copyright (c) 2022, Tri Dao.
  */
 
+#include <ATen/cuda/CUDAContext.h>
+
 #include <ATen/native/transformers/cuda/flash_attn/fmha.h>
 #include <ATen/native/transformers/cuda/flash_attn/fmha_block_dgrad_kernel_1xN_loop.h>
 
