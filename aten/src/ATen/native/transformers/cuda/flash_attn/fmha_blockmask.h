@@ -26,52 +26,29 @@
  ******************************************************************************/
 
 #pragma once
-
-#include <ATen/cuda/CUDAContext.h>
-
 #include <ATen/native/transformers/cuda/flash_attn/fmha.h>
 #include <ATen/native/transformers/cuda/flash_attn/utils.h>
 #include <ATen/native/transformers/cuda/flash_attn/smem_tile.h>
 #include <ATen/native/transformers/cuda/flash_attn/gmem_tile.h>
 #include <ATen/native/transformers/cuda/flash_attn/mask.h>
 #include <ATen/native/transformers/cuda/flash_attn/softmax.h>
-#include <ATen/native/transformers/cuda/flash_attn/philox.cuh>
 
 namespace fmha {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template<int THREADS_PER_CTA>
-struct BlockInfoPadded {
+struct Blockmask {
 
     template<typename Params>
-    __device__ BlockInfoPadded(const Params &params,
-                               const int bidb,
-                               const int bidh,
-                               const int tidx)
-        : bidb(bidb), bidh(bidh), h(params.h) {
-
-        // The block index.
-        sum_s_k = params.cu_seqlens_k[bidb];
-        actual_seqlen_k = params.cu_seqlens_k[bidb + 1] - sum_s_k;
-        sum_s_q = params.cu_seqlens_q[bidb];
-        actual_seqlen_q = params.cu_seqlens_q[bidb + 1] - sum_s_q;
-
-        tidx_global = (bidb * params.h + bidh) * THREADS_PER_CTA + tidx;
+    __device__ Blockmask(const Params &params, int loop_step_idx) :
+        blockmask_ptr(params.blockmask + loop_step_idx * params.seqlen_q / 16) {
     }
 
-    __device__ bool stop_early(const int start_col = 0) const {
-        return actual_seqlen_k <= start_col;
+    __device__ int mask_val(int block_row_idx) const {
+        return blockmask_ptr[block_row_idx];
     }
 
-    int actual_seqlen_q;
-    int actual_seqlen_k;
-    int sum_s_q;
-    int sum_s_k;
-    int bidh;
-    int bidb;
-    int tidx_global;
-    int h;
+    const int *blockmask_ptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
