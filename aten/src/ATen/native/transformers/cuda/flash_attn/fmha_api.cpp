@@ -506,12 +506,6 @@ mha_bwd(const at::Tensor &dout,  // total_q x num_heads, x head_size
 
     return std::make_tuple(dq, dk, dv, softmax_d);
 }
-
-
-
-
-
-
-
 } // namespace fmha
+
 #endif

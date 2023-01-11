@@ -808,7 +808,6 @@ bool _chunk_grad_outputs_efficient_attention(
   return chunk_grad_outputs;
 }
 
-
 std::tuple<Tensor, Tensor, Tensor> _flash_attention_forward(
     const Tensor& query,
     const Tensor& key,
@@ -821,11 +820,22 @@ std::tuple<Tensor, Tensor, Tensor> _flash_attention_forward(
     double dropout_p,
     bool is_causal) {
 #if defined(USE_FLASH_ATTENTION)
+  /*
+  num_splits determines how much to parallelize over the seqlen_q dimension
+  num_splits=0 means
+  it will be set by an internal heuristic. We're exposing num_splits mostly for
+  benchmarking. We will hard code it to 0 for now
+  */
+  constexpr int num_splits{0};
   auto softmax_scale = std::pow(query.size(-1), -0.5);
-  return fmha::mha_fwd(
+  at::Tensor output = at::empty_like(query);
+  Tensor logsumexp, softmax;
+
+  std::tie(logsumexp, softmax) = fmha::mha_fwd(
       query,
       key,
       value,
+      output,
       cumulative_sequence_length_q,
       cumulative_sequence_length_k,
       max_seqlen_batch_q,
@@ -835,7 +845,9 @@ std::tuple<Tensor, Tensor, Tensor> _flash_attention_forward(
       false,
       is_causal,
       return_softmax,
+      num_splits,
       c10::nullopt);
+  return std::make_tuple(output, logsumexp, softmax);
 #endif
   TORCH_CHECK(false, "USE_FLASH_ATTENTION was not enabled for build.")
   return std::make_tuple(Tensor(), Tensor(), Tensor());
