@@ -285,34 +285,34 @@ static inline __device__ uint32_t hmul2(const uint32_t a, const uint32_t b) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static inline __device__ uint2 hmul4(uint2 a, uint2 b) {
-    uint2 c;
-    c.x = hmul2(a.x, b.x);
-    c.y = hmul2(a.y, b.y);
-    return c;
-}
+// static inline __device__ uint2 hmul4(uint2 a, uint2 b) {
+//     uint2 c;
+//     c.x = hmul2(a.x, b.x);
+//     c.y = hmul2(a.y, b.y);
+//     return c;
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static inline __device__ uint4 hmul8(uint4 a, uint4 b) {
-    uint4 c;
-    c.x = hmul2(a.x, b.x);
-    c.y = hmul2(a.y, b.y);
-    c.z = hmul2(a.z, b.z);
-    c.w = hmul2(a.w, b.w);
-    return c;
-}
+// static inline __device__ uint4 hmul8(uint4 a, uint4 b) {
+//     uint4 c;
+//     c.x = hmul2(a.x, b.x);
+//     c.y = hmul2(a.y, b.y);
+//     c.z = hmul2(a.z, b.z);
+//     c.w = hmul2(a.w, b.w);
+//     return c;
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static inline __device__ uint4 hmul8(uint32_t a, uint4 b) {
-    uint4 c;
-    c.x = hmul2(a, b.x);
-    c.y = hmul2(a, b.y);
-    c.z = hmul2(a, b.z);
-    c.w = hmul2(a, b.w);
-    return c;
-}
+// static inline __device__ uint4 hmul8(uint32_t a, uint4 b) {
+//     uint4 c;
+//     c.x = hmul2(a, b.x);
+//     c.y = hmul2(a, b.y);
+//     c.z = hmul2(a, b.z);
+//     c.w = hmul2(a, b.w);
+//     return c;
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -371,25 +371,25 @@ static inline __device__ uint16_t clamp_to_zero(uint16_t x) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static inline __device__ uint16_t float_to_half(float f) {
-    uint16_t h;
-    asm volatile("cvt.rn.f16.f32 %0, %1;" : "=h"(h) : "f"(f));
-    return h;
-}
+// static inline __device__ uint16_t float_to_half(float f) {
+//     uint16_t h;
+//     asm volatile("cvt.rn.f16.f32 %0, %1;" : "=h"(h) : "f"(f));
+//     return h;
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static inline __device__ uint32_t float2_to_half2(float a, float b) {
-    uint32_t c;
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
-    asm volatile("cvt.rn.f16x2.f32 %0, %1, %2;\n" : "=r"(c) : "f"(b), "f"(a));
-#else
-    uint16_t lo = float_to_half(a);
-    uint16_t hi = float_to_half(b);
-    asm volatile("mov.b32 %0, {%1, %2};\n" : "=r"(c) : "h"(lo), "h"(hi));
-#endif
-    return c;
-}
+// static inline __device__ uint32_t float2_to_half2(float a, float b) {
+//     uint32_t c;
+// #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
+//     asm volatile("cvt.rn.f16x2.f32 %0, %1, %2;\n" : "=r"(c) : "f"(b), "f"(a));
+// #else
+//     uint16_t lo = float_to_half(a);
+//     uint16_t hi = float_to_half(b);
+//     asm volatile("mov.b32 %0, {%1, %2};\n" : "=r"(c) : "h"(lo), "h"(hi));
+// #endif
+//     return c;
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -412,24 +412,24 @@ inline __device__ uint32_t float2_pack<__nv_bfloat16>(float a, float b) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static inline __device__ uint32_t float_to_half2(float a) {
-    return float2_to_half2(a,a);
-}
+// static inline __device__ uint32_t float_to_half2(float a) {
+//     return float2_to_half2(a,a);
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static inline __device__ uint32_t float2_to_half2(const float2 &f) {
-    return float2_to_half2(f.x, f.y);
-}
+// static inline __device__ uint32_t float2_to_half2(const float2 &f) {
+//     return float2_to_half2(f.x, f.y);
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static inline __device__ uint2 float4_to_half4(float x, float y, float z, float w) {
-    uint2 d;
-    d.x = float2_to_half2(x, y);
-    d.y = float2_to_half2(z, w);
-    return d;
-}
+// static inline __device__ uint2 float4_to_half4(float x, float y, float z, float w) {
+//     uint2 d;
+//     d.x = float2_to_half2(x, y);
+//     d.y = float2_to_half2(z, w);
+//     return d;
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -609,19 +609,19 @@ static inline __device__ float half_to_float(uint16_t h) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static inline __device__ float2 half2_to_float2(uint32_t x) {
-    uint16_t lo, hi;
-    asm volatile("mov.b32 {%0, %1}, %2;\n" : "=h"(lo), "=h"(hi) : "r"(x));
-    return make_float2(half_to_float(lo), half_to_float(hi));
-}
+// static inline __device__ float2 half2_to_float2(uint32_t x) {
+//     uint16_t lo, hi;
+//     asm volatile("mov.b32 {%0, %1}, %2;\n" : "=h"(lo), "=h"(hi) : "r"(x));
+//     return make_float2(half_to_float(lo), half_to_float(hi));
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static inline __device__ void half2_to_float2(float &x, float &y, uint32_t h) {
-    float2 tmp = half2_to_float2(h);
-    x = tmp.x;
-    y = tmp.y;
-}
+// static inline __device__ void half2_to_float2(float &x, float &y, uint32_t h) {
+//     float2 tmp = half2_to_float2(h);
+//     x = tmp.x;
+//     y = tmp.y;
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1130,15 +1130,15 @@ __device__ inline void  quad_reduce(float (&dst)[M], float (&src)[M], Operator &
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template<typename Operator, int M>
-__device__ inline void  quad_reduce(__half2 (&dst)[M], __half2 (&src)[M], Operator &op) {
-    #pragma unroll
-    for(int mi=0; mi < M; mi++){
-        dst[mi] = src[mi];
-        dst[mi] = op(dst[mi], __shfl_down_sync(uint32_t(-1), dst[mi], 2));
-        dst[mi] = op(dst[mi], __shfl_down_sync(uint32_t(-1), dst[mi], 1));
-    }
-}
+// template<typename Operator, int M>
+// __device__ inline void  quad_reduce(__half2 (&dst)[M], __half2 (&src)[M], Operator &op) {
+//     #pragma unroll
+//     for(int mi=0; mi < M; mi++){
+//         dst[mi] = src[mi];
+//         dst[mi] = op(dst[mi], __shfl_down_sync(uint32_t(-1), dst[mi], 2));
+//         dst[mi] = op(dst[mi], __shfl_down_sync(uint32_t(-1), dst[mi], 1));
+//     }
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1154,16 +1154,16 @@ __device__ inline void quad_reduce(float (&dst)[M], float2 (&src)[M], Operator &
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template<typename Operator, int M>
-__device__ inline void quad_reduce(__half2 (&dst)[M], float2 (&src)[M], Operator &op) {
-    __half2 tmp[M];
-    #pragma unroll
-    for(int mi=0; mi < M; mi++){
-        tmp[mi] = op(reinterpret_cast<const __half2 &>(src[mi].x),
-                     reinterpret_cast<const __half2 &>(src[mi].y));
-    }
-    quad_reduce(dst, tmp, op);
-}
+// template<typename Operator, int M>
+// __device__ inline void quad_reduce(__half2 (&dst)[M], float2 (&src)[M], Operator &op) {
+//     __half2 tmp[M];
+//     #pragma unroll
+//     for(int mi=0; mi < M; mi++){
+//         tmp[mi] = op(reinterpret_cast<const __half2 &>(src[mi].x),
+//                      reinterpret_cast<const __half2 &>(src[mi].y));
+//     }
+//     quad_reduce(dst, tmp, op);
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1178,14 +1178,14 @@ __device__ inline void quad_allreduce(float (&dst)[M], float (&src)[M], Operator
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template<typename Operator, int M>
-__device__ inline void quad_allreduce(__half2 (&dst)[M], __half2 (&src)[M], Operator &op) {
-    #pragma unroll
-    for(int mi=0; mi < M; mi++){
-        dst[mi] = src[mi];
-        dst[mi] = Allreduce<4>::run(dst[mi], op);
-    }
-}
+// template<typename Operator, int M>
+// __device__ inline void quad_allreduce(__half2 (&dst)[M], __half2 (&src)[M], Operator &op) {
+//     #pragma unroll
+//     for(int mi=0; mi < M; mi++){
+//         dst[mi] = src[mi];
+//         dst[mi] = Allreduce<4>::run(dst[mi], op);
+//     }
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1201,16 +1201,16 @@ __device__ inline void quad_allreduce(float (&dst)[M], float2 (&src)[M], Operato
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template<typename Operator, int M>
-__device__ inline void quad_allreduce(__half2 (&dst)[M], float2 (&src)[M], Operator &op) {
-    __half2 tmp[M];
-    #pragma unroll
-    for(int mi=0; mi < M; mi++){
-        tmp[mi] = op(reinterpret_cast<const __half2 &>(src[mi].x),
-                     reinterpret_cast<const __half2 &>(src[mi].y));
-    }
-    quad_allreduce(dst, tmp, op);
-}
+// template<typename Operator, int M>
+// __device__ inline void quad_allreduce(__half2 (&dst)[M], float2 (&src)[M], Operator &op) {
+//     __half2 tmp[M];
+//     #pragma unroll
+//     for(int mi=0; mi < M; mi++){
+//         tmp[mi] = op(reinterpret_cast<const __half2 &>(src[mi].x),
+//                      reinterpret_cast<const __half2 &>(src[mi].y));
+//     }
+//     quad_allreduce(dst, tmp, op);
+// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
