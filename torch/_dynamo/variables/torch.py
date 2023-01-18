@@ -687,7 +687,7 @@ class TorchPyOperator(VariableTracker):
             next_name = None
             i = 0
             while not next_name:
-                candidate = f"cond_{name}_{i}"
+                candidate = f"{name}_{i}"
                 if candidate in tx.output.nn_modules:
                     i += 1
                 else:
@@ -811,10 +811,10 @@ class TorchPyOperator(VariableTracker):
             tx.output.tracing_context.guards_context.dynamo_guards |= true_guards
 
             true_name = add_subgraph(
-                "true", torch.fx.GraphModule(true_nn_modules, true_graph)
+                "cond_true", torch.fx.GraphModule(true_nn_modules, true_graph)
             )
             false_name = add_subgraph(
-                "false", torch.fx.GraphModule(false_nn_modules, false_graph)
+                "cond_false", torch.fx.GraphModule(false_nn_modules, false_graph)
             )
 
             # Apply side effects (guaranteed to be equal)
@@ -832,6 +832,28 @@ class TorchPyOperator(VariableTracker):
             # TODO: assert that the true/false return values are
             # consistent
             example_value = true_r.as_proxy().node.meta["example_value"]
+        elif self.value.__name__ == "executorch_call_delegate":
+            # This is operator for delegation within Executorch which calls a
+            # specific function in the given lowered module with the given
+            # operators. The actual operator is defined in the Executorch codebase.
+            # This is a bad hierarchical violation since
+            # executorch_call_delegate sits at a higher level than dynamo, but
+            # there's no real solution to this issue yet.
+            lowered_module = tx.output.get_submodule(args[0].module_key)
+            func_name = args[1].value
+            sub_args = tuple(arg.as_proxy() for arg in args[2:])
+
+            lowered_node = make_attr(args[0].module_key)
+            p_args = (
+                lowered_node,
+                func_name,
+                *sub_args,
+            )
+
+            fake_sub_args = tuple(arg.node.meta["example_value"] for arg in sub_args)
+            example_value = getattr(lowered_module.original_module, func_name)(
+                *fake_sub_args
+            )
         else:
             unimplemented(f"PyOperator {self.value.__name__}")
 
