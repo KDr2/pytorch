@@ -13,7 +13,7 @@ import torch
 from torch._C._profiler import _ExtraFields_PyCall, _ExtraFields_PyCCall
 from torch.testing._internal.common_utils import (
     TestCase, run_tests, IS_WINDOWS, TEST_WITH_CROSSREF, IS_ARM64)
-from torch.utils._pytree import tree_map
+from torch.utils.pytree import tree_map
 
 # These functions can vary from based on platform and build (e.g. with CUDA)
 # and generally distract from rather than adding to the test.

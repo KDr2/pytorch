@@ -1,6 +1,6 @@
 from typing import Any, Callable, List, Tuple, Type
 
-from torch.utils._pytree import (  # type: ignore[attr-defined]
+from torch.utils.pytree import (  # type: ignore[attr-defined]
     _register_pytree_node,
     Context,
     FlattenFunc,

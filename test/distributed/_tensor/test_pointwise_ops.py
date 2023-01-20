@@ -49,7 +49,7 @@ def deepcopy_convert_to_dtensor(
             )
         return x
 
-    return pytree.tree_map(f, [val])[0]
+    return pytree.tree_map(f, val)
 
 
 def deepcopy_convert_from_dtensor(val: Any) -> Any:
@@ -68,7 +68,7 @@ def deepcopy_convert_from_dtensor(val: Any) -> Any:
             ).to_local()
         return x
 
-    return pytree.tree_map(f, [val])[0]
+    return pytree.tree_map(f, val)
 
 
 class DistElementwiseOpsTest(DTensorOpTestBase):

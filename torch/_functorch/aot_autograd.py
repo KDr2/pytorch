@@ -2280,12 +2280,10 @@ def aot_function(
     def returned_function(*args, **kwargs):
         nonlocal cached_res
         # Now flatten the tensor args
-        flat_args, _ = pytree.tree_flatten((args, kwargs))
+        flat_args, tensor_args_spec = pytree.tree_flatten((args, kwargs))
 
         # Compile the function and save it in the cache
         if cached_res is None:
-            # Save the args_spec for flat_tensor_args to unflatten while tracing
-            _, tensor_args_spec = pytree.tree_flatten((args, kwargs))
             out_spec = PytreeThunk()
 
             def flat_fn(*flat_args):

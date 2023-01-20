@@ -2433,7 +2433,7 @@ def _test_aot_autograd_forwards_backwards_helper(self, f, compiled_f, args):
     def call_forwards_backwards(f):
         out = wrapper_set_seed(f, args)
         if not isinstance(out, torch.Tensor):
-            flat_out, _ = pytree.tree_flatten(out)
+            flat_out = pytree.tree_leaves(out)
             sm = 0
             for i in flat_out:
                 sm += i.sum()
@@ -2444,7 +2444,7 @@ def _test_aot_autograd_forwards_backwards_helper(self, f, compiled_f, args):
     def reset_grads():
         def f(x):
             x.grad = None
-        pytree.tree_map(f, args)
+        pytree.tree_map_(f, args)
 
     def get_grads(args):
         return pytree.tree_map(lambda x: x.grad, args)
