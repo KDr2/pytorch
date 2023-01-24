@@ -3,6 +3,7 @@
 #include <c10/util/CallOnce.h>
 
 #include <ATen/mps/MPSDevice.h>
+#include <ATen/mps/MPSStream.h>
 #include <ATen/mps/MPSAllocatorInterface.h>
 #include <ATen/mps/IndexKernels.h>
 
@@ -105,6 +106,10 @@ bool is_available() {
 
 bool is_macos_13_or_newer() {
   return MPSDevice::getInstance()->isMacOS13Plus();
+}
+
+void device_synchronize() {
+  getDefaultMPSStream()->synchronize(SyncType::COMMIT_AND_WAIT);
 }
 
 } // namespace mps
