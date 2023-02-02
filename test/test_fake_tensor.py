@@ -584,7 +584,6 @@ class FakeTensorConstHandling(TestCase):
             y[0] = 1
             self.assertNotConst(x)
 
-
 def contains_type(type: torch._C.Type, maybe_contained_type: torch._C.Type):
     return maybe_contained_type.isSubtypeOf(type) or any(
         contains_type(e, maybe_contained_type) for e in type.containedTypes()

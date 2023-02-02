@@ -15,7 +15,7 @@ use_functionalize = True
 
 use_fake_tensor = True
 
-# can be useful for debugging if we are incorrectly creating meta temporaries
+# can be useful for debugging if we are incorrectly creating meta fake tensors 
 fake_tensor_allow_meta = os.environ.get("FAKE_ALLOW_META", True)
 
 # Enables optional asserts in hotpath code to check for errors.  If
