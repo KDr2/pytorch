@@ -51,6 +51,21 @@ def reset():
     reset_frame_count()
 
 
+# tensor -> [str]
+dummy_poc_tag_map = {}
+
+
+def tag(tensor, s):
+    import torch
+
+    assert isinstance(tensor, torch.Tensor)
+    assert isinstance(s, str)
+    global dummy_poc_tag_map
+    if tensor not in dummy_poc_tag_map:
+        dummy_poc_tag_map[tensor] = []
+    dummy_poc_tag_map[tensor].append(s)
+
+
 def list_backends():
     """
     Return valid strings that can be passed to::
