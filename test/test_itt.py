@@ -11,10 +11,10 @@ load_tests = load_tests
 @unittest.skipIf(not torch.profiler.itt.is_available(), "ITT is required")
 class TestItt(TestCase):
     def setUp(self):
-        super(TestItt, self).setUp()
+        super().setUp()
 
     def tearDown(self):
-        super(TestItt, self).tearDown()
+        super().tearDown()
 
     def test_itt(self):
         # Just making sure we can see the symbols
