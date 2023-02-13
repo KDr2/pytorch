@@ -4741,6 +4741,7 @@
   python_module: nn
   dispatch:
     MkldnnCPU: mkldnn_gelu_backward
+    NestedTensorCPU, NestedTensorCUDA: gelu_backwards_nested
   tags: pointwise
 
 - func: infinitely_differentiable_gelu_backward(Tensor grad, Tensor self) -> Tensor
@@ -5635,6 +5636,7 @@
     MkldnnCPU: mkldnn_relu_backward
     SparseCPU, SparseCUDA: threshold_backward_sparse
     SparseCsrCPU, SparseCsrCUDA: threshold_backward_sparse_compressed
+    NestedTensorCPU, NestedTensorCUDA: threshold_backwards_nested
   tags: pointwise
 
 - func: tile(Tensor self, int[] dims) -> Tensor
