@@ -1601,7 +1601,7 @@ class InstructionTranslator(InstructionTranslatorBase):
         mutated_closure_cell_contents: Set[str],
     ):
         super(InstructionTranslator, self).__init__(
-            output=OutputGraph(f_globals, code_options, compiler_fn, self),
+            output=OutputGraph(f_globals, code_options, compiler_fn, self, export),
             instructions=instructions,
             f_locals=f_locals,
             f_globals=f_globals,
