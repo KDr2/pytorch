@@ -2,19 +2,23 @@ import copy
 import logging
 import random
 import weakref
+from typing import Callable, List, Tuple
 
 import torch
 import torch._dynamo.config as dynamo_config
 import torch.nn as nn
 from torch import _prims
 from torch._dynamo.utils import fake_mode_from_tensors
+from torch.fx import GraphModule
 from torch.fx.experimental.optimization import (
     matches_module_pattern,
     replace_node_module,
 )
 from torch.fx.experimental.proxy_tensor import ProxyTorchDispatchMode
 from torch.fx.passes.shape_prop import ShapeProp
+from torch.fx.subgraph_rewriter import replace_pattern
 from torch.nn import functional as F
+from torch.nn.functional import scale_factor_dot_product_attention
 from torch.nn.utils.fusion import fuse_conv_bn_eval, fuse_conv_bn_weights
 from torch.overrides import TorchFunctionMode
 
@@ -68,10 +72,17 @@ def fuse_fx(gm: torch.fx.GraphModule, example_inputs):
         for example_input in example_inputs
         if isinstance(example_input, torch.Tensor)
     )
+    is_cuda = all(
+        example_input.device.type == "cuda"
+        for example_input in example_inputs
+        for example_input in example_inputs
+        if isinstance(example_input, torch.Tensor)
+    )
 
     fake_mode = fake_mode_from_tensors(example_inputs)
 
     gm = sink_cat_after_pointwise(gm)
+
     if config.permute_fusion and not is_cpu:
         # For linear permute fusion, we need to check input info to identify
         # and perform proper permutation/transpose
@@ -80,13 +91,17 @@ def fuse_fx(gm: torch.fx.GraphModule, example_inputs):
         gm = permute_linear_fusion(gm)
         gm = permute_matmul_fusion(gm)
 
+    if is_cuda and config.pattern_replace_scaled_dot_product_attention:
+        gm = fuse_scaled_dot_product_attention(gm)
     # make sure the autograd is disabled.
     if torch.is_grad_enabled():
         return gm
+
     if not is_cpu:
         return gm
     gm = remove_identity(gm)
     gm = fuse_conv_bn(gm)
+
     # do mkldnn fusion(conv(linear)+unary(binary)
     # This is skipped when dynamic shapes is enabled, as the resulting
     # mkl packing ops don't support dynamic shapes.  Once they do support,
@@ -125,7 +140,7 @@ def remove_identity(gm: torch.fx.GraphModule):
     return IdentityRemover(gm).transform()
 
 
-def fuse_conv_bn(gm: torch.fx.GraphModule, inplace=False):
+def fuse_conv_bn(gm: torch.fx.GraphModule):
     """
     Fuses Convolution/BN layers for inference purposes.
     """
@@ -197,6 +212,198 @@ def fuse_conv_bn(gm: torch.fx.GraphModule, inplace=False):
     gm.graph.lint()
     gm.recompile()
 
+    return gm
+
+
+@torch.fx.wrap
+def _scale_factor_dot_product_attention(
+    query, key, value, attn_mask, dropout_p, is_causal, scale_factor
+):
+    # If we do not torch.fx.wrap the call, dynamo compilation step will fail
+    # with TypeError: scale_factor_dot_product_attention(): argument 'scale_factor' (position 7) must be Number, not Proxy
+    # error thrown in python_arg_parser.cpp:1417
+    # TODO: fix this - just declaring scale_factor to be a SymFloat does not work either
+    return scale_factor_dot_product_attention(
+        query, key, value, attn_mask, dropout_p, is_causal, scale_factor
+    )
+
+
+def _sfdp_pattern_1(query, key, value, scale_factor):
+    return (
+        torch.matmul(query, key.transpose(-2, -1))
+        .div(scale_factor)
+        .softmax(dim=-1)
+        .matmul(value)
+    )
+
+
+def _sfdp_replacement_1(query, key, value, scale_factor):
+    return _scale_factor_dot_product_attention(
+        query.contiguous(),
+        key.contiguous(),
+        value.contiguous(),
+        attn_mask=None,
+        dropout_p=0.0,
+        is_causal=False,
+        scale_factor=scale_factor,
+    )
+
+
+def _sfdp_pattern_2(query, key, value, inv_scale_factor):
+    return (
+        torch.matmul(query, key.transpose(-2, -1))
+        .mul(inv_scale_factor)
+        .softmax(dim=-1)
+        .matmul(value)
+    )
+
+
+def _sfdp_replacement_2(query, key, value, inv_scale_factor):
+    return _scale_factor_dot_product_attention(
+        query.contiguous(),
+        key.contiguous(),
+        value.contiguous(),
+        attn_mask=None,
+        dropout_p=0.0,
+        is_causal=False,
+        scale_factor=1.0 / inv_scale_factor,
+    )
+
+
+def _sfdp_pattern_2(query, key, value, inv_scale_factor):
+    return (
+        torch.matmul(query, key.transpose(-2, -1))
+        .mul(inv_scale_factor)
+        .softmax(dim=-1)
+        .matmul(value)
+    )
+
+
+def _sfdp_replacement_2(query, key, value, inv_scale_factor):
+    return _scale_factor_dot_product_attention(
+        query.contiguous(),
+        key.contiguous(),
+        value.contiguous(),
+        attn_mask=None,
+        dropout_p=0.0,
+        is_causal=False,
+        scale_factor=1.0 / inv_scale_factor,
+    )
+
+
+def _sfdp_pattern_3(query, key, value, scale_factor, dropout_p):
+    return torch.nn.functional.dropout(
+        torch.matmul(query, key.transpose(-2, -1)).div(scale_factor).softmax(dim=-1),
+        p=dropout_p,
+    ).matmul(value)
+
+
+def _sfdp_replacement_3(query, key, value, scale_factor, dropout_p):
+    return _scale_factor_dot_product_attention(
+        query.contiguous(),
+        key.contiguous(),
+        value.contiguous(),
+        attn_mask=None,
+        dropout_p=dropout_p,
+        is_causal=False,
+        scale_factor=scale_factor,
+    )
+
+
+def _sfdp_pattern_4(query, key, value, inv_scale_factor, dropout_p):
+    return torch.nn.functional.dropout(
+        torch.matmul(query, key.transpose(-2, -1))
+        .mul(inv_scale_factor)
+        .softmax(dim=-1),
+        p=dropout_p,
+    ).matmul(value)
+
+
+def _sfdp_replacement_4(query, key, value, inv_scale_factor, dropout_p):
+    return _scale_factor_dot_product_attention(
+        query.contiguous(),
+        key.contiguous(),
+        value.contiguous(),
+        attn_mask=None,
+        dropout_p=dropout_p,
+        is_causal=False,
+        scale_factor=1.0 / inv_scale_factor,
+    )
+
+
+def _sfdp_pattern_5(query, key, value, scale_factor, attn_mask):
+    return (
+        torch.matmul(query, key.transpose(-2, -1))
+        .div(scale_factor)
+        .masked_fill(attn_mask, float("-inf"))
+        .softmax(dim=-1)
+        .matmul(value)
+    )
+
+
+def _sfdp_replacement_5(query, key, value, scale_factor, attn_mask):
+    return _scale_factor_dot_product_attention(
+        query.contiguous(),
+        key.contiguous(),
+        value.contiguous(),
+        attn_mask=attn_mask,
+        dropout_p=0.0,
+        is_causal=False,
+        scale_factor=scale_factor,
+    )
+
+
+def _sfdp_pattern_6(query, key, value, scale_factor, attn_mask, dropout_p):
+    return torch.nn.functional.dropout(
+        torch.matmul(query, key.transpose(-2, -1))
+        .div(scale_factor)
+        .masked_fill(attn_mask, float("-inf"))
+        .softmax(dim=-1),
+        p=dropout_p,
+    ).matmul(value)
+
+
+def _sfdp_replacement_6(query, key, value, scale_factor, attn_mask, dropout_p):
+    return _scale_factor_dot_product_attention(
+        query.contiguous(),
+        key.contiguous(),
+        value.contiguous(),
+        attn_mask=attn_mask,
+        dropout_p=dropout_p,
+        is_causal=False,
+        scale_factor=scale_factor,
+    )
+
+
+__scale_factor_dot_product_attention_replacements: List[Tuple[Callable, Callable]] = [
+    (_sfdp_pattern_1, _sfdp_replacement_1),
+    (_sfdp_pattern_2, _sfdp_replacement_2),
+    (_sfdp_pattern_3, _sfdp_replacement_3),
+    (_sfdp_pattern_4, _sfdp_replacement_4),
+    (_sfdp_pattern_5, _sfdp_replacement_5),
+    (_sfdp_pattern_6, _sfdp_replacement_6),
+]
+
+__scale_factor_dot_product_attention_replacement_graph_modules: List[
+    Tuple[GraphModule, GraphModule]
+] = [
+    (torch.fx.symbolic_trace(pattern), torch.fx.symbolic_trace(replacement))
+    for pattern, replacement in __scale_factor_dot_product_attention_replacements
+]
+
+
+def fuse_scaled_dot_product_attention(gm: torch.fx.GraphModule):
+    """
+    Fuses Convolution/BN layers for inference purposes.
+    """
+    for (
+        pattern,
+        replacement,
+    ) in __scale_factor_dot_product_attention_replacement_graph_modules:
+        replace_pattern(gm, pattern, replacement)
+
+    gm.graph.lint()
+    gm.recompile()
     return gm
 
 

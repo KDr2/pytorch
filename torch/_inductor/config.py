@@ -78,6 +78,9 @@ unroll_reductions_threshold = 8
 
 comment_origin = False
 
+# replace common unoptimized attention call patterns with call to nn.function.scale_factor_dot_product_attention
+pattern_replace_scaled_dot_product_attention = False
+
 
 def is_fbcode():
     import torch
