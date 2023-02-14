@@ -839,7 +839,6 @@ def run_test_ops(test_module, test_directory, options):
         extra_unittest_args.extend([
             f"--shard-id={i}",
             f"--num-shards={NUM_PROCS}",
-            "-k=not _linalg_cholesky_",
         ])
 
         return_code = pool.apply_async(
@@ -858,19 +857,8 @@ def run_test_ops(test_module, test_directory, options):
     for return_code in return_codes:
         if return_code.get() != 0:
             return return_code.get()
+    return 0
 
-    extra_unittest_args = default_unittest_args.copy()
-    extra_unittest_args.extend([
-        "-k=_linalg_cholesky_",
-    ])
-
-    return_code = run_test(
-        test_module,
-        test_directory,
-        copy.deepcopy(options),
-        extra_unittest_args=extra_unittest_args,
-    )
-    return return_code
 
 
 CUSTOM_HANDLERS = {
@@ -1321,6 +1309,7 @@ def main():
         get_test_case_configs(dirpath=test_directory)
 
     failure_messages = []
+    selected_tests = ["test_ops", "test_ops_gradients", "test_ops_fwd_gradients", "test_ops_jit", "functorch/test_ops"]
 
     # parallel = in parallel with other files
     # serial = this file on it's own.  The file might still be run in parallel with itself (ex test_ops)
