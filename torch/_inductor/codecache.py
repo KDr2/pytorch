@@ -109,7 +109,7 @@ def code_hash(code):
 
 
 def get_code_path(source_code, ext, extra):
-    basename = code_hash(source_code + extra)
+    basename = extra + "-" + code_hash(source_code)
     subdir = os.path.join(cache_dir(), basename[1:3])
     path = os.path.join(subdir, f"{basename}.{ext}")
     return basename, subdir, path
@@ -517,8 +517,8 @@ class PyCodeCache:
     clear = staticmethod(cache.clear)
 
     @classmethod
-    def load(cls, source_code):
-        key, path = write(source_code, "py")
+    def load(cls, source_code, extra=""):
+        key, path = write(source_code, "py", extra=extra)
         if key not in cls.cache:
             with open(path) as f:
                 code = compile(f.read(), path, "exec")

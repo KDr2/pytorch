@@ -380,7 +380,7 @@ class TritonTemplate:
             )
             if self.debug:
                 print("Generated Code:\n", code)
-            mod = PyCodeCache.load(code)
+            mod = PyCodeCache.load(code, extra=f"{kwargs['BLOCK_M'], kwargs['BLOCK_K'], kwargs['BLOCK_K']}-{num_stages}-{num_warps}")
             run = getattr(mod, kernel_name).run
             _, call_args, _ = kernel.args.python_argdefs()
 
@@ -494,7 +494,10 @@ class TritonTemplateCaller(ChoiceCaller):
         return getattr(template_kernels, self.name)
 
     def hash_key(self):
-        return self.to_callable().key
+        return "-".join([
+            self.name.rsplit("_", 1)[0],
+            self.to_callable().key,
+        ])
 
     def output_node(self):
         return ir.TensorBox.create(
@@ -520,12 +523,11 @@ class ExternKernelCaller(ChoiceCaller):
             return fn
 
     def hash_key(self):
-        return "/".join(
-            [
-                self.choice.hash_key(),
-                repr(self.kwargs),
-            ]
-        )
+        return "-".join([
+            self.choice.name,
+            *[f"{kwarg}={repr(val)}" for kwarg, val in self.kwargs.items()],
+            self.choice.hash_key(),
+        ])
 
     def output_node(self):
         return ir.TensorBox.create(
