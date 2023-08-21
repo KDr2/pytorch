@@ -2848,6 +2848,7 @@ def sample_inputs_aminmax(op_info, device, dtype, requires_grad, **kwargs):
         ((), {'dim': 0}),
         ((), {}),
         ((), {'dim': 0, 'keepdim': True}),
+        ((S, 0, S), {'dim': 0}),
     )
 
     for shape, kwargs in test_cases:
