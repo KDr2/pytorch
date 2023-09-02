@@ -142,8 +142,7 @@ class basic_string_view final {
     return C10_UNLIKELY(pos >= size_)
         ? (throw std::out_of_range(
                "string_view::operator[] or string_view::at() out of range. Index: " +
-               c10::guts::to_string(pos) +
-               ", size: " + c10::guts::to_string(size())),
+               std::to_string(pos) + ", size: " + std::to_string(size())),
            at_(0))
         : at_(pos);
 #else
@@ -183,7 +182,7 @@ class basic_string_view final {
     if (n > size()) {
       throw std::out_of_range(
           "basic_string_view::remove_prefix: out of range. PrefixLength: " +
-          c10::guts::to_string(n) + ", size: " + c10::guts::to_string(size()));
+          std::to_string(n) + ", size: " + std::to_string(size()));
     }
     begin_ += n;
     size_ -= n;
@@ -193,7 +192,7 @@ class basic_string_view final {
     if (n > size()) {
       throw std::out_of_range(
           "basic_string_view::remove_suffix: out of range. SuffixLength: " +
-          c10::guts::to_string(n) + ", size: " + c10::guts::to_string(size()));
+          std::to_string(n) + ", size: " + std::to_string(size()));
     }
     size_ -= n;
   }
@@ -208,8 +207,7 @@ class basic_string_view final {
     if (pos > size_) {
       throw std::out_of_range(
           "basic_string_view::copy: out of range. Index: " +
-          c10::guts::to_string(pos) +
-          ", size: " + c10::guts::to_string(size()));
+          std::to_string(pos) + ", size: " + std::to_string(size()));
     }
     size_type copy_length = std::min(count, size_ - pos);
     for (auto iter = begin() + pos, end = iter + copy_length; iter != end;) {
@@ -225,8 +223,7 @@ class basic_string_view final {
     return (pos > size_)
         ? (throw std::out_of_range(
                "basic_string_view::substr parameter out of bounds. Index: " +
-               c10::guts::to_string(pos) +
-               ", size: " + c10::guts::to_string(size())),
+               std::to_string(pos) + ", size: " + std::to_string(size())),
            substr_())
         : substr_(pos, count);
 #else
