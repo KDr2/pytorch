@@ -34,8 +34,6 @@ set CPP_TESTS_DIR=%TMP_DIR_WIN%\build\torch\test
 :: Skip verify_api_visibility as it a compile level test
 if "%~1" == "verify_api_visibility" goto :eof
 
-:: See https://github.com/pytorch/pytorch/issues/25161
-if "%~1" == "c10_metaprogramming_test" goto :eof
 if "%~1" == "module_test" goto :eof
 :: See https://github.com/pytorch/pytorch/issues/25312
 if "%~1" == "converter_nomigraph_test" goto :eof
