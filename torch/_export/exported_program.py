@@ -95,7 +95,18 @@ def _unlift(gm, inp_pos_to_param_buffer_name, in_spec, out_spec, state_dict, buf
     # Step 3: Fix the input/output of the graph now that we deleted
     # some args.
     gm.graph.lint()
-    names = [f"arg_{i}" for i in range(len(in_spec.children_specs))]
+    # in_spec should contain the args (tuple) and kwargs (dict)
+    assert in_spec.type == tuple
+    assert len(in_spec.children_specs) == 2
+    assert in_spec.children_specs[0].type == tuple
+    assert in_spec.children_specs[1].type == dict
+
+    num_args = len(in_spec.children_specs[0].children_specs)
+    num_kwargs = len(in_spec.children_specs[1].children_specs)
+
+    names = [f"arg_{i}" for i in range(num_args)]
+    names.extend([f"arg_{i + num_args}" for i in range(num_kwargs)])
+
     gm.graph._codegen = _PyTreeCodeGen(
         _PyTreeInfo(
             names,
@@ -344,4 +355,5 @@ def _process_constraints(
     return range_constraints, equality_constraints
 
 def combine_args_kwargs(args, kwargs):
-    return (args, kwargs) if kwargs else args
+    kwargs = kwargs or {}
+    return (args, kwargs)
