@@ -22,14 +22,15 @@ extern "C" {
 
 AOTInductorError AOTInductorModelContainerCreate(
     AOTInductorModelContainerHandle* container_handle,
-    size_t num_models) {
+    size_t num_models,
+    const char *cubin_dir) {
   if (num_models == 0) {
-    LOG(ERROR) << "num_models must be positive, but got 0";
+    std::cerr << "Error: num_models must be positive, but got 0" << std::endl;
     return AOTInductorError::Failure;
   }
   CONVERT_EXCEPTION_TO_ERROR_CODE({
     auto* container =
-        new torch::aot_inductor::AOTInductorModelContainer(num_models);
+        new torch::aot_inductor::AOTInductorModelContainer(num_models, cubin_dir);
     *container_handle =
         reinterpret_cast<AOTInductorModelContainerHandle>(container);
   })
