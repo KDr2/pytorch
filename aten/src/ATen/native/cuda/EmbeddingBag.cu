@@ -352,8 +352,7 @@ _embedding_bag_cuda(const Tensor &weight, const Tensor &indices_,
   c10::MaybeOwned<Tensor> per_sample_weights_maybe_owned = at::borrow_from_optional_tensor(per_sample_weights_opt);
   const Tensor& per_sample_weights = *per_sample_weights_maybe_owned;
 
-  Tensor indices, offsets;
-  std::tie(indices, offsets) = promoteIndicesAndOffsets(indices_, offsets_);
+  auto [indices, offsets] = promoteIndicesAndOffsets(indices_, offsets_);
   auto indices_arg = TensorArg(indices, "indices", 1);
   checkScalarTypes("embedding_bag_cuda", indices_arg, {kLong, kInt});
   auto offsets_arg = TensorArg(offsets, "offsets", 1);
@@ -522,8 +521,7 @@ Tensor _embedding_bag_per_sample_weights_backward_cuda(
   AT_ASSERT(grad.dim() == 2);
   auto embedding_features = grad.size(1);
 
-  Tensor indices, offsets;
-  std::tie(indices, offsets) = promoteIndicesAndOffsets(indices_, offsets_);
+  auto [indices, offsets] = promoteIndicesAndOffsets(indices_, offsets_);
   AT_ASSERT(indices.dim() == 1);
   auto num_samples = indices.size(0);
 

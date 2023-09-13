@@ -564,10 +564,7 @@ void TensorPipeAgent::pipeRead(
       GroupMembershipLockGuard guard(groupMembershipMutex_, isStaticGroup_);
       streams = getStreamsFromPoolForDevices(devices_);
     }
-    tensorpipe::Allocation tpAllocation;
-    TensorpipeReadBuffers tpBuffers;
-    std::tie(tpAllocation, tpBuffers) =
-        tensorpipeAllocate(tpDescriptor, streams);
+    auto [tpAllocation, tpBuffers] = tensorpipeAllocate(tpDescriptor, streams);
 
     pipe->read(
         std::move(tpAllocation),
@@ -597,10 +594,7 @@ void TensorPipeAgent::pipeWrite(
     std::vector<c10::Device>&& devices,
     std::vector<c10::Stream> streams,
     std::function<void(const tensorpipe::Error&)> fn) noexcept {
-  tensorpipe::Message tpMessage;
-  TensorpipeWriteBuffers tpBuffers;
-
-  std::tie(tpMessage, tpBuffers) =
+  auto [tpMessage, tpBuffers] =
       tensorpipeSerialize(std::move(rpcMessage), std::move(devices), streams);
 
   pipe->write(

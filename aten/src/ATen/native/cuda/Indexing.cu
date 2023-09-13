@@ -414,9 +414,7 @@ static std::tuple<Tensor, Tensor, int64_t, int64_t, int64_t, std::vector<int64_t
   if (!hasContiguousSubspace(indices)) {
     std::tie(self, indices, inversePerm) = transposeToFrontAndInvPerm(self, indices);
   }
-  int64_t nElemBefore, strideBefore, nElemAfter;
-  Tensor linearIndex;
-  std::tie(linearIndex, nElemBefore, strideBefore, nElemAfter) = computeLinearIndex(self, indices, check_range);
+  auto [linearIndex, nElemBefore, strideBefore, nElemAfter] = computeLinearIndex(self, indices, check_range);
   return std::make_tuple(linearIndex, self, nElemBefore, strideBefore, nElemAfter, inversePerm);
 }
 
@@ -441,10 +439,8 @@ void index_put_with_sort_kernel(Tensor & self, const c10::List<c10::optional<Ten
   }
   bool self_contiguous = self.is_contiguous();
   auto self_ = self_contiguous ? self : self.contiguous();
-  Tensor linearIndex, src, expandedValue = value;
-  int64_t nElemBefore, strideBefore, sliceSize;
-  std::vector<int64_t> inversePerm;
-  std::tie(linearIndex, src, nElemBefore, strideBefore, sliceSize, inversePerm) = makeLinearIndex(self_, indices, !unsafe);
+  Tensor expandedValue = value;
+  auto [linearIndex, src, nElemBefore, strideBefore, sliceSize, inversePerm] = makeLinearIndex(self_, indices, !unsafe);
   int64_t num_indices = linearIndex.numel();
 
   if (expandedValue.numel() < num_indices * nElemBefore * sliceSize) {
@@ -574,10 +570,8 @@ void index_put_with_sort_quantized(Tensor & self, const c10::List<c10::optional<
   }
   bool self_contiguous = self.is_contiguous();
   auto self_ = self_contiguous ? self : self.contiguous();
-  Tensor linearIndex, src, expandedValue = value;
-  int64_t nElemBefore, strideBefore, sliceSize;
-  std::vector<int64_t> inversePerm;
-  std::tie(linearIndex, src, nElemBefore, strideBefore, sliceSize, inversePerm) = makeLinearIndex(self_, indices, !unsafe);
+  Tensor expandedValue = value;
+  auto [linearIndex, src, nElemBefore, strideBefore, sliceSize, inversePerm] = makeLinearIndex(self_, indices, !unsafe);
   int64_t num_indices = linearIndex.numel();
 
   if (expandedValue.numel() < num_indices * nElemBefore * sliceSize) {
@@ -1687,8 +1681,7 @@ Tensor index_select_sparse_cuda(const Tensor& self, int64_t dim, const Tensor& i
     const auto idx_nneg_index = at::arange(index_len, nneg_index.options());
     const auto idx_dim_indices = at::arange(nnz, dim_indices.options());
 
-    Tensor sorted_dim_indices, argsort_dim_indices;
-    std::tie(sorted_dim_indices, argsort_dim_indices) = [&]() -> std::tuple<Tensor, Tensor> {
+    auto [sorted_dim_indices, argsort_dim_indices] = [&]() -> std::tuple<Tensor, Tensor> {
       if (dim == 0 && self.is_coalesced()) {
         return std::make_tuple(dim_indices, idx_dim_indices);
       }
@@ -1697,9 +1690,7 @@ Tensor index_select_sparse_cuda(const Tensor& self, int64_t dim, const Tensor& i
       }
     }();
 
-    Tensor intrsc_counts_nneg_index;
-    Tensor intrsc_first_match_nneg_index;
-    std::tie(intrsc_counts_nneg_index, intrsc_first_match_nneg_index) = [&]() -> std::tuple<Tensor, Tensor> {
+    auto [intrsc_counts_nneg_index, intrsc_first_match_nneg_index] = [&]() -> std::tuple<Tensor, Tensor> {
       auto intrsc_counts_nneg_index = at::zeros_like(nneg_index);
       auto intrsc_first_match_nneg_index = at::zeros_like(nneg_index);
 
@@ -1746,8 +1737,7 @@ Tensor index_select_sparse_cuda(const Tensor& self, int64_t dim, const Tensor& i
       return make_output(empty_idx, empty_idx);
     }
 
-    Tensor selected_dim_indices, res_dim_indices;
-    std::tie(selected_dim_indices, res_dim_indices) = [&]() -> std::tuple<Tensor, Tensor> {
+    auto [selected_dim_indices, res_dim_indices] = [&]() -> std::tuple<Tensor, Tensor> {
       auto res_dim_indices = at::empty({res_len}, nneg_index.options());
       auto selected_dim_indices = at::empty_like(res_dim_indices);
       auto selected_dim_indices_offsets = intrsc_counts_nneg_index.cumsum(0)
