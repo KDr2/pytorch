@@ -18,7 +18,7 @@ __all__ = [
     "ArgumentKind",
     "ArgumentSpec",
     "ExportBackwardSignature",
-    "ExportedProgram",
+    "DynamoExportedProgram",
     "ExportGraphSignature",
     "ModuleCallEntry",
     "ModuleCallSignature",
@@ -202,19 +202,23 @@ class ModuleCallEntry:
 
 
 class ExportedProgram:
+    ...
+
+
+class DynamoExportedProgram(ExportedProgram):
     """
     Package of a program from :func:`export`. It contains
     an :class:`torch.fx.Graph` that represents Tensor computation, a state_dict containing
     tensor values of all lifted parameters and buffers, and various metadata.
 
-    You can call an ExportedProgram like the original callable traced by
+    You can call an DynamoExportedProgram like the original callable traced by
     :func:`export` with the same calling convention.
 
     To perform transformations on the graph, use ``.module`` property to access
     an :class:`torch.fx.GraphModule`. You can then use
     `FX transformation <https://pytorch.org/docs/stable/fx.html#writing-transformations>`_
     to rewrite the graph. Afterwards, you can simply use :func:`export`
-    again to construct a correct ExportedProgram.
+    again to construct a correct DynamoExportedProgram.
     """
 
     def __init__(
@@ -399,7 +403,7 @@ class ExportedProgram:
             "\n", "\n    "
         )
         string = (
-            "ExportedProgram:\n"
+            "DynamoExportedProgram:\n"
             f"    {graph_module}\n"
             f"Graph signature: {self.graph_signature}\n"
             f"Range constraints: {self.range_constraints}\n"
@@ -415,7 +419,7 @@ class ExportedProgram:
 
         return unlift_exported_program_lifted_states(self)
 
-    def _transform(self, *passes: PassType) -> "ExportedProgram":
+    def _transform(self, *passes: PassType) -> "DynamoExportedProgram":
         from torch._export.passes.add_runtime_assertions_for_constraints_pass import (
             RangeConstraint,
         )
@@ -508,7 +512,7 @@ class ExportedProgram:
             )
             return new_signature
 
-        transformed_ep = ExportedProgram(
+        transformed_ep = DynamoExportedProgram(
             transformed_gm,
             transformed_gm.graph,
             _get_updated_graph_signature(self.graph_signature, transformed_gm),
