@@ -62,6 +62,16 @@ def _register_jit_decomposition_for_jvp(decomp, use_python=False):
     else:
         raise RuntimeError(f"could not find decomposition for {decomp}")
     decomp_fn = decomposition_table_used[decomp]
+
+    # `out_wrapper` extends a decompositions signature with
+    # an `out` parameter. However jit will use the unwrapped function's
+    # signature instead so we need to unwrap here to prevent an error
+    if hasattr(decomp_fn, "_torch_decompositions_out_wrapper"):
+        decomp_fn = inspect.unwrap(
+            decomp_fn,
+            stop=lambda f: not hasattr(f, "_torch_decompositions_out_wrapper"),
+        )
+
     if use_python:
         decomp_fn = torch.jit.ignore(decomp_fn)
         sig = inspect.signature(decomp_fn)
