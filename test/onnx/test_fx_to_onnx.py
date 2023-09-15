@@ -55,6 +55,19 @@ class TestFxToOnnx(pytorch_test_common.ExportTestCase):
     def tearDown(self):
         super().tearDown()
 
+    def test_torch_export_simple_function(self):
+        def func(x):
+            y = x + 1
+            z = y.relu()
+            return (y, z)
+
+        _ = torch.export.export(
+            func,
+            (torch.randn(1, 1, 2),),
+            backend="onnx",
+            options={"export_options": self.export_options},
+        )
+
     def test_simple_function(self):
         def func(x):
             y = x + 1
