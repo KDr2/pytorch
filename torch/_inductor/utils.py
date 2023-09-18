@@ -1181,12 +1181,20 @@ aot_inductor_launcher = """
     #include <c10/cuda/CUDAStream.h>
     #include <torch/csrc/inductor/aot_runtime/interface.h>
 
+    AOTInductorModelContainerHandle container_handle;
+
+    void create_container_handle() {
+        AOT_INDUCTOR_ERROR_CHECK(
+            AOTInductorModelContainerCreate(&container_handle, 1 /*num_models*/));
+    }
+
+    void delete_container_handle() {
+        AOT_INDUCTOR_ERROR_CHECK(AOTInductorModelContainerDelete(container_handle));
+    }
+
     void run(
             std::vector<at::Tensor>& input_tensors,
             std::vector<at::Tensor>& output_tensors) {
-        AOTInductorModelContainerHandle container_handle;
-        AOT_INDUCTOR_ERROR_CHECK(
-            AOTInductorModelContainerCreate(&container_handle, 1 /*num_models*/))
         const auto& cuda_stream = c10::cuda::getCurrentCUDAStream();
         const auto stream_id = cuda_stream.stream();
         AOTInductorStreamHandle stream_handle =
@@ -1209,6 +1217,5 @@ aot_inductor_launcher = """
             stream_handle,
             proxy_executor_handle));
 
-        AOT_INDUCTOR_ERROR_CHECK(AOTInductorModelContainerDelete(container_handle));
     }
 """

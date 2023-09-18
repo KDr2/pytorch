@@ -63,13 +63,18 @@ class AOTInductorModelRunner:
             constraints=constraints,
         )
 
-        optimized = torch.utils.cpp_extension.load_inline(
+        loaded_cpp = torch.utils.cpp_extension.load_inline(
             name="aot_inductor",
             cpp_sources=[aot_inductor_launcher],
-            functions=["run"],
+            functions=["run", "create_container_handle", "delete_container_handle"],
             extra_ldflags=[so_path],
             with_cuda=True,
-        ).run
+        )
+
+        def optimized(*args, **kwargs):
+            loaded_cpp.create_container_handle()
+            loaded_cpp.run(*args, **kwargs)
+            loaded_cpp.delete_container_handle()
 
         return optimized, exported, output_tensors, output_spec
 

@@ -694,8 +694,12 @@ def speedup_experiment(args, model_iter_fn, model, example_inputs, **kwargs):
 
     with maybe_profile(args.export_profiler_trace) as p:
         if args.export_aot_inductor:
-            frozen_model_iter_fn = export_aot_inductor(model_iter_fn)
+            frozen_module, frozen_model_iter_fn = export_aot_inductor_module(
+                model, example_inputs, model_iter_fn
+            )
+            frozen_module.create_container_handle()
         else:
+            frozen_module = None
             frozen_model_iter_fn = torch._dynamo.run(model_iter_fn)
 
         for rep in trange(args.repeat, desc="running benchmark"):
@@ -732,6 +736,10 @@ def speedup_experiment(args, model_iter_fn, model, example_inputs, **kwargs):
                     times=times,
                     collect_outputs=args.collect_outputs,
                 )
+
+        if args.export_aot_inductor:
+            assert frozen_module is not None
+            frozen_module.delete_container_handle()
 
     if args.export_profiler_trace:
         name = args.profiler_trace_name + "_" + model.name + ".json"
@@ -1150,7 +1158,7 @@ class AOTInductorModelCache:
             module = torch.utils.cpp_extension.load_inline(
                 name="aot_inductor",
                 cpp_sources=[aot_inductor_launcher],
-                functions=["run"],
+                functions=["run", "create_container_handle", "delete_container_handle"],
                 extra_ldflags=[so_path],
                 with_cuda=True,
             )
@@ -1171,6 +1179,34 @@ class AOTInductorModelCache:
         )
 
 
+def export_aot_inductor_module(model, example_inputs, eager_forward):
+    """
+    This returns a module declared in aot_indutor_launcher from
+    torch/_inductor/utils.py.  To run this module, we need to first call
+    module.create_container_handle() and after running we need to destroy this
+    module through module.delete_container_handle().
+
+    The reason why this function is separate from export_aot_inductor() is so
+    that when we're testing performance, we can create 1 container_handle
+    instance, and use it to run on different inputs, instead of creating a
+    container_handle instance each time we run, which is costly.
+    """
+    module, exported, output_tensors, output_spec = AOTInductorModelCache.load(
+        model, example_inputs, eager_forward
+    )
+
+    def opt_aot_inductor(_, example_inputs, collect_outputs=False):
+        example_args, example_kwargs = _normalize_bench_inputs(example_inputs)
+        example_inputs = torch._export.combine_args_kwargs(example_args, example_kwargs)
+        flat_example_inputs = fx_pytree.tree_flatten_spec(
+            example_inputs, exported.call_spec.in_spec
+        )
+        module.run(flat_example_inputs, output_tensors)
+        return pytree.tree_unflatten(output_tensors, output_spec)
+
+    return module, opt_aot_inductor
+
+
 def export_aot_inductor(forward: Callable):
     eager_forward = forward
 
@@ -1178,14 +1214,16 @@ def export_aot_inductor(forward: Callable):
         module, exported, output_tensors, output_spec = AOTInductorModelCache.load(
             model, example_inputs, eager_forward
         )
-        param_buffer_values = list(exported.state_dict.values())
         example_args, example_kwargs = _normalize_bench_inputs(example_inputs)
         example_inputs = torch._export.combine_args_kwargs(example_args, example_kwargs)
         flat_example_inputs = fx_pytree.tree_flatten_spec(
             example_inputs, exported.call_spec.in_spec
         )
-        all_args = (*param_buffer_values, *flat_example_inputs)
-        module.run(all_args, output_tensors)
+
+        module.create_container_handle()
+        module.run(flat_example_inputs, output_tensors)
+        module.delete_container_handle()
+
         return pytree.tree_unflatten(output_tensors, output_spec)
 
     return opt_aot_inductor
