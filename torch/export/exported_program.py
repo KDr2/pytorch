@@ -202,7 +202,18 @@ class ModuleCallEntry:
 
 
 class ExportedProgram:
-    ...
+    """
+    Virtual class to represent package of a program from :func:`export`.
+
+    It typically contains all the state related to the resulting graph exported,
+    such as state_dict containing and various metadata.
+
+    You can call an DynamoExportedProgram like the original callable traced by
+    :func:`export` with the same calling convention.
+    """
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError
 
 
 class DynamoExportedProgram(ExportedProgram):

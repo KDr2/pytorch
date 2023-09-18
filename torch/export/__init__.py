@@ -430,7 +430,7 @@ def export(
     *,
     backend: Union[str, Callable] = "dynamo",
     options: Optional[Dict[str, Any]] = None,
-) -> ExportedProgram:
+) -> DynamoExportedProgram:
     """
     :func:`export` takes an arbitrary Python callable (an nn.Module, a function or
     a method) and produces a traced graph representing only the Tensor
