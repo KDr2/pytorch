@@ -84,6 +84,10 @@ def mps_ops_grad_modifier(ops):
 
         # Correctness issues
         'atanh': [torch.float32],
+        # See https://github.com/pytorch/pytorch/issues/111416
+        'masked.log_softmax': [torch.float16],
+        'masked.softmax': [torch.float16],
+        'masked.softmin': [torch.float16],
 
         # Random output
         'exponential': [torch.float16, torch.float32],
@@ -10919,6 +10923,9 @@ class TestConsistency(TestCaseMPS):
         'nn.functional.glu',
         '_native_batch_norm_legit',
         'native_batch_norm',
+        '_softmax_backward_data',
+        'log_softmax',
+        'nn.functional.kl_div',
 
         # for macOS 12
         'masked.normalize', 'masked.sum', 'masked.var',
