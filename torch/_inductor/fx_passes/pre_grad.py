@@ -24,6 +24,13 @@ from ..pattern_matcher import (
 from ..utils import is_cpu_device
 from .group_batch_fusion import group_batch_fusion_pre_grad_passes
 
+if config.is_fbcode():
+    from torch._inductor.fb.utils import print_graph  # type: ignore[import]
+else:
+    # no-op decorator
+    def print_graph(graph: torch.fx.Graph, msg: str):
+        return
+
 log = logging.getLogger(__name__)
 
 normalization_pass = PatternMatcherPass(prevent_match_across_mutations=True)
@@ -73,13 +80,7 @@ def pre_grad_passes(gm: torch.fx.GraphModule, example_inputs):
     gm.graph.lint()
     gm.recompile()
 
-    if config.is_fbcode():
-        from torch._inductor.fb.utils import get_everpaste_url  # type: ignore[import]
-
-        log.info(
-            "Print graph after recompile in pre grad passes: %s",
-            get_everpaste_url(str(gm.graph)),
-        )
+    print_graph(gm.graph, "Print graph after recompile in pre grad passes.")
 
     return gm
 

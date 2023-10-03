@@ -14,9 +14,12 @@ from ..pattern_matcher import (
 )
 
 if config.is_fbcode():
-    from torch._inductor.fb.utils import (  # type: ignore[import]  # noqa: F401
-        get_everpaste_url,
-    )
+    from torch._inductor.fb.utils import print_graph  # type: ignore[import]
+else:
+    # no-op decorator
+    def print_graph(graph: torch.fx.Graph, msg: str):
+        return
+
 
 try:
     # importing this will register fbgemm lowerings for inductor
@@ -567,11 +570,6 @@ def apply_group_batch_fusion(graph: torch.fx.GraphModule, rule: GroupBatchFusion
                 log.info(
                     f"{rule.__class__.__name__}: key = {key}; subset size = {len(subset)}"  # noqa: G004
                 )
-
-
-def print_graph(graph: torch.fx.Graph, msg: str):
-    if config.is_fbcode():
-        log.info("%s Print graph: %s", msg, get_everpaste_url(str(graph)))  # noqa: F401
 
 
 def group_batch_fusion_post_grad_passes(graph: torch.fx.Graph):
