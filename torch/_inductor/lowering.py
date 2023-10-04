@@ -1541,11 +1541,9 @@ def fallback_node_due_to_unsupported_type(node: torch.fx.Node, allow_cpu_inputs=
     return check_skip_condition(node, is_output=True)
 
 
-def make_fallback(kernel, layout_constraint=None, warn=True):
-    assert (
-        kernel not in decompositions
-    ), f"both a fallback and a decomp for same kernel: {kernel}"
-    if get_decompositions([kernel]) and warn and bool(os.getenv("CI")):
+def make_fallback(op, layout_constraint=None, warn=True):
+    assert op not in decompositions, f"both a fallback and a decomp for same op: {op}"
+    if get_decompositions([op]) and warn and bool(os.getenv("CI")):
         # Note: 'warn' is holdover from when this was a warning, but for ops that previously
         # set warn=False we do not want a CI error.
         # Ignore the 'suppress errors' configs in CI, as this particular warning happens on startup anyway and is not
@@ -1557,16 +1555,27 @@ def make_fallback(kernel, layout_constraint=None, warn=True):
                 " and suppress_errors is being disabled to surface it."
             )
         raise AssertionError(
-            f"make_fallback({kernel}): a decomposition exists, we should switch to it."
+            f"make_fallback({op}): a decomposition exists, we should switch to it."
             " To fix this error, either add a decomposition to core_aten_decompositions (preferred)"
             " or inductor_decompositions, and delete the corresponding `make_fallback` line."
             " Get help from the inductor team if unsure, don't pick arbitrarily to unblock yourself.",
         )
 
-    add_needs_realized_inputs(kernel)
-    if layout_constraint is not None:
-        add_layout_constraint(kernel, layout_constraint)
-    return register_lowering(kernel, type_promotion_kind=None)(fallback_handler(kernel))
+    def register_fallback(op_overload):
+        add_needs_realized_inputs(op_overload)
+        if layout_constraint is not None:
+            add_layout_constraint(op_overload, layout_constraint)
+        return register_lowering(op_overload, type_promotion_kind=None)(
+            fallback_handler(op_overload)
+        )
+
+    if isinstance(op, torch._ops.OpOverloadPacket):
+        for op_overload in op.overloads():
+            register_fallback(op_overload)
+    elif isinstance(op, (torch._ops.OpOverload, torch._ops.HigherOrderOperator)):
+        register_fallback(op)
+    else:
+        raise RuntimeError(f"Unsupported fallback {op} with type {type(op)}")
 
 
 def philox_rand_offset(shape):
