@@ -4211,6 +4211,20 @@ def floor_divide(self, other):
     return torch.div(self, other, rounding_mode="floor")
 
 
+@register_decomposition(aten.sum.default)
+def sum_default(self: Tensor):
+    return aten.sum.dim_IntList(self, [])
+
+
+@register_decomposition(aten.squeeze.default)
+def squeeze_default(self):
+    return aten.squeeze.dims(self, list(range(self.dim())))
+
+
+@register_decomposition(aten.squeeze.dim)
+def squeeze_dim(self, dim):
+    return aten.squeeze.dims(self, [dim])
+
 register_inplace(aten.addbmm_, aten.addbmm)
 register_inplace(aten.addmm_, aten.addmm)
 register_inplace(aten.addmv_, aten.addmv)
