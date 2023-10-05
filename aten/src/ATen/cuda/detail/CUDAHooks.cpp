@@ -134,10 +134,10 @@ bool CUDAHooks::isPinnedPtr(const void* data) const {
   if (primary_ctx_device_index.has_value()) {
     device_guard.reset_device(at::Device(at::DeviceType::CUDA, *primary_ctx_device_index));
   }
-  cudaPointerAttributes attr;
   // We do not believe that CUDA needs mutable access to the data
   // here.
-  cudaError_t err = cudaPointerGetAttributes(&attr, const_cast<void*>(data));
+  cudaPointerAttributes attr;
+  cudaError_t err = cudaPointerGetAttributes(&attr, data);
 #if !defined(USE_ROCM)
   if (err == cudaErrorInvalidValue) {
     (void)cudaGetLastError(); // clear CUDA error
@@ -227,7 +227,7 @@ const at::cuda::NVRTC& CUDAHooks::nvrtc() const {
 }
 
 DeviceIndex current_device() {
-  int device;
+  DeviceIndex device{-1};
   cudaError_t err = c10::cuda::GetDevice(&device);
   if (err == cudaSuccess) {
     return device;
