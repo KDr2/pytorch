@@ -1272,7 +1272,7 @@ class MiscTests(torch._dynamo.test_case.TestCase):
         args = [torch.randn(10), 4096, np.int64(8)]
         correct = fn(*args)
         cnts = torch._dynamo.testing.CompileCounter()
-        opt_fn = torch._dynamo.optimize(cnts)(fn)
+        opt_fn = torch._dynamo.optimize(cnts, dynamic=True)(fn)
         self.assertTrue(same(opt_fn(*args), correct))
         self.assertTrue(same(opt_fn(*args), correct))
         self.assertEqual(cnts.frame_count, 1)
@@ -1577,6 +1577,83 @@ class MiscTests(torch._dynamo.test_case.TestCase):
         r2 = fn2()
         self.assertEqual(cnts.frame_count, 0)
         assert r2 in ("L", "U")
+
+    def test_trace_ndarray_frame(self):
+        def fn(x):
+            x = x**2
+            print("graph break.")
+            return 2 * x
+
+        counter = CompileCounter()
+        compiled_fn = torch._dynamo.optimize(counter)(fn)
+
+        x = np.arange(8)
+        self.assertEqual(fn(x), compiled_fn(x))
+        self.assertEqual(counter.frame_count, 2)
+
+    def test_numpy_non_torch_dtype(self):
+        # test that we gracefully graph break on dtypes
+        # that do not have pytorch equivalents.
+        def fn(x):
+            return isinstance(x, torch.Tensor)
+
+        cnts = torch._dynamo.testing.CompileCounter()
+        opt_fn = torch._dynamo.optimize(cnts)(fn)
+
+        # torch does not have the `uint16` dtype
+        for x in [np.array([42], dtype=np.uint16), np.uint16(42), np.dtype("uint16")]:
+            r = opt_fn(x)
+
+            self.assertEqual(r, False)
+            self.assertEqual(cnts.frame_count, 0)  # graph break
+
+    def test_numpy_iter(self):
+        # test that iteration over an ndarray produces ndarrays not bare tensors
+        def fn(x):
+            return [bm for bm in x]
+
+        cnts = torch._dynamo.testing.CompileCounter()
+        opt_fn = torch._dynamo.optimize(cnts)(fn)
+
+        proba_map = np.arange(3)[:, None]
+        res = opt_fn(proba_map)
+
+        self.assertEqual([type(r) for r in res], [np.ndarray, np.ndarray, np.ndarray])
+        self.assertEqual(res, [np.array([0]), np.array([1]), np.array([2])])
+        self.assertEqual(cnts.frame_count, 1)
+
+    def test_dtypes_no_graphbreaks(self):
+        # cache size limit needs to be larger than the `dtypes` list size
+        torch._dynamo.config.cache_size_limit = 12
+
+        dtypes = [
+            # floats
+            float,
+            np.float64,
+            "float64",
+            np.float32,
+            "float32",
+            # np.dtype('float64')   # XXX: this is not supported, yet
+            # integers
+            int,
+            "int",
+            np.intp,
+            np.int32,
+            np.uint8
+            # np.dtype('int')       # XXX: as above
+        ]
+
+        def fn(dt):
+            return np.arange(5, dtype=dt)
+
+        for dtyp in dtypes:
+            cnts = torch._dynamo.testing.CompileCounter()
+            opt_fn = torch._dynamo.optimize(cnts)(fn)
+
+            val = fn(dtyp)
+            opt_val = opt_fn(dtyp)
+
+            self.assertEqual(cnts.frame_count, 1)  # no graph break
 
     def test_inplace_view_on_graph_input(self):
         # graph break when calling methods with inplace_view tag on graph input
