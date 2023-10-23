@@ -284,6 +284,16 @@ def _is_single_tensor_return(target: torch._ops.OpOverload) -> bool:
     return len(returns) == 1 and isinstance(returns[0].real_type, torch.TensorType)
 
 
+def _is_single_tensor_list_return(target: torch._ops.OpOverload) -> bool:
+    returns = target._schema.returns
+    if len(returns) != 1:
+        return False
+    return_type = returns[0].real_type
+    return isinstance(return_type, torch.ListType) and isinstance(
+        return_type.getElementType(), torch.TensorType
+    )
+
+
 @dataclass
 class GraphState:
     inputs: List[Argument] = field(default_factory=list)
@@ -800,38 +810,81 @@ class GraphModuleSerializer:
 
         meta_val = node.meta["val"]
 
+        def output_node_at_index(node, index):
+            for user in node.users:
+                assert user.target is operator.getitem, f"{user} is not a getitem node"
+                if index == user.args[1]:
+                    return user
+            return None
+
         # Check single value return
         if _is_single_tensor_return(node.target):
+            # e.g "-> Tensor"
             return [Argument.create(as_tensor=self.serialize_tensor_output(node.name, meta_val))]
         elif len(returns) == 1 and isinstance(meta_val, torch.SymInt):
+            # e.g "-> SymInt"
             return [Argument.create(as_sym_int=self.serialize_sym_int_output(node.name, meta_val))]
         elif len(returns) == 1 and isinstance(meta_val, torch.SymBool):
+            # e.g "-> SymBool"
             return [Argument.create(as_sym_bool=self.serialize_sym_bool_output(node.name, meta_val))]
+        elif _is_single_tensor_list_return(node.target):
+            # e.g "-> Tensor[]"
+            tensor_args = []
+            for idx, meta in enumerate(meta_val):
+                user_node = output_node_at_index(node, idx)
+                name = (
+                    user_node.name
+                    if user_node is not None
+                    else f"{node.name}_unused_{idx}"
+                )
+                tensor_args.append(self.serialize_tensor_output(name, meta))
+            return [Argument.create(as_tensors=tensor_args)]
 
         # There are a two possibilities at this point:
-        # - This operator returns a list of Tensors.
-        # - This operator returns multiple Tensors.
+        # - This operator returns a tuple of Tensors, e.g. "-> (Tensor, Tensor)"
+        # - This operator returns a tuple of mixed of Tensor and Tensors, e.g. "-> (Tensor, Tensor[])"
         #
         # Either way, start by gathering a list of TensorArguments with the correct names.
         # For consistent naming with FX, consult the downstream `getitem` node and
         # make sure our outputs have the same name.
 
-        arg_list = self._handle_getitem_users(node)
+        output_arguments = []
+        for idx, (meta, return_schema) in enumerate(zip(meta_val, returns)):
+            if meta is None:
+                assert isinstance(return_schema.real_type, torch.OptionalType)
+                output_arguments.append(Argument.create(as_none=()))
+            elif isinstance(meta, torch._subclasses.fake_tensor.FakeTensor):
+                assert isinstance(return_schema.real_type, torch.TensorType)
+                user_node = output_node_at_index(node, idx)
+                name = (
+                    user_node.name
+                    if user_node is not None
+                    else f"{node.name}_unused_{idx}"
+                )
+                output_arguments.append(
+                    Argument.create(as_tensor=self.serialize_tensor_output(name, meta))
+                )
+            elif isinstance(meta, list):
+                # for List[Tensor] return type
+                assert isinstance(
+                    return_schema.real_type, torch.ListType
+                ) and isinstance(
+                    return_schema.real_type.getElementType(), torch.TensorType
+                )
+                user_node = output_node_at_index(node, idx)
+                assert user_node is not None
 
-        # Then, pack the return value differently depending on what the return type is.
-        if len(returns) == 1:
-            return_type = returns[0].real_type
-            assert isinstance(return_type, torch.ListType) and isinstance(
-                return_type.getElementType(), torch.TensorType
-            ), "Only tensors and lists of tensors supported"
+                args = []
+                for i, m in enumerate(meta):
+                    if m is None:
+                        continue
+                    sub_user_node = output_node_at_index(user_node, i)
+                    assert sub_user_node is not None, f"No user found at index {i}"
 
-            return [Argument.create(as_tensors=arg_list)]
-        else:
-            assert all(
-                isinstance(ret.real_type, torch.TensorType) for ret in returns
-            ), f"Multiple returns can only have tensor returns, got: {[ret.real_type for ret in returns]}"
+                    args.append(self.serialize_tensor_output(sub_user_node.name, m))
+                output_arguments.append(Argument.create(as_tensors=args))
 
-            return [Argument.create(as_tensor=arg) for arg in arg_list]
+        return output_arguments
 
     def _handle_getitem_users(self, node: torch.fx.Node) -> List[TensorArgument]:
         meta_val = node.meta["val"]
