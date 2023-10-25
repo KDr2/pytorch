@@ -580,7 +580,6 @@ def test_extra_methods(name):
         getattr(a, name)
 
 
-@instantiate_parametrized_tests
 class TestNoExtraMethods(TestCase):
     # make sure ndarray does not carry extra methods/attributes
     # >>> set(dir(a)) - set(dir(a.tensor.numpy()))
