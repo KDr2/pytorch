@@ -896,15 +896,17 @@ void ProcessGroupNCCL::ncclCommWatchdog() {
     if (std::string(e.what()).find("driver shutting down") !=
         std::string::npos) {
       LOG(INFO) << fmt::format(
-        "[Rank {}] main process destroyed cuda before watchdog loop exited, terminating watchdog. (Watchdog caught exception: {})",
-        rank_,
-        e.what());
+          "[Rank {}] "
+          "main process destroyed cuda before watchdog loop exited, terminating watchdog. "
+          "(Watchdog caught exception: {})",
+          rank_,
+          e.what());
     } else {
       // Append error message reported from workCleanupLoop
       const auto exitMsg = fmt::format(
-        "[Rank {}] NCCL watchdog thread terminated with exception: {}",
-        rank_,
-        e.what());
+          "[Rank {}] NCCL watchdog thread terminated with exception: {}",
+          rank_,
+          e.what());
       LOG(ERROR) << exitMsg;
       // TODO(whc) clean up the rethrow - why is it stored in a class var and
       // rethrown?
