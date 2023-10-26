@@ -1,10 +1,10 @@
+#ifdef USE_C10D_NCCL
+
 #include <fmt/format.h>
 #include <torch/csrc/distributed/c10d/NCCLUtils.hpp>
 #include <torch/csrc/distributed/c10d/ProcessGroupNCCL.hpp>
 #include <torch/csrc/distributed/c10d/UCCForNCCL.hpp>
 #include <sstream>
-
-#ifdef USE_C10D_NCCL
 
 #include <exception>
 #include <map>

@@ -1,9 +1,9 @@
+#ifdef USE_C10D_NCCL
+
 #include <torch/csrc/distributed/c10d/NCCLUtils.hpp>
 
 #include <c10/util/CallOnce.h>
 #include <c10/util/env.h>
-
-#ifdef USE_C10D_NCCL
 
 #include <mutex>
 
