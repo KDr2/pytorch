@@ -18,7 +18,8 @@ ncclComm_t NCCLComm::getNcclComm() {
         ? fmt::format(
               " Original reason for failure was: {}", *commFailureReason_)
         : "";
-    TORCH_CHECK(
+    TORCH_CHECK_WITH(
+        DistBackendError,
         false,
         fmt::format(
             "NCCL communicator was aborted on rank {}. {}",
