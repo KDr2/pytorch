@@ -12,6 +12,7 @@ from typing import (
     Optional,
     Set,
     Tuple,
+    Type,
     TYPE_CHECKING,
     Union,
 )
@@ -396,6 +397,17 @@ class ExportGraphSignature:
             == assertion_dep_token_index
         )
 
+    def replace_all_uses(self, old: str, new: str):
+        """
+        Replace all uses of the old name with new name in the signature.
+        """
+        assert isinstance(old, str)
+        assert isinstance(new, str)
+        for o in self.output_specs:
+            if isinstance(o.arg, TensorArgument):
+                if o.arg.name == old:
+                    o.arg.name = new
+
 
 @dataclasses.dataclass
 class ModuleCallSignature:
@@ -437,7 +449,7 @@ class ExportedProgram:
         equality_constraints: List[Tuple[Any, Any]],
         module_call_graph: List[ModuleCallEntry],
         example_inputs: Optional[Tuple[Tuple[Any, ...], Dict[str, Any]]] = None,
-        dialect: Optional[str] = None,
+        verifier: Optional[Type[Any]] = None,  # TODO Change typing hint to Verifier.
     ):
         from torch._export.exported_program import _create_graph_module_for_export
         from torch._export.passes.add_runtime_assertions_for_constraints_pass import (
@@ -458,7 +470,17 @@ class ExportedProgram:
         ] = equality_constraints
         self._module_call_graph: List[ModuleCallEntry] = module_call_graph
         self._example_inputs = example_inputs
-        self._dialect = dialect or "ATEN"
+
+        from torch._export.verifier import Verifier
+
+        if verifier is None:
+            verifier = Verifier
+        assert issubclass(verifier, Verifier)
+        self._verifier = verifier
+
+        # Validate should be always the last step of the constructor.
+        # TODO(zhxchen17) Uncomment the following line.
+        # self.verifier().check(self)
 
     @property
     @compatibility(is_backward_compatible=False)
@@ -548,8 +570,14 @@ class ExportedProgram:
         )
 
     @property
-    def dialect(self):
-        return self._dialect
+    @compatibility(is_backward_compatible=False)
+    def verifier(self) -> Any:
+        return self._verifier
+
+    @property
+    @compatibility(is_backward_compatible=False)
+    def dialect(self) -> str:
+        return self._verifier.dialect
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         import torch._export.error as error
@@ -657,7 +685,9 @@ class ExportedProgram:
         from torch._export.passes.lift_constant_tensor_pass import (
             lift_constant_tensor_pass,
         )
-        from torch._export.passes.replace_sym_size_ops_pass import _ReplaceSymSizeOpPass
+        from torch._export.passes.replace_sym_size_ops_pass import (
+            _replace_sym_size_ops_pass,
+        )
         from torch._functorch.aot_autograd import aot_export_module
 
         def _get_placeholders(gm):
@@ -778,16 +808,19 @@ class ExportedProgram:
             for inp_dim1, inp_dim2 in self.equality_constraints
         ]
 
+        state_dict = self.state_dict.copy()
+        lift_constant_tensor_pass(gm, new_graph_signature, state_dict)
+        _replace_sym_size_ops_pass(gm)
         exported_program = ExportedProgram(
             gm,
             gm.graph,
             new_graph_signature,
-            self.state_dict,
+            state_dict,
             new_range_constraints,
             new_equality_constraints,
             copy.deepcopy(self.module_call_graph),
             self.example_inputs,
-            self.dialect,
+            self.verifier,
         )
 
         if len(new_range_constraints) > 0 or len(new_equality_constraints) > 0:
@@ -796,9 +829,8 @@ class ExportedProgram:
                     new_range_constraints, new_equality_constraints
                 )
             )
-        exported_program = lift_constant_tensor_pass(exported_program)
 
-        return exported_program._transform(_ReplaceSymSizeOpPass())
+        return exported_program
 
     def _transform(self, *passes: PassType) -> "ExportedProgram":
         pm = PassManager(list(passes))
@@ -903,7 +935,7 @@ class ExportedProgram:
             copy.deepcopy(self.equality_constraints),
             copy.deepcopy(self._module_call_graph),
             self.example_inputs,
-            self.dialect,
+            self.verifier,
         )
         transformed_ep.graph_module.meta.update(self.graph_module.meta)
         transformed_ep.graph_module.meta.update(res.graph_module.meta)
@@ -931,15 +963,7 @@ class ExportedProgram:
         _assertion_graph(*args)
 
     def _validate(self):
-        from torch._export.verifier import Verifier, verify_exported_program_signature
-
-        verify_exported_program_signature(self)
-
-        verifier = Verifier()
-        for gm in self.graph_module.modules():
-            if not isinstance(gm, torch.fx.GraphModule):
-                continue
-            verifier.check_valid(self.graph_module)
+        self.verifier().check(self)
 
 
 def _get_updated_range_constraints(

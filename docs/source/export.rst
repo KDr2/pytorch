@@ -567,6 +567,9 @@ API Reference
 
 .. autoclass:: ExportBackwardSignature
 .. autoclass:: ExportGraphSignature
+
+    .. automethod:: replace_all_uses
+
 .. autoclass:: ModuleCallSignature
 .. autoclass:: ModuleCallEntry
 
