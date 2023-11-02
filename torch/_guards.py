@@ -567,7 +567,7 @@ class TracingContext:
     def get() -> Optional[TracingContext]:
         return getattr(_TLS, "tracing_context", None)
 
-    def __init__(self, fake_mode):
+    def __init__(self, fake_mode, export: bool = False):
         self.guards_context = GuardsContext()
         self.module_context = ModuleContext()
         self.global_context = GlobalContext()
@@ -599,6 +599,8 @@ class TracingContext:
         # ints that are known to be size-like and may have 0/1 entries that we
         # must not specialize on.
         self.force_unspec_int_unbacked_size_like = False
+        # A flag indicating whether we are exporting a single graph.
+        self.export = export
 
     @staticmethod
     @contextmanager
