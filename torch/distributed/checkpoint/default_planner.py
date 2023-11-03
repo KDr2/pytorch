@@ -178,6 +178,7 @@ class DefaultLoadPlanner(LoadPlanner):
         metadata: Metadata,
         is_coordinator: bool,
     ) -> None:
+        state_dict = _initialize_meta_tensors(state_dict)
         self.original_state_dict = state_dict
 
         if self.flatten_sharded_tensors:
