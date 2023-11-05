@@ -717,6 +717,20 @@ class AOTInductorTestsTemplate:
         )
         self.check_model(Model(), example_inputs)
 
+    def test_scaled_dot_product_efficient_attention(self):
+        class Model(torch.nn.Module):
+            def forward(self, q, k, v):
+                return torch.ops.aten._scaled_dot_product_efficient_attention.default(
+                    q, k, v, None, False
+                )
+
+        example_inputs = (
+            torch.randn(1, 48, 64, 64, dtype=torch.bfloat16, device=self.device),
+            torch.randn(1, 48, 64, 64, dtype=torch.bfloat16, device=self.device),
+            torch.randn(1, 48, 64, 64, dtype=torch.bfloat16, device=self.device),
+        )
+        self.check_model(Model(), example_inputs)
+
     def test_zero_grid_with_unbacked_symbols(self):
         class Repro(torch.nn.Module):
             def __init__(self):
