@@ -2300,6 +2300,8 @@ class CppWrapperCodeGen(WrapperCodeGen):
         if val is None:
             # When None is passed as an argument, it represents an optional that does not contain a value.
             # TODO: add abi-compatible support
+            if config.aot_inductor.abi_compatible:
+                return "0" # nullptr is not available in C
             return "c10::nullopt"
         elif isinstance(val, bool):
             if config.aot_inductor.abi_compatible:
