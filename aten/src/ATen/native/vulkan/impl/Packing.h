@@ -1,4 +1,6 @@
 #include <ATen/native/vulkan/api/api.h>
+//#include <torch/library.h>
+#include <ATen/native/vulkan/api/Tensor.h>
 
 namespace at {
 namespace native {
@@ -37,6 +39,8 @@ bool record_buffer_to_nchw_op(
     api::VulkanBuffer& dst_buffer,
     api::PipelineBarrier pipeline_barrier,
     const VkFence fence_handle);
+
+vTensor channel_image_to_height_image(const vTensor& self);
 
 } // namespace packing
 } // namespace vulkan

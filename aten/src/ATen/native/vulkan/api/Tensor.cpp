@@ -1,6 +1,7 @@
 #include <ATen/native/vulkan/api/Tensor.h>
 #include <ATen/native/vulkan/api/Utils.h>
 #include <c10/util/accumulate.h>
+#include <iostream>
 
 namespace at {
 namespace native {
@@ -320,12 +321,17 @@ api::utils::uvec3 create_image_extents(
       case api::GPUMemoryLayout::TENSOR_WIDTH_PACKED:
         TORCH_CHECK(width % 4 == 0, "Channels must be divisible by 4!")
         width /= 4;
+        break;
       case api::GPUMemoryLayout::TENSOR_HEIGHT_PACKED:
         TORCH_CHECK(height % 4 == 0, "Channels must be divisible by 4!")
         height /= 4;
+        break;
       case api::GPUMemoryLayout::TENSOR_CHANNELS_PACKED:
         TORCH_CHECK(channels % 4 == 0, "Channels must be divisible by 4!")
         channels /= 4;
+        break;
+      default:
+        TORCH_CHECK(false, "Invalid memory format used!");
     }
 
     return {width, height, batch * channels};

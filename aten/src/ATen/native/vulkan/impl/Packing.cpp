@@ -1,5 +1,8 @@
 #include <ATen/native/vulkan/impl/Common.h>
 #include <ATen/native/vulkan/impl/Packing.h>
+#include <ATen/native/vulkan/api/Utils.h>
+
+#include <iostream>
 
 namespace at {
 namespace native {
@@ -281,6 +284,51 @@ bool record_buffer_to_nchw_op(
           api::PipelineStage::COMPUTE,
           api::MemoryAccessType::WRITE),
       v_src.buffer_metadata());
+}
+
+vTensor channel_image_to_height_image(const vTensor& v_input) {
+  api::Context* const context = api::context();
+  
+  vTensor v_output{
+      context,
+      v_input.sizes(),
+      v_input.dtype(),
+      v_input.storage_type(),
+      api::GPUMemoryLayout::TENSOR_HEIGHT_PACKED,
+  };
+  
+  // Required to determine how to insert memory barriers in the command buffer
+  api::PipelineBarrier pipeline_barrier{};
+  
+  const struct Block final {
+    api::utils::ivec4 sizes;
+  } block{
+    api::utils::make_ivec4(v_input.sizes()),
+  };
+  
+  api::UniformParamsBuffer params(context, block);
+
+  context->submit_compute_job(
+      // shader descriptor
+      VK_KERNEL(packing_channel_to_height),
+      // pipeline barrier
+      pipeline_barrier,
+      // global work group size
+      v_output.extents(),
+      // local work group size
+      adaptive_work_group_size(v_output.extents()),
+      // fence handle
+      VK_NULL_HANDLE,
+      // shader arguments
+      v_output.image(
+          pipeline_barrier,
+          api::PipelineStage::COMPUTE,
+          api::MemoryAccessType::WRITE),
+      v_input.image(pipeline_barrier, api::PipelineStage::COMPUTE),
+      // params buffer
+      params.buffer());
+
+  return v_output;
 }
 
 } // namespace packing

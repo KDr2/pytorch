@@ -4,8 +4,8 @@
 #include <ATen/ATen.h>
 #include <ATen/core/dispatch/Dispatcher.h>
 #include <ATen/native/vulkan/api/api.h>
-#include <ATen/native/vulkan/ops/Copy.h>
-#include <ATen/native/vulkan/ops/Convolution.h>
+//#include <ATen/native/vulkan/ops/Copy.h>
+//#include <ATen/native/vulkan/ops/Convolution.h>
 #include <c10/util/irange.h>
 #include <c10/util/ArrayRef.h>
 
