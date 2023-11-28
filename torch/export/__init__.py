@@ -349,6 +349,7 @@ def export(
     *,
     constraints: Optional[List[Constraint]] = None,
     dynamic_shapes: Optional[Union[Dict[str, Any], Tuple[Any]]] = None,
+    strict: bool = True,
     preserve_module_call_signature: Tuple[str, ...] = (),
 ) -> ExportedProgram:
     """
@@ -443,6 +444,7 @@ def export(
             args,
             kwargs,
             constraints,
+            strict=strict,
             preserve_module_call_signature=preserve_module_call_signature,
         )
     else:
@@ -451,6 +453,7 @@ def export(
             args,
             kwargs,
             dynamic_shapes=dynamic_shapes,
+            strict=strict,
             preserve_module_call_signature=preserve_module_call_signature,
         )
 

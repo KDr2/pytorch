@@ -112,6 +112,20 @@ class TestExport(TestCase):
         inp = ([torch.ones(1, 3)], torch.ones(1, 3))
         self._test_export_same_as_eager(f, inp)
 
+    def test_basic_non_strict(self):
+        class Basic(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.param = torch.nn.Parameter(torch.randn(1, 3))
+
+            def forward(self, x, y):
+                return x[0] + y - self.param
+
+        f = Basic()
+        args = ([torch.randn(1, 3)], torch.randn(1, 3))
+        ep = export(f, args, strict=False)
+        self.assertEqual(ep(*args), f(*args))
+
     def test_raise_user_error_when_guard_on_data_dependent_operation(self):
         def fn_ddo(x):
             y = x.nonzero()
