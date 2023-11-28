@@ -529,20 +529,21 @@ std::tuple<Tensor, Tensor, Tensor, Tensor, int64_t> _batch_norm_impl_index(
 
   const bool use_cudnn = (
       input.is_cuda()
-      && input.scalar_type() != at::kBFloat16 && weight.scalar_type() != at::kBFloat16
-      && (input.scalar_type() != at::kHalf
-        || weight.scalar_type() == at::kFloat)
-      && weight.defined() && bias.defined()
-      && ((running_mean.defined() && running_var.defined())
-        || (!running_mean.defined() && !running_var.defined() && training))
-      && (input.dim() >= 3)
-      && ((input.sym_size(0) <= 880801 && training) // spatial, training
-          ||(input.sym_size(0) <= 65535 && !training)) //spatial, eval
-      && detail::getCUDAHooks().compiledWithCuDNN()
-      && eps >= detail::getCUDAHooks().batchnormMinEpsilonCuDNN()
-      && cudnn_enabled && detail::getCUDAHooks().versionCuDNN() >= 5110L
-      && input.sym_numel() < std::numeric_limits<std::int32_t>::max() // some cuDNN kernels have 32-bit indexing limitations
-      );
+      && (cudnn_enabled && at::globalContext().userForceCuDNN())
+         || (input.scalar_type() != at::kBFloat16 && weight.scalar_type() != at::kBFloat16
+         && (input.scalar_type() != at::kHalf
+           || weight.scalar_type() == at::kFloat)
+         && weight.defined() && bias.defined()
+         && ((running_mean.defined() && running_var.defined())
+           || (!running_mean.defined() && !running_var.defined() && training))
+         && (input.dim() >= 3)
+         && ((input.sym_size(0) <= 880801 && training) // spatial, training
+             ||(input.sym_size(0) <= 65535 && !training)) //spatial, eval
+         && detail::getCUDAHooks().compiledWithCuDNN()
+         && eps >= detail::getCUDAHooks().batchnormMinEpsilonCuDNN()
+         && cudnn_enabled
+         && input.sym_numel() < std::numeric_limits<std::int32_t>::max() // some cuDNN kernels have 32-bit indexing limitations
+         ));
 
   if (use_cudnn) {
     auto input_c = input.contiguous(input.suggest_memory_format());
