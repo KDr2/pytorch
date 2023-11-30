@@ -677,17 +677,25 @@ def generate_fusion_from_config(config_options: Dict[str, Any], pre_grad=True):
 
 
 def group_batch_fusion_passes(graph: torch.fx.Graph, pre_grad=True):
-    print_graph(graph, "Before group_batch fusion in post grads pass.")
+    print_graph(graph, "Before group_batch fusion in pre grad pass.")
     fusions: List[GroupBatchFusionBase] = []
 
     if pre_grad:
-        fusions = generate_fusion_from_config(
-            config.pre_grad_fusion_options, pre_grad=True
-        )
-    elif has_fbgemm:  # Only group fusion (which needs fbgemm) in post grad.
-        fusions = generate_fusion_from_config(
-            config.post_grad_fusion_options, pre_grad=False
-        )
+        if config.batch_fusion:
+            fusions += generate_fusion_from_config(
+                config.pre_grad_fusion_options, pre_grad=True
+            )
+    else:
+        # Only batch fusion (which doesn't need fbgemm) in post grad.
+        if config.batch_fusion:
+            fusions += generate_fusion_from_config(
+                config.post_grad_batch_fusion_options, pre_grad=False
+            )
+        # Only group fusion (which needs fbgemm) in post grad.
+        if config.group_fusion and has_fbgemm:
+            fusions += generate_fusion_from_config(
+                config.post_grad_group_fusion_options, pre_grad=False
+            )
 
     for rule in fusions:
         apply_group_batch_fusion(graph, rule)
