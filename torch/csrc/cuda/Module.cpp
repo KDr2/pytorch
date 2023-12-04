@@ -892,6 +892,8 @@ static void registerCudaDeviceProperties(PyObject* module) {
       .def_readonly(
           "max_threads_per_multi_processor",
           &cudaDeviceProp::maxThreadsPerMultiProcessor)
+      .def_readonly(
+          "regsPerMultiprocessor", &cudaDeviceProp::regsPerMultiprocessor)
       // HIP-only property; reuse name attribute for CUDA builds
       .def_readonly(
           "gcnArchName",
