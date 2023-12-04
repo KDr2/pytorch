@@ -270,6 +270,27 @@ class DTensorPlanner(DTensorTestBase):
                 self.assertEqual(1, v["extra_state"])
                 self.assertEqual(torch.tensor([0.0]), v["extra_state_tensor"])
 
+    @with_comms
+    @with_temp_dir
+    @skip_if_lt_x_gpu(2)
+    def test_dtensor_with_empty_shard(self):
+        tensor = torch.rand(1).cuda()
+        from torch.distributed._tensor import init_device_mesh
+        mesh = init_device_mesh(self.device, (self.world_size,))
+        dtensor = distribute_tensor(tensor, mesh, [Shard(0)])
+        state_dict = {"dtensor": dtensor}
+
+        dist_cp.save_state_dict(
+            state_dict=state_dict,
+            storage_writer=dist_cp.FileSystemWriter(path=self.temp_dir),
+        )
+
+        state_dict = {}
+        dist_cp.load_state_dict(
+            state_dict=state_dict,
+            storage_reader=dist_cp.FileSystemReader(self.temp_dir),
+        )
+        print(f"rank:{self.rank}, state_dict:{state_dict}")
 
 if __name__ == "__main__":
     run_tests()

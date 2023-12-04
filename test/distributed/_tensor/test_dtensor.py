@@ -806,5 +806,28 @@ class TestDTensorPlacementTypes(DTensorTestBase):
                 assert_array_equal(expected_is_tensor_empty, is_tensor_empty)
 
 
+    @with_comms
+    def test_split_tensor_1(self) -> None:
+        mesh = DeviceMesh(self.device_type, torch.arange(self.world_size))
+        shard_placement = Shard(0)
+
+        tensor = torch.rand(2).cuda()
+        # splitted_tensor_list, pad_sizes = shard_placement._split_tensor(
+        #     tensor,
+        #     mesh.size(),
+        #     with_padding=True,
+        #     contiguous=True,
+        # )
+        # if self.rank == 0:
+        #     print(f"{splitted_tensor_list=}")
+
+        from torch.distributed._tensor._utils import compute_local_shape_and_global_offset
+
+        shape, offset = compute_local_shape_and_global_offset(
+            tensor.shape, mesh, (shard_placement,)
+        )
+        print(f"{self.rank=}, {shape=}, {offset=}")
+
+
 if __name__ == "__main__":
     run_tests()

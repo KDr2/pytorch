@@ -123,9 +123,9 @@ class Shard(Placement):
         """
         returns the local shard size and offset on a given tensor dim
         """
-        assert (
-            size_on_dim >= num_chunks
-        ), f"Size to be sharded on dim {self.dim} must be at least as large as the number of devices in that dimension {num_chunks}"
+        # assert (
+        #     size_on_dim >= num_chunks
+        # ), f"Size to be sharded on dim {self.dim} must be at least as large as the number of devices in that dimension {num_chunks}"
 
         # Compute the chunk size inline with ``torch.chunk``
         full_chunk_size = (size_on_dim + num_chunks - 1) // num_chunks
