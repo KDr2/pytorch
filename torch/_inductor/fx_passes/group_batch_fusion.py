@@ -706,7 +706,10 @@ def get_fusion_candidates(
 
         key = rule.match(node)
         # SymInt is not hashable, so we need to skip it
-        if key is not None and not isinstance(key, torch.SymInt):
+        if (key is not None
+            and not isinstance(key, torch.SymInt)
+            and not isinstance(key, torch.SymIntType)
+            ):
             candidate_nodes = candidate_dict[key]
             if node not in candidate_nodes:
                 candidate_nodes.append(node)
@@ -773,9 +776,9 @@ def group_batch_fusion_passes(graph: torch.fx.Graph, pre_grad=True):
             "batch_relu": {},
             "batch_sigmoid": {},
         }
-        # config.post_grad_fusion_options = {
-        #     "batch_linear_post_grad": {},
-        # }
+        config.post_grad_fusion_options = {
+            "batch_linear_post_grad": {},
+        }
     if config.group_fusion:
         config.post_grad_fusion_options = {
             "group_linear": {"require_fbgemm": True},
