@@ -5,6 +5,10 @@ import pdb
 import io
 
 import torch
+# We need to import device_mesh no matter whether distributed is available or not.
+# This would make sure the following test would not fail.
+#   python test/test_public_bindings.py -k test_modules_can_be_imported
+from .device_mesh import *  # noqa: F403
 
 def is_available() -> bool:
     """
