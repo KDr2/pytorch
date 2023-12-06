@@ -5,10 +5,6 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <list>
-#include <string>
-#include <unordered_map>
-#include <vector>
 
 #include <c10/macros/Macros.h>
 #include <c10/util/Optional.h>
