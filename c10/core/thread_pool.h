@@ -11,9 +11,9 @@
 #include <vector>
 
 #include <c10/macros/Export.h>
+#include <c10/util/Registry.h>
 #include <c10/util/numa.h>
 #include <c10/util/thread_name.h>
-#include <c10/util/Registry.h>
 
 namespace c10 {
 
