@@ -38,6 +38,7 @@ from .utils import (
 
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
 
 if has_triton_package():
     import triton
@@ -366,7 +367,9 @@ class CachingAutotuner(KernelInterface):
             )
             return float("inf")
 
-        stream = torch.cuda.current_stream(torch.cuda.current_device()).cuda_stream
+        from torch._C import _cuda_getCurrentRawStream as get_cuda_stream
+
+        stream = get_cuda_stream(torch.cuda.current_device())
 
         def kernel_call():
             if launcher.config.pre_hook is not None:
@@ -1028,10 +1031,10 @@ def pointwise(
                 size_hints,
                 [
                     triton_config_with_settings(
-                        size_hints, bs, num_elements_per_warp=256
+                        size_hints, bs, num_elements_per_warp=32
                     ),
                     triton_config_with_settings(
-                        size_hints, bs // 2, num_elements_per_warp=64
+                        size_hints, bs // 2, num_elements_per_warp=32
                     ),
                     *hinted_configs,
                 ],
