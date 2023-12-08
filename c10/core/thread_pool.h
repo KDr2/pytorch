@@ -2,14 +2,18 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <cstddef>
 #include <functional>
 #include <mutex>
 #include <queue>
 #include <thread>
 #include <utility>
+#include <vector>
 
+#include <c10/macros/Export.h>
 #include <c10/util/numa.h>
 #include <c10/util/thread_name.h>
+#include <c10/util/Registry.h>
 
 namespace c10 {
 
