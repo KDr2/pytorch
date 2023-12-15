@@ -57,6 +57,11 @@ C10_DEFINE_bool(
     false,
     "fuse on 12 dynamic compilations");
 
+C10_DEFINE_bool(
+    torch_jit_release_profiling_graph_after_optimization,
+    false,
+    "After getOptimizedPlanFor release the optimization record for reduction of memory in inference. This is aggressive memory saving, and please be cautious!");
+
 constexpr size_t kDefaultNumProfiledRuns = 1;
 constexpr size_t kDefaultBailoutDepth = 20;
 
@@ -665,6 +670,15 @@ const ExecutionPlan& ProfilingGraphExecutorImpl::getOptimizedPlanFor(
   CheckStrictFusion(copy);
   GRAPH_DUMP("Optimized Graph: ", copy);
   optimized_plan_ = ExecutionPlan(copy, function_name_);
+  // We have the optimized plan already, We can clear out the intermediate
+  // objects.
+  if (FLAGS_torch_jit_release_profiling_graph_after_optimization) {
+    pr_.reset();
+    fallback_plan_.reset();
+    profiling_plan_.reset();
+    fallback_functions_.clear();
+    remaining_bailout_depth_.reset();
+  }
   return *optimized_plan_;
 }
 
