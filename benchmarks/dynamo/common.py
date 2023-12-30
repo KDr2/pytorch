@@ -393,7 +393,7 @@ def print_summary_table(data, print_dataframe=False):
                     col.ljust(width),
                     f"gmean={gmean(cdata):.2f}x mean={cdata.mean():.3f}x",
                 )
-        except Exception as e:
+        except Exception:
             pass
 
 
@@ -2401,7 +2401,7 @@ class BenchmarkRunner:
                     )
                 ):
                     is_same = False
-            except Exception as e:
+            except Exception:
                 # Sometimes torch.allclose may throw RuntimeError
                 is_same = False
 
@@ -2477,7 +2477,7 @@ class BenchmarkRunner:
                     tol=tolerance,
                 ):
                     is_same = False
-            except Exception as e:
+            except Exception:
                 # Sometimes torch.allclose may throw RuntimeError
                 is_same = False
 
@@ -2693,7 +2693,7 @@ class BenchmarkRunner:
 
         try:
             shutil.move("repro.py", f"{repro_dir}/{name}_repro.py")
-        except OSError as e:
+        except OSError:
             logging.error("Could not find repro script for model %s", name)
         else:
             logging.info(
@@ -3385,7 +3385,7 @@ def run(runner, args, original_dir=None):
             # Set translation validation on by default on CI accuracy runs.
             torch.fx.experimental._config.translation_validation = True
 
-        ci = functools.partial(
+        functools.partial(
             CI, args.backend, training=args.training, dynamic=args.dynamic_shapes
         )
     if args.ddp:
