@@ -499,7 +499,7 @@ class ExportedProgram:
         )
 
         if len(new_range_constraints) > 0 or len(new_equality_constraints) > 0:
-            exported_program = exported_program._transform(
+            exported_program = exported_program._transform_do_not_use(
                 _AddRuntimeAssertionsForInlineConstraintsPass(
                     new_range_constraints, new_equality_constraints
                 )
@@ -507,7 +507,7 @@ class ExportedProgram:
 
         return exported_program
 
-    def _transform(self, *passes: PassType) -> "ExportedProgram":
+    def _transform_do_not_use(self, *passes: PassType) -> "ExportedProgram":
         pm = PassManager(list(passes))
         res = pm(self.graph_module)
         transformed_gm = res.graph_module if res is not None else self.graph_module
