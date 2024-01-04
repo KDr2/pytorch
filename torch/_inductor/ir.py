@@ -4621,6 +4621,14 @@ class FallbackKernel(ExternKernelAlloc):
     def export_extern_kernel_node(self):
         assert isinstance(self, FallbackKernel)
         args, kwargs = self.unflatten_args(self.inputs, self.constant_args)
+        if len(kwargs) > len(self.ordered_kwargs_for_cpp_kernel):
+            log.debug(f"{self.op_overload.name} has some args used as kwargs, but not in the "
+                "ordered_kwargs_for_cpp_kernel, so we will move them to the end of the args")
+            log.debug(f"before move, args has {len(args)} args, kwargs has {len(kwargs)} kwargs")
+            missed_args = tuple(kwargs.pop(key) for key in list(kwargs.keys()) if key not in self.ordered_kwargs_for_cpp_kernel)
+            args = args + missed_args
+            log.debug(f"after move, args has {len(args)} args, kwargs has {len(kwargs)} kwargs")
+
         ordered_kwargs = [
             kwargs.get(key, None) for key in self.ordered_kwargs_for_cpp_kernel
         ]
