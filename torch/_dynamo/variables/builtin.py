@@ -1558,6 +1558,8 @@ class BuiltinVariable(VariableTracker):
             from .builder import wrap_fx_proxy_cls
 
             if op is operator.is_:
+                # note: technically, this does support if someone
+                # overrides "is_" in a subclass
                 return ConstantVariable.create(
                     isinstance(left, TensorVariable)
                     and isinstance(right, TensorVariable)
