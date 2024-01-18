@@ -1,5 +1,4 @@
 # Owner(s): ["module: dynamo"]
-import functools
 import unittest
 
 import torch
@@ -10,9 +9,7 @@ from torch._dynamo.backends.debugging import ExplainWithBackend
 from torch._dynamo.backends.onnxrt import has_onnxruntime
 from torch._dynamo.backends.tvm import has_tvm
 from torch._dynamo.testing import same
-from torch.testing._internal.inductor_utils import HAS_CUDA
-
-requires_cuda = functools.partial(unittest.skipIf, not HAS_CUDA, "requires cuda")
+from torch.testing._internal.common_utils import requires_cuda
 
 
 class Seq(torch.nn.Module):
@@ -118,7 +115,7 @@ class TestOptimizations(torch._dynamo.test_case.TestCase):
     def test_aot_ts(self):
         self._check_backend_works("aot_ts")
 
-    @requires_cuda()
+    @requires_cuda
     def test_aot_cudagraphs(self):
         self._check_backend_works("cudagraphs")
 

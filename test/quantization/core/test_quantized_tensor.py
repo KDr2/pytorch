@@ -11,7 +11,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from torch.testing._internal.common_utils import TemporaryFileName
 from torch.testing._internal.common_cuda import TEST_CUDA
-from torch.testing._internal.common_utils import TestCase, DeterministicGuard
+from torch.testing._internal.common_utils import TestCase, DeterministicGuard, requires_cuda
 import torch.testing._internal.hypothesis_utils as hu
 from torch.testing._internal.common_quantization import get_supported_device_types
 
@@ -552,7 +552,7 @@ class TestQuantizedTensor(TestCase):
             self.assertEqual('cpu', dqr_cuda.q_per_channel_scales().device.type)
             self.assertEqual('cpu', dqr_cuda.q_per_channel_zero_points().device.type)
 
-    @unittest.skipIf(not torch.cuda.is_available(), 'CUDA is not available')
+    @requires_cuda
     def test_compare_per_tensor_device_numerics(self):
         dtypes = [
             torch.quint8,
@@ -573,7 +573,7 @@ class TestQuantizedTensor(TestCase):
             self.assertEqual(qtr.int_repr(), qtr_cuda.int_repr())
             self.assertTrue(np.allclose(dqtr, dqtr_cuda.cpu()))
 
-    @unittest.skipIf(not torch.cuda.is_available(), 'CUDA is not available')
+    @requires_cuda
     def test_compare_per_channel_device_numerics(self):
         dtype_and_zero_types = [
             (torch.quint8, torch.float),
@@ -1365,7 +1365,7 @@ class TestQuantizedTensor(TestCase):
         np.testing.assert_array_almost_equal(X_scale, qparams[0], decimal=3)
         self.assertEqual(X_zp, qparams[1])
 
-    @unittest.skipIf(not torch.cuda.is_available(), 'CUDA is not available')
+    @requires_cuda
     def test_cuda_quantization_does_not_pin_memory(self):
         # Context - https://github.com/pytorch/pytorch/issues/41115
         x = torch.randn(3)
@@ -1378,7 +1378,7 @@ class TestQuantizedTensor(TestCase):
         self.assertEqual(x.is_pinned(), False)
 
     # There's no way to actually pin the memory of a quantized tensor
-    @unittest.skipIf(not torch.cuda.is_available(), 'CUDA is not available')
+    @requires_cuda
     def test_quant_pin_memory(self):
         x = torch.randn(3).pin_memory()
         self.assertEqual(x.is_pinned(), True)

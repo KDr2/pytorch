@@ -7,7 +7,8 @@ from torch import nn
 import unittest
 import itertools
 
-from torch.testing._internal.common_utils import suppress_warnings, num_profiled_runs, run_tests, skipIfTorchDynamo
+from torch.testing._internal.common_utils import (suppress_warnings, num_profiled_runs, run_tests,
+                                                  skipIfTorchDynamo, requires_cuda,)
 
 from torch.testing._internal.jit_utils import JitTestCase, TensorExprTestOptions
 
@@ -1289,7 +1290,7 @@ class TestTensorExprFuser(BaseTestClass):
     def test_softmax_cpu(self):
         self._test_softmax('cpu')
 
-    @unittest.skipIf(not torch.cuda.is_available(), "requires CUDA")
+    @requires_cuda
     @unittest.skip("global allocs are not supported yet.")
     def test_softmax_cuda(self):
         self._test_softmax('cuda')
@@ -1373,7 +1374,7 @@ class TestTensorExprFuser(BaseTestClass):
         np.testing.assert_allclose(ref.numpy(), res.numpy())
 
     @unittest.skip("dynamic shapes are not quite there yet")
-    @unittest.skipIf(not torch.cuda.is_available(), "requires CUDA")
+    @requires_cuda
     def test_dynamic_shape(self):
         with num_profiled_runs(2):
             @torch.jit.script
@@ -1409,7 +1410,7 @@ class TestTensorExprFuser(BaseTestClass):
             # print(test.graph_for(x, y, z))
             # np.testing.assert_allclose(res.cpu().numpy(), xn * yn * zn)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "requires CUDA")
+    @requires_cuda
     def test_guard_fails(self):
         @torch.jit.script
         def test(x, y, z):

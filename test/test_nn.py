@@ -32,7 +32,7 @@ from torch.nn.parallel._functions import Broadcast
 from torch.testing._internal.common_dtype import integral_types, get_all_math_dtypes, floating_types
 from torch.testing._internal.common_utils import freeze_rng_state, run_tests, TestCase, skipIfNoLapack, skipIfRocm, \
     TEST_NUMPY, TEST_SCIPY, TEST_WITH_CROSSREF, TEST_WITH_ROCM, \
-    download_file, get_function_arglist, load_tests, skipIfMps, \
+    download_file, get_function_arglist, load_tests, skipIfMps, requires_cuda, \
     IS_PPC, \
     parametrize as parametrize_test, subtest, instantiate_parametrized_tests, \
     skipIfTorchDynamo, IS_WINDOWS, gcIfJetson, set_default_dtype
@@ -5310,7 +5310,7 @@ tensor(..., device='meta', size=(1,), requires_grad=True)""")
         self.assertTrue(torch.equal(running_mean, bn.running_mean))
         self.assertTrue(torch.equal(running_var, bn.running_var))
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA not available")
+    @requires_cuda
     def test_batchnorm_nhwc_cuda(self):
         for dtype in (torch.half, torch.float):
             (N, C, H, W) = 2, 64, 50, 50
@@ -7156,7 +7156,7 @@ tensor(..., device='meta', size=(1,), requires_grad=True)""")
         input_2 = torch.rand([5, 0], dtype=torch.float32)
         torch.nn.CrossEntropyLoss()(input_1, input_2)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA not available")
+    @requires_cuda
     def test_convert_sync_batchnorm(self):
         module = torch.nn.Sequential(
             torch.nn.BatchNorm1d(100),

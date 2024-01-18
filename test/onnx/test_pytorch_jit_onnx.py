@@ -3,7 +3,6 @@ import onnxruntime
 import pytorch_test_common
 
 import torch
-from pytorch_test_common import skipIfNoCuda
 from torch.onnx import verification
 from torch.onnx._globals import GLOBALS
 from torch.testing._internal import common_utils
@@ -148,7 +147,7 @@ class _TestJITIRToONNX:
         x = torch.randn(5, 2)
         self.run_test(graph_ir, (x,))
 
-    @skipIfNoCuda
+    @common_utils.requires_cuda
     def test_log_softmax_half_to_float(self):
         graph_ir = """
         graph(%x: Tensor):

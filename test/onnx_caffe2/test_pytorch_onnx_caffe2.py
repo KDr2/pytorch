@@ -34,7 +34,6 @@ from pytorch_test_common import (
     RNN_HIDDEN_SIZE,
     RNN_INPUT_SIZE,
     RNN_SEQUENCE_LENGTH,
-    skipIfNoCuda,
     skipIfTravis,
     skipIfUnsupportedMinOpsetVersion,
     skipIfUnsupportedOpsetVersion,
@@ -44,7 +43,7 @@ from torch.autograd import function, Variable
 from torch.nn.utils import rnn as rnn_utils
 from torch.onnx import ExportTypes
 from torch.testing._internal import common_utils
-from torch.testing._internal.common_utils import skipIfNoLapack
+from torch.testing._internal.common_utils import requires_cuda, skipIfNoLapack
 
 # Import various models for testing
 from torchvision.models.alexnet import alexnet
@@ -615,7 +614,7 @@ class TestCaffe2Backend_opset9(pytorch_test_common.ExportTestCase):
             atol=1e-3,
         )
 
-    @skipIfNoCuda
+    @requires_cuda
     def test_dcgan(self):
         # dcgan is flaky on some seeds, see:
         # https://github.com/ProjectToffee/onnx/pull/70
@@ -707,7 +706,7 @@ class TestCaffe2Backend_opset9(pytorch_test_common.ExportTestCase):
 
     @skipIfTravis
     @skipIfNoLapack
-    @skipIfNoCuda
+    @requires_cuda
     def test_super_resolution(self):
         super_resolution_net = SuperResolutionNet(upscale_factor=3)
         state_dict = model_zoo.load_url(model_urls["super_resolution"], progress=False)

@@ -32,7 +32,7 @@ from torch.testing import make_tensor
 from torch.testing._internal.common_cuda import TEST_CUDA
 from torch.testing._internal.common_utils import (
     TestCase, run_tests, skipIfNoLapack, slowTest, IS_WINDOWS, IS_MACOS,
-    disable_gc, gradcheck, gradgradcheck, parametrize,
+    disable_gc, gradcheck, gradgradcheck, parametrize, requires_cuda,
     instantiate_parametrized_tests, skipIfMps, set_warn_always_context,
     skipIfTorchDynamo)
 from torch.autograd import Variable, Function, detect_anomaly, kineto_available, _calculate_shape
@@ -5852,7 +5852,7 @@ for shape in [(1,), ()]:
         """
         self._test_checkpointing_non_reentrant_autocast(device_type='cuda')
 
-    @unittest.skipIf(not torch.cuda.is_available(), "Test requires CUDA")
+    @requires_cuda
     @slowTest
     def test_checkpointing_without_reentrant_memory_savings(self):
         class MyModel(nn.Module):

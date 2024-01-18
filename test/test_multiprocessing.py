@@ -16,7 +16,7 @@ import torch.utils.hooks
 from torch.nn import Parameter
 from torch.testing._internal.common_utils import (TestCase, run_tests, IS_WINDOWS, NO_MULTIPROCESSING_SPAWN, TEST_WITH_ASAN,
                                                   load_tests, slowTest, TEST_WITH_TSAN, TEST_WITH_TORCHDYNAMO,
-                                                  TEST_WITH_ROCM, IS_MACOS)
+                                                  TEST_WITH_ROCM, IS_MACOS, requires_cuda)
 
 
 # load_tests from common_utils is used to automatically filter tests for
@@ -564,7 +564,7 @@ class TestMultiprocessing(TestCase):
         torch.cuda.ipc_collect()
 
     @unittest.skipIf(IS_WINDOWS, 'not applicable to Windows (only fails with fork)')
-    @unittest.skipIf(not torch.cuda.is_available(), 'CUDA not available')
+    @requires_cuda
     def test_cuda_bad_call(self):
         # Initialize CUDA
         t = torch.zeros(5, 5).cuda().cpu()
@@ -577,7 +577,7 @@ class TestMultiprocessing(TestCase):
         self.assertIsInstance(outq.get(), RuntimeError)
 
     @unittest.skipIf(IS_WINDOWS, 'not applicable to Windows (only fails with fork)')
-    @unittest.skipIf(not torch.cuda.is_available(), 'CUDA not available')
+    @requires_cuda
     def test_wrong_cuda_fork(self):
         stderr = TestCase.runWithPytorchAPIUsageStderr("""\
 import torch
@@ -761,7 +761,7 @@ if __name__ == "__main__":
         self._test_empty_tensor_sharing(torch.float32, torch.device('cpu'))
         self._test_empty_tensor_sharing(torch.int64, torch.device('cpu'))
 
-    @unittest.skipIf(not torch.cuda.is_available(), 'CUDA not available')
+    @requires_cuda
     def test_empty_tensor_sharing_cuda(self):
         self._test_empty_tensor_sharing(torch.float32, torch.device('cuda'))
         self._test_empty_tensor_sharing(torch.int64, torch.device('cuda'))
@@ -932,7 +932,7 @@ if __name__ == "__main__":
         with fs_sharing():
             self._test_is_shared()
 
-    @unittest.skipIf(not torch.cuda.is_available(), 'CUDA not available')
+    @requires_cuda
     def test_is_shared_cuda(self):
         t = torch.randn(5, 5).cuda()
         self.assertTrue(t.is_shared())

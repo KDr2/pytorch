@@ -27,6 +27,7 @@ from torch.testing._internal.common_utils import (
     disable_translation_validation_if_dynamic_shapes,
     instantiate_parametrized_tests,
     parametrize,
+    requires_cuda,
 )
 
 # Defines all the kernels for tests
@@ -536,7 +537,7 @@ class FunctionTests(torch._dynamo.test_case.TestCase):
         m = a.to(torch.float16)
         return b.type(m.type())
 
-    @unittest.skipIf(not torch.cuda.is_available(), "requires cuda")
+    @requires_cuda
     @make_test
     def test_tensor_type2(a, b):
         m = a.to("cuda")
@@ -552,7 +553,7 @@ class FunctionTests(torch._dynamo.test_case.TestCase):
         m = a.type("torch.HalfTensor")
         return b.type(m.type())
 
-    @unittest.skipIf(not torch.cuda.is_available(), "requires cuda")
+    @requires_cuda
     @make_test
     def test_tensor_type5(a, b):
         m = a.type(torch.cuda.HalfTensor)

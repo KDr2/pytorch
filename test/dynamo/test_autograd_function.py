@@ -8,8 +8,8 @@ import torch
 import torch._dynamo.test_case
 import torch._dynamo.testing
 import torch._dynamo.utils
-from torch.testing._internal.common_utils import skipIfRocm
-from torch.testing._internal.triton_utils import HAS_CUDA, requires_cuda
+from torch.testing._internal.common_utils import requires_cuda, skipIfRocm
+from torch.testing._internal.triton_utils import HAS_CUDA
 
 if HAS_CUDA:
     import triton
@@ -862,7 +862,7 @@ class AutogradFunctionTests(torch._dynamo.test_case.TestCase):
         foo(torch.randn(2))
         foo(torch.randn(2, requires_grad=True))
 
-    @requires_cuda()
+    @requires_cuda
     @skipIfRocm
     def test_triton_kernel_basic(self):
         class Add(torch.autograd.Function):
@@ -894,7 +894,7 @@ class AutogradFunctionTests(torch._dynamo.test_case.TestCase):
         loss.backward()
         self.assertEqual(x + y, z)
 
-    @requires_cuda()
+    @requires_cuda
     @skipIfRocm
     def test_triton_kernel_multiple_out(self):
         class Add(torch.autograd.Function):

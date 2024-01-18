@@ -1266,7 +1266,7 @@ class TestQuantizeEagerONNXExport(common_utils.TestCase):
         data = torch.from_numpy(data_numpy).to(dtype=torch.float)
         self._test_lower_graph_impl(model, data)
 
-    @pytorch_test_common.skipIfNoCuda
+    @common_utils.requires_cuda
     def test_composed_layer_norm_small_eps_fp16_keep_double(self):
         class Net(torch.nn.Module):
             def __init__(self, C):
@@ -1292,7 +1292,7 @@ class TestQuantizeEagerONNXExport(common_utils.TestCase):
                     double_type_count += 1
         self.assertNotEqual(double_type_count, 0)
 
-    @pytorch_test_common.skipIfNoCuda
+    @common_utils.requires_cuda
     def test_aten_device_with_index(self):
         from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 

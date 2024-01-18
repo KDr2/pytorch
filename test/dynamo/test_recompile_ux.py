@@ -1,5 +1,4 @@
 # Owner(s): ["module: dynamo"]
-import unittest
 import weakref
 
 import torch
@@ -10,6 +9,7 @@ import torch._dynamo.test_case
 import torch._dynamo.testing
 
 import torch._logging
+from torch.testing._internal.common_utils import requires_cuda
 from torch.testing._internal.logging_utils import kwargs_to_settings, log_settings
 
 
@@ -102,7 +102,7 @@ class RecompileUxTests(torch._dynamo.test_case.TestCase):
             .startswith("torch._dynamo hit config.cache_size_limit")
         )
 
-    @unittest.skipIf(not torch.cuda.is_available(), "requires cuda")
+    @requires_cuda
     def test_nvfuser_guards(self):
         # we may want to model dynamo's guards sufficiently after nvfuser's ProfilingExecutor guards
         # such that we ensure dynamo is in charge of all the recompilations at the top level,

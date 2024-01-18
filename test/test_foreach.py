@@ -13,7 +13,7 @@ from torch.testing import make_tensor
 from torch.testing._comparison import default_tolerances
 from torch.testing._internal.common_cuda import TEST_MULTIGPU
 from torch.testing._internal.common_utils import \
-    TestCase, run_tests, TEST_WITH_ROCM, skipIfTorchDynamo, parametrize, gradcheck
+    TestCase, run_tests, TEST_WITH_ROCM, requires_cuda, skipIfTorchDynamo, parametrize, gradcheck
 from torch.testing._internal.common_device_type import \
     (instantiate_device_type_tests, dtypes, onlyCUDA, ops, OpDTypes)
 from torch.testing._internal.common_methods_invocations import (
@@ -462,7 +462,7 @@ class TestForeach(TestCase):
                 with self.assertRaisesRegex(RuntimeError, "Expected all tensors to be on the same device"):
                     foreach_op_([tensor1], [tensor2])
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA not found")
+    @requires_cuda
     @ops(
         filter(lambda op: op.supports_out, foreach_binary_op_db),
         dtypes=OpDTypes.supported,

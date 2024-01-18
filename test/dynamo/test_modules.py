@@ -20,6 +20,7 @@ from torch._dynamo.mutation_guard import GenerationTracker
 from torch._dynamo.testing import expectedFailureDynamic, same
 from torch.nn.modules.lazy import LazyModuleMixin
 from torch.nn.parameter import Parameter, UninitializedParameter
+from torch.testing._internal.common_utils import requires_cuda
 
 try:
     from . import test_functions
@@ -1366,7 +1367,7 @@ class NNModuleTests(torch._dynamo.test_case.TestCase):
 
     # RuntimeError: SymIntArrayRef expected to contain only concrete integers
     @expectedFailureDynamic
-    @unittest.skipIf(not torch.cuda.is_available(), "requires cuda")
+    @requires_cuda
     def test_lazy_module3(self):
         m = LazyMLP()
         x = torch.rand([10, 10])

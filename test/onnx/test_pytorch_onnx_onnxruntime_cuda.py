@@ -11,13 +11,13 @@ import torch
 from onnx_test_common import MAX_ONNX_OPSET_VERSION, MIN_ONNX_OPSET_VERSION
 from pytorch_test_common import (
     skipIfNoBFloat16Cuda,
-    skipIfNoCuda,
     skipIfUnsupportedMinOpsetVersion,
     skipScriptTest,
 )
 from test_pytorch_onnx_onnxruntime import _parameterized_class_attrs_and_values
 from torch.cuda.amp import autocast
 from torch.testing._internal import common_utils
+from torch.testing._internal.common_utils import requires_cuda
 
 
 @parameterized.parameterized_class(
@@ -28,7 +28,7 @@ from torch.testing._internal import common_utils
 )
 class TestONNXRuntime_cuda(onnx_test_common._TestONNXRuntime):
     @skipIfUnsupportedMinOpsetVersion(9)
-    @skipIfNoCuda
+    @requires_cuda
     def test_gelu_fp16(self):
         class GeluModel(torch.nn.Module):
             def forward(self, x):
@@ -46,7 +46,7 @@ class TestONNXRuntime_cuda(onnx_test_common._TestONNXRuntime):
         self.run_test(GeluModel(), x, rtol=1e-3, atol=1e-5)
 
     @skipIfUnsupportedMinOpsetVersion(9)
-    @skipIfNoCuda
+    @requires_cuda
     @skipScriptTest()
     def test_layer_norm_fp16(self):
         class LayerNormModel(torch.nn.Module):
@@ -70,7 +70,7 @@ class TestONNXRuntime_cuda(onnx_test_common._TestONNXRuntime):
         self.run_test(LayerNormModel().cuda(), x, rtol=1e-3, atol=1e-5)
 
     @skipIfUnsupportedMinOpsetVersion(12)
-    @skipIfNoCuda
+    @requires_cuda
     @skipScriptTest()
     def test_softmaxCrossEntropy_fusion_fp16(self):
         class FusionModel(torch.nn.Module):
@@ -94,7 +94,7 @@ class TestONNXRuntime_cuda(onnx_test_common._TestONNXRuntime):
         target[target == 1] = -100
         self.run_test(FusionModel(), (input, target))
 
-    @skipIfNoCuda
+    @requires_cuda
     @skipScriptTest()
     def test_apex_o2(self):
         class LinearModel(torch.nn.Module):
@@ -131,7 +131,7 @@ class TestONNXRuntime_cuda(onnx_test_common._TestONNXRuntime):
         )
         self.run_test(MyModule(), x, rtol=1e-3, atol=1e-5)
 
-    @skipIfNoCuda
+    @requires_cuda
     def test_deduplicate_initializers_diff_devices(self):
         class Model(torch.nn.Module):
             def __init__(self):

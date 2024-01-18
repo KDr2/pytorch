@@ -1,7 +1,6 @@
 # Owner(s): ["oncall: distributed"]
 
 import contextlib
-import unittest
 from copy import deepcopy
 from functools import partial
 
@@ -16,7 +15,7 @@ from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
     OffloadWrapper,
 )
 from torch.distributed.fsdp.wrap import ModuleWrapPolicy
-from torch.testing._internal.common_utils import run_tests, TestCase
+from torch.testing._internal.common_utils import requires_cuda, run_tests, TestCase
 from torch.utils.checkpoint import checkpoint
 
 _SAVED_PREFIX = "_saved_"
@@ -129,7 +128,7 @@ class CheckpointWrapperTest(TestCase):
         m(torch.randn(2, 1)).sum().backward()
         self.assertEqual(2, count)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "Test requires CUDA")
+    @requires_cuda
     def test_checkpoint_wrapper_parity(self):
         """
         Tests that using checkpoint_wrapper or the functional
@@ -332,7 +331,7 @@ class CheckpointWrapperTest(TestCase):
         for fqn, _ in lin.named_parameters():
             self.assertTrue(fqn in state_dict, msg=f"{fqn} not in state_dict.")
 
-    @unittest.skipIf(not torch.cuda.is_available(), "Test requires CUDA")
+    @requires_cuda
     def test_checkpoint_wrapper_cpu_offload(self):
         model = nn.Sequential(
             nn.Linear(10, 10),

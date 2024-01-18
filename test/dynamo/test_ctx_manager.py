@@ -10,7 +10,7 @@ from torch._dynamo.testing import EagerAndRecordGraphs, normalize_gm, same
 
 from torch.nn import functional as F
 from torch.testing._internal.common_cuda import PLATFORM_SUPPORTS_FLASH_ATTENTION
-from torch.testing._internal.common_utils import TEST_WITH_ROCM
+from torch.testing._internal.common_utils import requires_cuda, TEST_WITH_ROCM
 
 
 class CutomizedCtxManager:
@@ -156,7 +156,7 @@ class CtxManagerTests(torch._dynamo.test_case.TestCase):
         self.assertTrue(same(ref, res))
         self.assertEqual(cnts.frame_count, 2)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "requires cuda")
+    @requires_cuda
     def test_cuda_stream_context_manager1(self):
         def fn(x):
             s = torch.cuda.Stream()
@@ -177,7 +177,7 @@ class CtxManagerTests(torch._dynamo.test_case.TestCase):
         self.assertEqual(cnts.frame_count, 1)
         self.assertEqual(cnts.op_count, 9)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "requires cuda")
+    @requires_cuda
     def test_cuda_stream_across_graph_break(self):
         def fn(x):
             s = torch.cuda.Stream()
@@ -201,7 +201,7 @@ class CtxManagerTests(torch._dynamo.test_case.TestCase):
         self.assertEqual(cnts.frame_count, 2)
         self.assertEqual(cnts.op_count, 9)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "requires cuda")
+    @requires_cuda
     def test_cuda_stream_context_manager2(self):
         def fn(x, s):
             x = torch.mul(x, 5)
@@ -231,7 +231,7 @@ class CtxManagerTests(torch._dynamo.test_case.TestCase):
         self.assertEqual(cnts.frame_count, 1)
         self.assertEqual(cnts.op_count, 18)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "requires cuda")
+    @requires_cuda
     def test_cuda_stream_method(self):
         def fn(x):
             x = torch.mul(x, 1)
@@ -268,7 +268,7 @@ class CtxManagerTests(torch._dynamo.test_case.TestCase):
         self.assertEqual(cnts.frame_count, 1)
         self.assertEqual(cnts.op_count, 20)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "requires cuda")
+    @requires_cuda
     def test_cuda_event_method(self):
         def fn(x):
             x = torch.mul(x, 1)
@@ -332,7 +332,7 @@ class CtxManagerTests(torch._dynamo.test_case.TestCase):
             res = opt_fn(x)
             self.assertTrue(same(ref, res))
 
-    @unittest.skipIf(not torch.cuda.is_available(), "requires cuda")
+    @requires_cuda
     def test_autocast(self):
         if not torch.cuda.is_bf16_supported():
             raise unittest.SkipTest("requires bf16")
@@ -362,7 +362,7 @@ class CtxManagerTests(torch._dynamo.test_case.TestCase):
         self.assertEqual(exported.device.index, 0)
         self.assertEqual(exported.dtype, torch.bfloat16)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "requires cuda")
+    @requires_cuda
     def test_cuda_amp_autocast(self):
         class MyModule(torch.nn.Module):
             def forward(self, x):
@@ -618,7 +618,7 @@ class CtxManagerTests(torch._dynamo.test_case.TestCase):
         self.assertEqual(out_32.device.type, "cpu")
         self.assertEqual(out_32.dtype, torch.float32)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "requires cuda")
+    @requires_cuda
     def test_autocast_float64(self):
         class MyModule(torch.nn.Module):
             def forward(self, x):
@@ -644,7 +644,7 @@ class CtxManagerTests(torch._dynamo.test_case.TestCase):
         self.assertEqual(exported.device.index, 0)
         self.assertEqual(exported.dtype, torch.float64)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "requires cuda")
+    @requires_cuda
     def test_autocast_device(self):
         class MyModule(torch.nn.Module):
             def forward(self, x):
@@ -670,7 +670,7 @@ class CtxManagerTests(torch._dynamo.test_case.TestCase):
         self.assertEqual(exported.device.index, 0)
         self.assertEqual(exported.dtype, torch.torch.float16)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "requires cuda")
+    @requires_cuda
     def test_autocast_arguments_binding(self):
         def f1(x):
             with torch.cuda.amp.autocast(False):
@@ -692,7 +692,7 @@ class CtxManagerTests(torch._dynamo.test_case.TestCase):
         self.assertTrue(same(ref1, res1))
         self.assertTrue(same(ref2, res2))
 
-    @unittest.skipIf(not torch.cuda.is_available(), "requires cuda")
+    @requires_cuda
     def test_autocast_decorator(self):
         def autocast_func(orig_func):
             @torch.amp.autocast(device_type="cuda", dtype=torch.float16)

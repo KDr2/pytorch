@@ -1,5 +1,4 @@
 # Owner(s): ["module: inductor"]
-import functools
 import unittest
 from unittest.mock import patch
 
@@ -7,11 +6,15 @@ import torch._dynamo.config as dynamo_config
 import torch._inductor.config as inductor_config
 from torch._dynamo.test_minifier_common import MinifierTestBase
 from torch._inductor import config
-from torch.testing._internal.common_utils import IS_JETSON, IS_MACOS, TEST_WITH_ASAN
+from torch.testing._internal.common_utils import (
+    IS_JETSON,
+    IS_MACOS,
+    requires_cuda,
+    TEST_WITH_ASAN,
+)
 from torch.utils._triton import has_triton
 
 _HAS_TRITON = has_triton()
-requires_cuda = functools.partial(unittest.skipIf, not _HAS_TRITON, "requires cuda")
 
 
 class MinifierTests(MinifierTestBase):
@@ -41,12 +44,12 @@ inner(torch.randn(20, 20).to("{device}"))
     def test_after_aot_cpu_accuracy_error(self):
         self._test_after_aot("cpu", "AccuracyError")
 
-    @requires_cuda()
+    @requires_cuda
     @inductor_config.patch("triton.inject_relu_bug_TESTING_ONLY", "compile_error")
     def test_after_aot_cuda_compile_error(self):
         self._test_after_aot("cuda", "SyntaxError")
 
-    @requires_cuda()
+    @requires_cuda
     @inductor_config.patch("triton.inject_relu_bug_TESTING_ONLY", "accuracy")
     def test_after_aot_cuda_accuracy_error(self):
         self._test_after_aot("cuda", "AccuracyError")
@@ -62,7 +65,7 @@ inner(torch.randn(2))
 """
         self._run_full_test(run_code, "aot", "AccuracyError", isolate=False)
 
-    @requires_cuda()
+    @requires_cuda
     @patch.object(config, "joint_graph_constant_folding", False)
     def test_rmse_improves_over_atol(self):
         # From https://twitter.com/itsclivetime/status/1651135821045719041?s=20

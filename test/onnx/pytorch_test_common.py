@@ -49,8 +49,6 @@ def _skipper(condition, reason):
     return decorator
 
 
-skipIfNoCuda = _skipper(lambda: not torch.cuda.is_available(), "CUDA is not available")
-
 skipIfTravis = _skipper(lambda: os.getenv("TRAVIS"), "Skip In Travis")
 
 skipIfNoBFloat16Cuda = _skipper(

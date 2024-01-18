@@ -10,7 +10,7 @@ import torch._dynamo.config
 import torch._dynamo.test_case
 import torch._dynamo.testing
 from torch._dynamo.testing import same
-from torch.testing._internal.common_utils import TEST_CUDA_GRAPH
+from torch.testing._internal.common_utils import requires_cuda, TEST_CUDA_GRAPH
 
 
 def composed(*decs):
@@ -55,7 +55,7 @@ def patch_all(ok=True):
 N_ITERS = 5
 
 
-@unittest.skipIf(not torch.cuda.is_available(), "these tests require cuda")
+@requires_cuda
 class TestAotCudagraphs(torch._dynamo.test_case.TestCase):
     @patch_all()
     def test_basic(self):

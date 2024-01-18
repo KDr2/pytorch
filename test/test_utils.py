@@ -39,7 +39,7 @@ load_tests = load_tests
 HAS_CUDA = torch.cuda.is_available()
 
 
-from torch.testing._internal.common_utils import TestCase, run_tests
+from torch.testing._internal.common_utils import TestCase, run_tests, requires_cuda
 
 
 class RandomDatasetMock(torch.utils.data.Dataset):
@@ -402,7 +402,7 @@ class TestCheckpoint(TestCase):
             out = checkpoint(run_fn2, input_var, input_var2, use_reentrant=True)
             out.sum().backward()
 
-    @unittest.skipIf(not torch.cuda.is_available(), "Test requires CUDA")
+    @requires_cuda
     def test_checkpointing_without_reentrant_early_free(self):
         # I don't know how to check if the temporary saved variable buffer
         # get de-allocated directly. So using cuda memory usage as a proxy

@@ -50,6 +50,7 @@ from functorch.compile import (
 from torch._decomp import decomposition_table
 
 from torch.testing._internal.common_device_type import ops
+from torch.testing._internal.common_utils import requires_cuda
 from common_utils import (
     decorate,
     xfail,
@@ -1663,7 +1664,7 @@ def forward(self, arg0_1, arg1_1):
         self.assertTrue('as_strided_scatter' in str(fw_graph_overlap2.code))
 
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA is unavailable")
+    @requires_cuda
     def test_mem_leak_from_save_for_bw(self):
         # See a full diagnosis at this issue: https://github.com/pytorch/pytorch/issues/94990
         # Note [Detaching saved tensors in AOTAutograd]
@@ -1914,7 +1915,7 @@ def forward(self, primals_1, primals_2, primals_3):
     view_2 = torch.ops.aten.view.default(as_strided_14, [-1]);  as_strided_14 = None
     return [as_strided_scatter, add_2, view_2, unsqueeze_1]""")  # noqa: B950
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA is unavailable")
+    @requires_cuda
     def test_synthetic_base_base_attribute_is_none(self):
         def f(a, b):
             a.add_(1)
@@ -2316,14 +2317,14 @@ def forward(self, tangents_1):
 
         self.verify_aot_autograd(f, [torch.randn(3)])
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA is unavailable")
+    @requires_cuda
     def test_autocast_disable_guard(self):
         with torch._C._DisableAutocast():
             x = torch.rand([4, 4]).cuda()
             y = x @ x
             self.assertEqual(y.dtype, torch.float32)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA is unavailable")
+    @requires_cuda
     def test_nonidempotent_amp(self):
         def f(self_s_emb, add_3):
             einsum_2 = torch.functional.einsum('ah,th->t', self_s_emb, add_3)
@@ -2338,7 +2339,7 @@ def forward(self, tangents_1):
         with torch.cuda.amp.autocast(enabled=True):
             self.verify_aot_autograd(f, args)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA is unavailable")
+    @requires_cuda
     @unittest.skipIf(not torch.backends.cudnn.is_available(), "CUDNN is unavailable")
     @skipIfRocm  # https://github.com/pytorch/pytorch/issues/96560
     def test_batch_norm_amp(self):
@@ -3676,7 +3677,7 @@ class TestPartitioning(AOTTestCase):
         self.assertTrue(inference_graph_cell[0] is not None)
 
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA is unavailable")
+    @requires_cuda
     @unittest.skipIf(not USE_TORCHVISION, "test requires torchvision")
     def test_autocast(self):
         mod = torchvision.models.resnet18().cuda()

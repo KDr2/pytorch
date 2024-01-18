@@ -11,6 +11,7 @@ import torch.nn.functional as F
 
 from torch._dynamo.comptime import comptime
 from torch._dynamo.testing import CompileCounter, same
+from torch.testing._internal.common_utils import requires_cuda
 
 
 # The intention of this test file is you should put test cases specifically
@@ -212,7 +213,7 @@ class UnspecTests(torch._dynamo.test_case.TestCase):
         self.assertEqual(cnt.frame_count, 1)
         self.assertEqual(cnt.op_count, 1)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "requires cuda")
+    @requires_cuda
     def test_builtin_functions_on_cuda(self):
         def fn(x, scaler):
             m = torch.nn.ReLU()

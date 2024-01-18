@@ -1,13 +1,7 @@
 # Owner(s): ["module: dynamo"]
-import functools
-import unittest
-
 import torch._dynamo
 from torch._dynamo.test_minifier_common import MinifierTestBase
-
-requires_cuda = functools.partial(
-    unittest.skipIf, not torch.cuda.is_available(), "requires cuda"
-)
+from torch.testing._internal.common_utils import requires_cuda
 
 
 class MinifierTests(MinifierTestBase):
@@ -42,19 +36,19 @@ inner(torch.randn(20, 20).to("{device}"))
             "cpu", "relu_accuracy_error_TESTING_ONLY", "AccuracyError"
         )
 
-    @requires_cuda()
+    @requires_cuda
     def test_after_dynamo_cuda_compile_error(self):
         self._test_after_dynamo(
             "cuda", "relu_compile_error_TESTING_ONLY", "ReluCompileError"
         )
 
-    @requires_cuda()
+    @requires_cuda
     def test_after_dynamo_cuda_runtime_error(self):
         self._test_after_dynamo(
             "cuda", "relu_runtime_error_TESTING_ONLY", "ReluRuntimeError"
         )
 
-    @requires_cuda()
+    @requires_cuda
     def test_after_dynamo_cuda_accuracy_error(self):
         self._test_after_dynamo(
             "cuda", "relu_accuracy_error_TESTING_ONLY", "AccuracyError"
@@ -95,26 +89,26 @@ inner(torch.randn(20, 20, requires_grad=True) + 1)
             "cpu", "relu_accuracy_error_TESTING_ONLY"
         )
 
-    @requires_cuda()
+    @requires_cuda
     def test_after_dynamo_cuda_compile_backend_passes(self):
         self._test_after_dynamo_backend_passes(
             "cuda", "relu_compile_error_TESTING_ONLY"
         )
 
-    @requires_cuda()
+    @requires_cuda
     def test_after_dynamo_cuda_runtime_backend_passes(self):
         self._test_after_dynamo_backend_passes(
             "cuda", "relu_runtime_error_TESTING_ONLY"
         )
 
-    @requires_cuda()
+    @requires_cuda
     def test_after_dynamo_cuda_accuracy_backend_passes(self):
         self._test_after_dynamo_backend_passes(
             "cuda", "relu_accuracy_error_TESTING_ONLY"
         )
 
     # Test that a module with mixed cpu/cuda parts with an error after dynamo can be repro'd
-    @requires_cuda()
+    @requires_cuda
     def test_cpu_cuda_module_after_dynamo(self):
         backend_name = "relu_compile_error_TESTING_ONLY"
         run_code = f"""\

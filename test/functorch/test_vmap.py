@@ -8,7 +8,7 @@
 
 from typing import OrderedDict
 from unittest.case import skipIf
-from torch.testing._internal.common_utils import TestCase, run_tests
+from torch.testing._internal.common_utils import TestCase, run_tests, requires_cuda
 import torch
 import torch.nn.functional as F
 from torch import Tensor
@@ -1133,7 +1133,7 @@ class TestVmapAPI(TestCase):
     def test_vmap_autocast_cpu(self):
         self._test_vmap_autocast("cpu")
 
-    @skipIf(not torch.cuda.is_available(), "CUDA is unavailable")
+    @requires_cuda
     def test_vmap_autocast_cuda(self):
         self._test_vmap_autocast("cuda")
 

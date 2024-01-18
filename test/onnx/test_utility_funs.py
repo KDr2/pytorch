@@ -17,7 +17,6 @@ import torch.utils.cpp_extension
 import torchvision
 from autograd_helper import CustomFunction as CustomFunction2
 from pytorch_test_common import (
-    skipIfNoCuda,
     skipIfUnsupportedMaxOpsetVersion,
     skipIfUnsupportedMinOpsetVersion,
 )
@@ -1851,7 +1850,7 @@ class TestUtilityFuns(_BaseTestCase):
     def test_deduplicate_initializers_torchscript(self):
         self._test_deduplicate_initializers(torchscript=True)
 
-    @skipIfNoCuda
+    @common_utils.requires_cuda
     def test_deduplicate_initializers_diff_devices(self):
         class Model(torch.nn.Module):
             def __init__(self):

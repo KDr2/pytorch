@@ -27,11 +27,9 @@ from torch.optim import (
 
 from torch.testing._internal.common_optimizers import optim_db
 
-from torch.testing._internal.common_utils import TestCase
+from torch.testing._internal.common_utils import requires_cuda, TestCase
 
 from torch.testing._internal.inductor_utils import HAS_CPU, HAS_CUDA
-
-from torch.testing._internal.triton_utils import requires_cuda
 
 
 class KernelCounts(NamedTuple):
@@ -234,13 +232,13 @@ def make_test(
             )
 
     if device == "cuda":
-        test_fn = requires_cuda()(test_fn)
+        test_fn = requires_cuda(test_fn)
 
     return test_fn
 
 
 def make_recompile_test(optim_cls, closure=None, kernel_count=2, **kwargs):
-    @requires_cuda()
+    @requires_cuda
     def test_fn(self):
         torch._dynamo.reset()
         torch._inductor.metrics.reset()
@@ -323,7 +321,7 @@ class CompiledOptimizerTests(TestCase):
         SGD, kernel_count=1, lr=0.01, foreach=True
     )
 
-    @requires_cuda()
+    @requires_cuda
     def test_static_address_finalizer(self):
         import gc
 

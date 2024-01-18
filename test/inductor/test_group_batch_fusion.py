@@ -1,13 +1,12 @@
 # Owner(s): ["module: inductor"]
 
-import functools
 import unittest
 
 import torch
 import torch._inductor
 from torch._dynamo.test_case import run_tests, TestCase
 from torch._dynamo.utils import counters
-from torch.testing._internal.inductor_utils import HAS_CUDA
+from torch.testing._internal.common_utils import requires_cuda
 
 try:
     # importing this will register fbgemm lowerings for inductor
@@ -17,8 +16,6 @@ try:
 except Exception:
     has_fbgemm = False
     pass
-
-requires_cuda = functools.partial(unittest.skipIf, not HAS_CUDA, "requires cuda")
 
 
 class MyModule(torch.nn.Module):
@@ -220,7 +217,7 @@ class TestPoitwiseOps(torch.nn.Module):
         return torch.cat(div, dim=1)
 
 
-@requires_cuda()
+@requires_cuda
 @torch._inductor.config.patch(
     pre_grad_fusion_options={
         "batch_linear": {},
@@ -450,7 +447,7 @@ class TestBMMFusionModule(torch.nn.Module):
         return output
 
 
-@requires_cuda()
+@requires_cuda
 @torch._inductor.config.patch(
     post_grad_fusion_options={"batch_linear_post_grad": {"require_fbgemm": False}}
 )

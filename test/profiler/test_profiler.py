@@ -60,6 +60,7 @@ from torch.testing._internal.common_utils import (
     IS_WINDOWS,
     instantiate_parametrized_tests,
     parametrize,
+    requires_cuda,
     run_tests,
     TemporaryDirectoryName,
     TemporaryFileName,
@@ -83,7 +84,7 @@ from torch._C._profiler import _ExperimentalConfig, _ExtraFields_PyCall
 @unittest.skipIf(not HAS_PSUTIL, "Requires psutil to run")
 @unittest.skipIf(TEST_WITH_ASAN, "Cannot test with ASAN")
 @unittest.skipIf(IS_WINDOWS, "Test is flaky on Windows")
-@unittest.skipIf(not torch.cuda.is_available(), "CUDA is required")
+@requires_cuda
 class TestProfilerCUDA(TestCase):
 
     @skipCUDAVersionIn([(11, 5)])  # https://github.com/pytorch/pytorch/issues/69023
@@ -137,7 +138,7 @@ class TestProfilerCUDA(TestCase):
             q = s.sum()
             q.backward()
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA is required")
+    @requires_cuda
     def test_cudagraph_profiling_workaround(self):
         import subprocess
 
@@ -1534,7 +1535,7 @@ class TestProfiler(TestCase):
     # we can narrow the condition so Windows is checked as well (TODO)
     @unittest.skipIf(not kineto_available(), "Kineto is required")
     @unittest.skipIf(IS_WINDOWS, "Test does not work on Windows")
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA is required")
+    @requires_cuda
     def test_profiler_cuda_sync_events(self):
         device = torch.device("cuda:0")
         t1, t2 = torch.ones(1, device=device), torch.ones(1, device=device)
@@ -1797,7 +1798,7 @@ assert KinetoStepTracker.current_step() == initial_step + 2 * niters
 
         self.assertGreaterEqual(len([e for e in p.events() if e.name == "guarded_rff"]), 4)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA is required")
+    @requires_cuda
     def test_event_list(self):
         # AFAIK event list is part of legacy profiler and/or used when kineto is not available.
         # This test has basic sanity checks to test against obvious regressions.
@@ -2993,7 +2994,7 @@ aten::mm""")
         self.assertEqual(event_tree[0], pattern.prev_of(event_tree[1]))
 
     @unittest.skipIf(TEST_WITH_CROSSREF, "crossref intercepts calls and changes the callsite.")
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA is required")
+    @requires_cuda
     def test_profiler_extra_cuda_copy_pattern(self):
         cases = (
             (0, lambda: torch.ones((100, 100), device="cuda")),
@@ -3056,7 +3057,7 @@ aten::mm""")
         self.assertEqual(num_matched, [i for i, _ in cases])
 
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA is required")
+    @requires_cuda
     def test_profiler_fp32_matmul_pattern(self):
         x = torch.ones((100, 100), device="cuda")
         with profile(with_stack=True) as prof:
@@ -3067,7 +3068,7 @@ aten::mm""")
         self.assertEqual(num_matched, has_tf32)
 
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA is required")
+    @requires_cuda
     def test_profiler_extra_cuda_copy_pattern_benchmark(self):
         with profile(with_stack=True, record_shapes=True) as prof:
             x = torch.ones((100, 100)).to("cuda")
@@ -3157,7 +3158,7 @@ aten::mm""")
         self.assertEqual(num_matched, [i for i, _ in cases])
 
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA is required")
+    @requires_cuda
     def test_profiler_matmul_dim_fp16_pattern(self):
         cases = (
             (1, torch.randn((201, 201), device='cuda', dtype=torch.float16)),

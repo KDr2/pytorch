@@ -4,7 +4,7 @@ import collections
 import unittest
 
 import torch
-from torch.testing._internal.common_utils import TestCase, run_tests, IS_WINDOWS, skipIfTorchDynamo
+from torch.testing._internal.common_utils import TestCase, run_tests, IS_WINDOWS, requires_cuda, skipIfTorchDynamo
 from torch.testing._internal.autocast_test_lists import AutocastCPUTestLists
 from torch.utils._python_dispatch import TorchDispatchMode
 
@@ -224,7 +224,7 @@ class WeightDTypeCastCounterMode(TorchDispatchMode):
         torch.clear_autocast_cache = self.old_clear_cache
         return super().__exit__(exc_type, exc_val, exc_tb)
 
-@unittest.skipIf(not torch.cuda.is_available(), "requires cuda")
+@requires_cuda
 class TestAutocastGPU(TestCase):
     def test_cast_cache_is_global(self):
         """

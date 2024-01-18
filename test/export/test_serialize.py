@@ -37,6 +37,7 @@ from torch.testing._internal.common_utils import (
     run_tests,
     TemporaryFileName,
     TestCase,
+    requires_cuda,
 )
 
 
@@ -521,7 +522,7 @@ class TestDeserialize(TestCase):
 
         self.check_graph(WrapperModule(f), (torch.tensor([1, 1]),))
 
-    @unittest.skipIf(not torch.cuda.is_available(), "Requires cuda")
+    @requires_cuda
     def test_device(self) -> None:
         class MyModule(torch.nn.Module):
             def __init__(self):

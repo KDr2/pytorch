@@ -10,7 +10,7 @@ from functorch.experimental import control_flow
 from functorch.experimental.control_flow import UnsupportedAliasMutationException, cond
 from torch._higher_order_ops.while_loop import while_loop
 from torch.fx.experimental.proxy_tensor import make_fx
-from torch.testing._internal.common_utils import run_tests, TestCase
+from torch.testing._internal.common_utils import requires_cuda, run_tests, TestCase
 from torch.testing._internal.common_quantization import skipIfNoDynamoSupport
 from torch._subclasses.functional_tensor import FunctionalTensor, CppFunctionalizeAPI, PythonFunctionalizeAPI, FunctionalTensorMode
 
@@ -148,7 +148,7 @@ class TestControlFlow(TestCase):
         result = cond(False, true_fn, false_fn, [x])
         self.assertEqual(result, torch.cos(x))
 
-    @unittest.skipIf(not torch.cuda.is_available(), "Test requires CUDA.")
+    @requires_cuda
     def test_cond_gpu(self):
         def true_fn(x):
             return x.sin()
@@ -161,7 +161,7 @@ class TestControlFlow(TestCase):
         result = cond(pred, true_fn, false_fn, [x])
         self.assertEqual(result, torch.cos(x))
 
-    @unittest.skipIf(not torch.cuda.is_available(), "Test requires CUDA.")
+    @requires_cuda
     def test_map_gpu(self):
         def f(x, y):
             return x + y
@@ -172,7 +172,7 @@ class TestControlFlow(TestCase):
         expected = _fake_map(f, xs, y)
         self.assertEqual(expected, res)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "Test requires CUDA.")
+    @requires_cuda
     def test_while_loop_gpu(self):
         def cond_fn(x):
             return x.sum() < 10

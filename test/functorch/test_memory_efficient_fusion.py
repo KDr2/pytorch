@@ -7,11 +7,10 @@ from functorch import make_fx
 from torch.nn import functional as F
 from functorch.compile import memory_efficient_fusion
 from torch._functorch.compile_utils import fx_graph_cse
-from torch.testing._internal.common_utils import TestCase, run_tests
+from torch.testing._internal.common_utils import TestCase, run_tests, requires_cuda
 import inspect
 import random
 from typing import Callable
-import unittest
 
 HAS_CUDA = torch.cuda.is_available()
 
@@ -119,7 +118,7 @@ def run_and_compare_activation(self, fn, inps):
             self.assertEqual(ref_arg.grad, res_arg.grad)
 
 
-@unittest.skipIf(not torch.cuda.is_available(), "CUDA is unavailable")
+@requires_cuda
 class TestMemoryEfficientOpAuthoring(TestCase):
     def test_gelu_bias(self):
         run_and_compare_activation(self, gelu_bias, [(1024,), (1024,)])

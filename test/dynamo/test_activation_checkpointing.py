@@ -14,12 +14,9 @@ from functorch.compile import min_cut_rematerialization_partition
 from torch._dynamo.backends.common import aot_autograd
 from torch._dynamo.testing import CompileCounterWithBackend
 from torch._higher_order_ops.wrap import tag_activation_checkpoint
-from torch.testing._internal.common_utils import IS_WINDOWS, skipIfRocm
-from torch.testing._internal.inductor_utils import HAS_CUDA
+from torch.testing._internal.common_utils import IS_WINDOWS, requires_cuda, skipIfRocm
 from torch.testing._internal.two_tensor import TwoTensor
 from torch.utils.checkpoint import _pt2_selective_checkpoint_context_fn_gen, checkpoint
-
-requires_cuda = functools.partial(unittest.skipIf, not HAS_CUDA, "requires cuda")
 
 
 def checkpoint_wrapper(fn):
@@ -180,7 +177,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
                 msg="Gradient mismatch between the original version and the checkpointed version of the same function",
             )
 
-    @requires_cuda()
+    @requires_cuda
     def test_tags_function(self):
         def gn(x, y):
             return torch.sigmoid(torch.matmul(x, y))
@@ -200,7 +197,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         backend = aot_autograd(fw_compiler=fw_compiler, bw_compiler=bw_compiler)
         self._validate(fn, backend, x, y)
 
-    @requires_cuda()
+    @requires_cuda
     def test_tags_function_via_global_checkpoint(self):
         def gn(x, y):
             return torch.sigmoid(torch.matmul(x, y))
@@ -219,7 +216,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         backend = aot_autograd(fw_compiler=fw_compiler, bw_compiler=bw_compiler)
         self._validate(fn, backend, x, y)
 
-    @requires_cuda()
+    @requires_cuda
     def test_tags_function_with_kwargs(self):
         def gn(x, y):
             return torch.sigmoid(torch.matmul(x, y))
@@ -239,7 +236,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         backend = aot_autograd(fw_compiler=fw_compiler, bw_compiler=bw_compiler)
         self._validate(fn, backend, x, y)
 
-    @requires_cuda()
+    @requires_cuda
     def test_tags_multiple_checkpoints(self):
         def gn(x, y):
             return torch.sigmoid(torch.matmul(x, y))
@@ -261,7 +258,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         backend = aot_autograd(fw_compiler=fw_compiler, bw_compiler=bw_compiler)
         self._validate(fn, backend, x, y)
 
-    @requires_cuda()
+    @requires_cuda
     def test_tags_module(self):
         class MockModule(torch.nn.Module):
             def __init__(self):
@@ -289,7 +286,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         backend = aot_autograd(fw_compiler=fw_compiler, bw_compiler=bw_compiler)
         self._validate(fn, backend, x)
 
-    @requires_cuda()
+    @requires_cuda
     def test_tags_decomps(self):
         # Ensures that tags are passed on through decompositions as well
         class MockModule(torch.nn.Module):
@@ -324,7 +321,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         )
         self._validate(fn, backend, x)
 
-    @requires_cuda()
+    @requires_cuda
     @torch._inductor.config.patch(fallback_random=True)
     def test_tags_recomputed_rand(self):
         def gn(x, y):
@@ -348,7 +345,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         backend = "inductor"
         self._validate(fn, backend, x, y)
 
-    @requires_cuda()
+    @requires_cuda
     @torch._inductor.config.patch(fallback_random=True)
     def test_tags_rand(self):
         def gn(x, y):
@@ -375,7 +372,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         backend = "inductor"
         self._validate(fn, backend, x, y)
 
-    @requires_cuda()
+    @requires_cuda
     @torch._inductor.config.patch(fallback_random=True)
     def test_tags_dropout(self):
         # Figure out a way to test the number of inductor_random calls
@@ -398,7 +395,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         # rand decomps do not have have numerical results as eager
         self._validate(fn, backend, x, skip_check=True)
 
-    @requires_cuda()
+    @requires_cuda
     def test_fallback(self):
         def gn(x, y):
             torch._dynamo.graph_break()
@@ -426,7 +423,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         self.assertEqual(cnt.op_count, 2)
         self.assertEqual(len(cnt.graphs), 2)
 
-    @requires_cuda()
+    @requires_cuda
     def test_kwargs(self):
         def gn(x, y, z=None):
             a = torch.matmul(x, y)
@@ -460,7 +457,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         body_function = getattr(cnt.graphs[0], wrap_node.args[0].name)
         self.assertEqual(op_count(body_function), 2)
 
-    @requires_cuda()
+    @requires_cuda
     def test_symints_location(self):
         def gn(x, y):
             return torch.matmul(x, torch.nn.functional.dropout(y, 0.5))
@@ -490,7 +487,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         wrap_node = find_first_node(cnt.graphs[0], tag_activation_checkpoint)
         self.assertEqual(len(wrap_node.args), 3)
 
-    @requires_cuda()
+    @requires_cuda
     @unittest.skipIf(IS_WINDOWS, "torch.compile doesn't work with windows")
     @torch._dynamo.config.patch(
         "_experimental_support_context_fn_in_torch_utils_checkpoint", True
@@ -540,7 +537,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         self._validate(fn, backend, x, y)
         self._compare_orig_and_checkpointed_fns(gn, fn, x, y)
 
-    @requires_cuda()
+    @requires_cuda
     @unittest.skipIf(IS_WINDOWS, "torch.compile doesn't work with windows")
     @torch._dynamo.config.patch(
         "_experimental_support_context_fn_in_torch_utils_checkpoint", True
@@ -593,7 +590,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         self._validate(fn, backend, x, y)
         self._compare_orig_and_checkpointed_fns(gn, fn, x, y)
 
-    @requires_cuda()
+    @requires_cuda
     @unittest.skipIf(IS_WINDOWS, "torch.compile doesn't work with windows")
     @torch._dynamo.config.patch(
         "_experimental_support_context_fn_in_torch_utils_checkpoint", True
@@ -661,7 +658,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         self._validate(fn, backend, x, y)
         self._compare_orig_and_checkpointed_fns(gn, fn, x, y)
 
-    @requires_cuda()
+    @requires_cuda
     @unittest.skipIf(IS_WINDOWS, "torch.compile doesn't work with windows")
     @torch._dynamo.config.patch(
         "_experimental_support_context_fn_in_torch_utils_checkpoint", True
@@ -710,7 +707,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         self._validate(fn, backend, x, y)
         self._compare_orig_and_checkpointed_fns(gn, fn, x, y)
 
-    @requires_cuda()
+    @requires_cuda
     @unittest.skipIf(IS_WINDOWS, "torch.compile doesn't work with windows")
     @torch._dynamo.config.patch(
         "_experimental_support_context_fn_in_torch_utils_checkpoint", True
@@ -758,7 +755,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         self._validate(fn, backend, x, y)
         self._compare_orig_and_checkpointed_fns(gn, fn, x, y)
 
-    @requires_cuda()
+    @requires_cuda
     @unittest.skipIf(IS_WINDOWS, "torch.compile doesn't work with windows")
     @unittest.skip(
         "In-place op support in selective checkpointing + torch.compile "
@@ -812,7 +809,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         self._validate(fn, backend, x, y)
         self._compare_orig_and_checkpointed_fns(gn, fn, x, y)
 
-    @requires_cuda()
+    @requires_cuda
     @unittest.skipIf(IS_WINDOWS, "torch.compile doesn't work with windows")
     @torch._dynamo.config.patch(
         "_experimental_support_context_fn_in_torch_utils_checkpoint", True
@@ -914,7 +911,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         ):
             self._validate(fn, backend, x, y)
 
-    @requires_cuda()
+    @requires_cuda
     @skipIfRocm
     def test_autocast_flash_attention(self):
         def fn(primals_1, primals_2, primals_3):
@@ -939,7 +936,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
             res = opt_gn(*args)
             self.assertEqual(ref, res)
 
-    @requires_cuda()
+    @requires_cuda
     def test_error_msg(self):
         class MockModule(torch.nn.Module):
             def __init__(self):
@@ -964,7 +961,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         ):
             opt_fn(x)
 
-    @requires_cuda()
+    @requires_cuda
     def test_list_inputs(self):
         class MockModule(torch.nn.Module):
             def __init__(self):
@@ -989,7 +986,7 @@ class ActivationCheckpointingViaTagsTests(torch._dynamo.test_case.TestCase):
         res = opt_fn(x, [y, z])
         self.assertEqual(ref, res)
 
-    @requires_cuda()
+    @requires_cuda
     def test_pattern_matcher(self):
         # Check that the sdpa op is recomputed in the backward graph
         # tests percolate_tags

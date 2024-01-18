@@ -1,7 +1,6 @@
 # Owner(s): ["module: dynamo"]
 import functools
 import itertools
-import unittest
 
 import torch
 
@@ -26,12 +25,10 @@ from torch.nested._internal.nested_tensor import (
 from torch.testing._internal.common_utils import (
     instantiate_parametrized_tests,
     parametrize,
+    requires_cuda,
     subtest,
 )
-from torch.testing._internal.inductor_utils import HAS_CUDA
 
-
-requires_cuda = functools.partial(unittest.skipIf, not HAS_CUDA, "requires cuda")
 
 compile_full_eager = torch.compile(backend="eager", fullgraph=True)
 
@@ -1126,7 +1123,7 @@ class TestNestedTensor(torch._dynamo.test_case.TestCase):
     def test_basic_autograd(self):
         self._test_autograd("aot_eager")
 
-    @requires_cuda()
+    @requires_cuda
     def test_basic_autograd_inductor(self):
         self._test_autograd("inductor")
 

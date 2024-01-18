@@ -12,7 +12,7 @@ import expecttest
 import torch
 from torch._C._profiler import _ExtraFields_PyCall, _ExtraFields_PyCCall
 from torch.testing._internal.common_utils import (
-    TestCase, run_tests, IS_WINDOWS, TEST_WITH_CROSSREF, IS_ARM64, skipIfTorchDynamo)
+    TestCase, run_tests, IS_WINDOWS, TEST_WITH_CROSSREF, IS_ARM64, skipIfTorchDynamo, requires_cuda)
 from torch.utils._pytree import tree_map
 
 # These functions can vary from based on platform and build (e.g. with CUDA)
@@ -716,7 +716,7 @@ class TestProfilerTree(TestCase):
                   ...""")
 
     @unittest.skip("https://github.com/pytorch/pytorch/issues/83606")
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA is required")
+    @requires_cuda
     @ProfilerTree.test
     def test_profiler_experimental_tree_cuda(self):
         with torch.profiler.profile(profile_memory=True) as p:
@@ -814,7 +814,7 @@ class TestProfilerTree(TestCase):
         )
 
     @unittest.skip("https://github.com/pytorch/pytorch/issues/83606")
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA is required")
+    @requires_cuda
     @ProfilerTree.test
     def test_profiler_experimental_tree_cuda_with_stream(self):
         streams = [torch.cuda.Stream() for _ in range(3)]
@@ -872,7 +872,7 @@ class TestProfilerTree(TestCase):
 
     @unittest.skip("https://github.com/pytorch/pytorch/issues/83606")
     @unittest.skipIf(TEST_WITH_CROSSREF, "crossref intercepts calls and changes the callsite.")
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA is required")
+    @requires_cuda
     @ProfilerTree.test
     def test_profiler_experimental_tree_cuda_detailed(self):
         model = torch.nn.modules.Linear(1, 1, device="cuda")
