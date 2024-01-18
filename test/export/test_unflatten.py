@@ -234,41 +234,43 @@ class TestUnflatten(TestCase):
 
         orig_eager = MyModule()
         inps = torch.rand(2, 3), torch.rand(2, 3)
-        export_module = export(
-            orig_eager,
-            inps,
-            {},
-            preserve_module_call_signature=("foo.nested",),
-        )
-        unflattened = unflatten(export_module)
-        self.compare_outputs(export_module, unflattened, inps)
-        unflattened.foo.nested = NestedChild()
-        self.compare_outputs(export_module, unflattened, inps)
+        for strict in [True, False]:
+            export_module = export(
+                orig_eager,
+                inps,
+                {},
+                preserve_module_call_signature=("foo.nested",),
+                strict=strict
+            )
+            unflattened = unflatten(export_module)
+            self.compare_outputs(export_module, unflattened, inps)
+            unflattened.foo.nested = NestedChild()
+            self.compare_outputs(export_module, unflattened, inps)
 
-        # Test tree spec mismatched input
-        orig_outs = export_module(*inps)
-        new_inps = *inps, torch.rand(2, 3)
-        with self.assertRaisesRegex(
-            TypeError,
-            "There is no flat args adapter sepcified. Are you sure you are calling this with the right arguments?",
-        ):
-            unflattened(new_inps)
+            # Test tree spec mismatched input
+            orig_outs = export_module(*inps)
+            new_inps = *inps, torch.rand(2, 3)
+            with self.assertRaisesRegex(
+                TypeError,
+                "There is no flat args adapter sepcified. Are you sure you are calling this with the right arguments?",
+            ):
+                unflattened(new_inps)
 
-        # With flat args adapter
-        class KeepTwoFlatArgsAdapter(FlatArgsAdapter):
-            def adapt(
-                self,
-                target_spec: TreeSpec,
-                input_spec: TreeSpec,
-                input_args: List[Any],
-            ) -> List[Any]:
-                while len(input_args) > 2:
-                    input_args.pop(-1)
-                return input_args
+            # With flat args adapter
+            class KeepTwoFlatArgsAdapter(FlatArgsAdapter):
+                def adapt(
+                    self,
+                    target_spec: TreeSpec,
+                    input_spec: TreeSpec,
+                    input_args: List[Any],
+                ) -> List[Any]:
+                    while len(input_args) > 2:
+                        input_args.pop(-1)
+                    return input_args
 
-        unflattened = unflatten(export_module, KeepTwoFlatArgsAdapter())
-        new_outs = unflattened(*new_inps)
-        self.assertTrue(torch.allclose(orig_outs, new_outs))
+            unflattened = unflatten(export_module, KeepTwoFlatArgsAdapter())
+            new_outs = unflattened(*new_inps)
+            self.assertTrue(torch.allclose(orig_outs, new_outs))
 
     def test_unflatten_param_list_dict(self):
         class Mod(torch.nn.Module):
