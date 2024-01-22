@@ -20,6 +20,7 @@ import textwrap
 import time
 import unittest
 from io import StringIO
+from itertools import product
 from typing import (
     Any,
     Callable,
@@ -546,7 +547,10 @@ def sympy_str(expr: sympy.Expr) -> str:
     return str(expr)
 
 
-def sympy_symbol(name: str) -> sympy.Symbol:
+def sympy_index_symbol(name: str) -> sympy.Symbol:
+    """
+    Used to generate an integer-nonnegative symbol.
+    """
     # This should never be used for creating shape/stride symbols, as those
     # should all be allocated before Inductor.
     assert name[0] != "s"
@@ -558,16 +562,39 @@ def sympy_symbol(name: str) -> sympy.Symbol:
 def sympy_subs(expr: sympy.Expr, replacements: Dict[Any, Any]) -> sympy.Expr:
     """
     xreplace is faster than subs, but is way more picky
+
+    When the passed replacement symbol v is a string, it is guranteed not to change the
+    replaced symbol integer and non-negative attributes.
+
+    When a replaced symbol k is passed as string, the functions tries to replace
+    all symbols with the the name k.
     """
 
-    def promote_strings(key):
-        if isinstance(key, str):
-            return sympy_symbol(key)
-        return key
+    symbolReplacements = {}
 
-    return sympy.sympify(expr).xreplace(
-        {promote_strings(k): promote_strings(v) for k, v in replacements.items()}
-    )
+    def toSymbol(replaced, replacement):
+        assert not isinstance(replaced, str)
+        if isinstance(replacement, str):
+            return sympy.Symbol(
+                replacement,
+                integer=replaced.is_integer,
+                nonnegative=replaced.is_nonnegative,
+            )
+        else:
+            return replacement
+
+    for k, v in replacements.items():
+        if isinstance(k, str):
+            options = [None, True, False]
+            for integerValue, nonNegative in product(options, options):
+                newKey = sympy.Symbol(k, integer=integerValue, nonnegative=nonNegative)
+                newValue = toSymbol(newKey, v)
+                symbolReplacements.update({newKey: newValue})
+        else:
+            newValue = toSymbol(k, v)
+            symbolReplacements.update({k: newValue})
+
+    return sympy.sympify(expr).xreplace(symbolReplacements)
 
 
 def free_symbol_startswith(index: sympy.Expr, prefix: str):
