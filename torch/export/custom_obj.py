@@ -12,4 +12,6 @@ class ScriptObjectMeta:
     """
 
     # Key into constants table to retrieve the real ScriptObject.
-    constant_name: Optional[str]
+    constant_name: str
+
+    class_fqn: str
