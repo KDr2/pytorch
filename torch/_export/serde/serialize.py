@@ -348,7 +348,8 @@ class GraphModuleSerializer:
         elif isinstance(node.meta['val'], (int, bool, str, float, type(None))):
             graph_input = self.serialize_input(node.meta['val'])
         elif isinstance(node.meta['val'], export_ScriptObjectMeta):
-            graph_input = Argument.create(as_custom_obj=CustomObjArgument(name=node.name))
+            class_fqn = node.meta["val"]._type().qualified_name()
+            graph_input = Argument.create(as_custom_obj=CustomObjArgument(name=node.name, class_fqn=class_fqn))
             self.graph_state.script_object_metas[node.name] = self.serialize_script_obj_meta(node.meta["val"])
         else:
             raise AssertionError(f"Unimplemented graph input type: {node.meta['val']}")
@@ -565,7 +566,8 @@ class GraphModuleSerializer:
                 return Argument.create(as_sym_bool=SymBoolArgument.create(as_name=arg.name))
             else:
                 if isinstance(arg.meta["val"], export_ScriptObjectMeta):
-                    return Argument.create(as_custom_obj=CustomObjArgument(name=arg.name))
+                    class_fqn = arg.meta["val"]._type().qualified_name()
+                    return Argument.create(as_custom_obj=CustomObjArgument(name=arg.name, class_fqn=class_fqn))
                 return Argument.create(as_tensor=TensorArgument(name=arg.name))
         elif isinstance(arg, inductor_tensor_buffers):
             # Other branches are for arguments in fx node.
@@ -812,7 +814,7 @@ class GraphModuleSerializer:
         elif isinstance(x, ep.ConstantArgument):
             return self.serialize_input(x.value)
         elif isinstance(x, ep.CustomObjArgument):
-            return Argument.create(as_custom_obj=CustomObjArgument(name=x.name))
+            return Argument.create(as_custom_obj=CustomObjArgument(name=x.name, class_fqn=x.class_fqn))
         else:
             raise AssertionError("TODO")
 
