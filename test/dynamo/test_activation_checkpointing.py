@@ -14,7 +14,8 @@ from functorch.compile import min_cut_rematerialization_partition
 from torch._dynamo.backends.common import aot_autograd
 from torch._dynamo.testing import CompileCounterWithBackend
 from torch._higher_order_ops.wrap import tag_activation_checkpoint
-from torch.testing._internal.common_utils import IS_WINDOWS, requires_cuda, skipIfRocm
+from torch.testing._internal.common_utils import IS_WINDOWS, skipIfRocm
+from torch.testing._internal.triton_utils import requires_cuda
 from torch.testing._internal.two_tensor import TwoTensor
 from torch.utils.checkpoint import _pt2_selective_checkpoint_context_fn_gen, checkpoint
 

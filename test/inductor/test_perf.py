@@ -8,14 +8,10 @@ import torch
 import torch._inductor.config as config
 from torch._inductor import metrics
 from torch._inductor.compile_fx import compile_fx, count_bytes_inner
-from torch.testing._internal.common_utils import (
-    IS_WINDOWS,
-    requires_cuda,
-    TestCase as TorchTestCase,
-)
+from torch.testing._internal.common_utils import IS_WINDOWS, TestCase as TorchTestCase
 
 # Defines all the kernels for tests
-from torch.testing._internal.triton_utils import HAS_CUDA
+from torch.testing._internal.triton_utils import HAS_CUDA, requires_cuda
 
 if HAS_CUDA:
     from torch.testing._internal.triton_utils import add_kernel

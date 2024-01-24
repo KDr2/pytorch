@@ -27,9 +27,11 @@ from torch.optim import (
 
 from torch.testing._internal.common_optimizers import optim_db
 
-from torch.testing._internal.common_utils import requires_cuda, TestCase
+from torch.testing._internal.common_utils import TestCase
 
 from torch.testing._internal.inductor_utils import HAS_CPU, HAS_CUDA
+
+from torch.testing._internal.triton_utils import requires_cuda
 
 
 class KernelCounts(NamedTuple):

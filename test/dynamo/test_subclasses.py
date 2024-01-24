@@ -25,9 +25,9 @@ from torch.nested._internal.nested_tensor import (
 from torch.testing._internal.common_utils import (
     instantiate_parametrized_tests,
     parametrize,
-    requires_cuda,
     subtest,
 )
+from torch.testing._internal.triton_utils import requires_cuda
 
 
 compile_full_eager = torch.compile(backend="eager", fullgraph=True)

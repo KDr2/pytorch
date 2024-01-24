@@ -18,7 +18,6 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.testing._internal.common_utils import (
     find_free_port,
     munge_exc,
-    requires_cuda,
     skipIfTorchDynamo,
 )
 from torch.testing._internal.logging_utils import (
@@ -26,6 +25,7 @@ from torch.testing._internal.logging_utils import (
     make_logging_test,
     make_settings_test,
 )
+from torch.testing._internal.triton_utils import requires_cuda
 
 requires_distributed = functools.partial(
     unittest.skipIf, not dist.is_available(), "requires distributed"

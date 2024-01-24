@@ -26,11 +26,11 @@ from torch._dynamo.testing import (
 from torch._dynamo.utils import counters, ifdynstaticdefault
 from torch._higher_order_ops.wrap import wrap
 from torch.testing._internal.common_utils import (
-    requires_cuda,
     TEST_WITH_TORCHDYNAMO,
     xfailIfTorchDynamo,
 )
 from torch.testing._internal.logging_utils import LoggingTestCase, make_logging_test
+from torch.testing._internal.triton_utils import requires_cuda
 
 
 def check_dynamic_shape_capture():

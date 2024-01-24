@@ -6,7 +6,7 @@ import torch
 import torch._inductor
 from torch._dynamo.test_case import run_tests, TestCase
 from torch._dynamo.utils import counters
-from torch.testing._internal.common_utils import requires_cuda
+from torch.testing._internal.triton_utils import requires_cuda
 
 try:
     # importing this will register fbgemm lowerings for inductor

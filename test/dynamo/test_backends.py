@@ -9,7 +9,7 @@ from torch._dynamo.backends.debugging import ExplainWithBackend
 from torch._dynamo.backends.onnxrt import has_onnxruntime
 from torch._dynamo.backends.tvm import has_tvm
 from torch._dynamo.testing import same
-from torch.testing._internal.common_utils import requires_cuda
+from torch.testing._internal.triton_utils import requires_cuda
 
 
 class Seq(torch.nn.Module):

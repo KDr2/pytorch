@@ -11,11 +11,11 @@ from torch.testing._internal.common_utils import (
     instantiate_parametrized_tests,
     IS_FBCODE,
     parametrize,
-    requires_cuda,
     TestCase,
 )
 
 from torch.testing._internal.inductor_utils import HAS_CPU, HAS_CUDA
+from torch.testing._internal.triton_utils import requires_cuda
 
 aten = torch.ops.aten
 
