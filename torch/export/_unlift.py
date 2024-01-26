@@ -3,7 +3,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.utils._pytree as pytree
-from torch._export.utils import _check_input_constraints_pre_hook
+import torch.fx._pytree as fx_pytree
+from torch._export.utils import _check_input_constraints_for_graph
 from torch.fx.graph import _PyTreeCodeGen, _PyTreeInfo
 
 from .exported_program import (
@@ -12,6 +13,29 @@ from .exported_program import (
     InputKind,
     OutputKind,
 )
+
+
+@torch._dynamo.disable
+def _check_input_constraints_pre_hook(self, *args, **kwargs):
+    if self._in_spec is not None:
+        try:
+            args = fx_pytree.tree_flatten_spec(
+                args, self._in_spec, exact_structural_match=True
+            )  # type: ignore[assignment]
+        except Exception:
+            _, received_spec = pytree.tree_flatten(args)
+            raise TypeError(  # noqa: TRY200
+                "Trying to flatten user inputs with exported input tree spec: \n"
+                f"{self._in_spec}\n"
+                "but actually got inputs with tree spec of: \n"
+                f"{received_spec}"
+            )
+
+    return _check_input_constraints_for_graph(
+        [node for node in self.graph.nodes if node.op == "placeholder"],
+        args,
+        self.range_constraints,
+    )
 
 
 def _unlift_inputs_as_getattr(
