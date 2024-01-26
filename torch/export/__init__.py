@@ -79,9 +79,10 @@ def export(
     kwargs: Optional[Dict[str, Any]] = None,
     *,
     constraints: Optional[List[Constraint]] = None,
-    dynamic_shapes: Optional[Union[Dict[str, Any], Tuple[Any]]] = None,
+    dynamic_shapes: Optional[Union[Dict[str, Any], Tuple[Any], List[Any]]] = None,
     strict: bool = True,
     preserve_module_call_signature: Tuple[str, ...] = (),
+    pre_dispatch: bool = False,
 ) -> ExportedProgram:
     """
     :func:`export` takes an arbitrary Python callable (an nn.Module, a function or
@@ -202,6 +203,7 @@ def export(
         constraints,
         strict=strict,
         preserve_module_call_signature=preserve_module_call_signature,
+        pre_dispatch=pre_dispatch,
     )
 
 
