@@ -1098,6 +1098,7 @@ class WrapperCodeGen(CodeGen):
         device_index=None,
         cuda=True,
         triton=True,
+        arg_types=None,
     ):
         """
         Generates kernel call code.
@@ -1396,6 +1397,7 @@ class CppWrapperCodeGen(WrapperCodeGen):
         device_index=None,
         cuda=True,
         triton=True,
+        arg_types=None,
     ):
         """
         Generates kernel call code.
@@ -1412,15 +1414,14 @@ class CppWrapperCodeGen(WrapperCodeGen):
             )
         else:
             if V.graph.aot_mode and config.aot_inductor.abi_compatible:
-                from .cpp import DTYPE_TO_CPP
-
+                assert arg_types is not None and len(call_args) == len(
+                    arg_types
+                ), "Mismatch call_args and arg_types in generate_kernel_call"
                 new_args = []
-                for arg in call_args:
+                for idx, arg in enumerate(call_args):
                     var_name = f"var_{next(self.arg_var_id)}"
                     self.writeline(f"auto* {var_name} = get_data_ptr_wrapper({arg});")
-                    dtype = V.graph.get_dtype(arg)
-                    cpp_dtype = DTYPE_TO_CPP[dtype]
-                    new_args.append(f"({cpp_dtype}*)({var_name})")
+                    new_args.append(f"({arg_types[idx]}*)({var_name})")
                 self.writeline(self.wrap_kernel_call(name, new_args))
             else:
                 self.writeline(self.wrap_kernel_call(name, call_args))
@@ -3015,7 +3016,14 @@ class CudaWrapperCodeGen(CppWrapperCodeGen):
         return grid_fn(block_cfg)
 
     def generate_kernel_call(
-        self, name, call_args, grid=None, device_index=None, cuda=True, triton=True
+        self,
+        name,
+        call_args,
+        grid=None,
+        device_index=None,
+        cuda=True,
+        triton=True,
+        arg_types=None,
     ):
         if not cuda:
             # Even in CudaWrapperCodeGen, we may see cpp kernels
