@@ -21,6 +21,8 @@ from inspect import currentframe, getframeinfo
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 from weakref import ReferenceType
 
+from torch.export.dynamic_shapes import DerivedConstraint
+
 
 try:
     import numpy as np
@@ -54,7 +56,7 @@ from torch.utils.weak import TensorWeakRef
 
 from . import config, convert_frame, exc, mutation_guard
 from .eval_frame import set_guard_error_hook
-from .source import DefaultsSource, LocalSource, TypeSource
+from .source import ConstantSource, DefaultsSource, LocalSource, TypeSource
 from .types import GuardedCode, GuardFail, GuardFn  # noqa: F401
 from .utils import (
     common_constant_types,
@@ -623,6 +625,8 @@ class GuardBuilder(GuardBuilderBase):
 
         if output_graph.export_constraints:
             source_pairs: List[Tuple[Source, Source]] = []
+            derived_equalities: List[Tuple[Source, Source, Callable]] = []
+            phantom_symbols = {}
             for constraint in output_graph.export_constraints:
                 if constraint.t_id in output_graph.tracked_fakes_id_to_source:
                     source, *other_sources = get_sources(
@@ -633,20 +637,40 @@ class GuardBuilder(GuardBuilderBase):
                     source_pairs.extend(
                         (source, other_source) for other_source in other_sources
                     )
-                    if constraint.shared is not None:
-                        # Moreover, when t.size()[dim] is specified equal to t'.size()[dim']
-                        # and t'.size()[dim'] maps to src1', ..., srcN', we add
-                        # constraints that also make src0 "equal" to src1', ..., srcN'.
-                        other_sources = get_sources(
-                            constraint.shared.t_id, constraint.shared.dim
-                        )
-                        source_pairs.extend(
-                            (source, other_source) for other_source in other_sources
-                        )
+                    if isinstance(constraint, DerivedConstraint):
+                        if not isinstance(constraint.root, torch.export.dynamic_shapes._ConstraintTarget):
+                            if constraint.root["name"] in phantom_symbols:
+                                phantom_symbol = phantom_symbols[constraint.root["name"]]
+                            else:
+                                phantom_symbol = output_graph.shape_env.create_symbol(
+                                    val=int(constraint.root["val"]),
+                                    source=ConstantSource(constraint.root["name"]),
+                                    dynamic_dim = torch.fx.experimental.symbolic_shapes.DimDynamic.DYNAMIC,
+                                    constraint_dim = constraint.root["constraint_range"],
+                                )
+                                phantom_symbols[constraint.root["name"]] = phantom_symbol
+                            root_source = phantom_symbol
+                        else:
+                            root_source = get_sources(constraint.root.t_id, constraint.root.dim)[0]
+                        fn = constraint.fn
+                        derived_equalities.append((source, root_source, fn))
+                    else:
+                        if constraint.shared is not None:
+                            # Moreover, when t.size()[dim] is specified equal to t'.size()[dim']
+                            # and t'.size()[dim'] maps to src1', ..., srcN', we add
+                            # constraints that also make src0 "equal" to src1', ..., srcN'.
+                            other_sources = get_sources(
+                                constraint.shared.t_id, constraint.shared.dim
+                            )
+                            source_pairs.extend(
+                                (source, other_source) for other_source in other_sources
+                            )
                 else:
                     log.warning("Untracked tensor used in export constraints")
             equalities_inputs = EqualityConstraint(
                 source_pairs=source_pairs,
+                derived_equalities=derived_equalities,
+                phantom_symbols=phantom_symbols,
                 warn_only=False,
             )
         else:

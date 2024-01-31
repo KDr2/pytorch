@@ -301,7 +301,7 @@ class TestExport(TestCase):
         )
 
         with self.assertRaisesRegex(
-            torch.fx.experimental.symbolic_shapes.ConstraintViolationError,
+            torch._dynamo.exc.UserError,
             "Constraints violated \\(dim\\)!(.*\n)*.*"
             "Not all values of dim.*satisfy the generated guard(.*\n)*.*"
             "Suggested fixes:(.*\n)*.*"

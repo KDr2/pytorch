@@ -38,6 +38,36 @@ class _Dim(type):
             return f"Dim('{name}', min={min_})"
         return f"Dim('{name}', min={min_}, max={max_})"
 
+    def __add__(self, other):
+        assert type(other) is int, f"Expected int, got {type(other)}"
+        return self._derive(f"({self.__name__}+{other})", lambda x: x + other)
+
+    def __sub__(self, other):
+        assert type(other) is int, f"Expected int, got {type(other)}"
+        return self._derive(f"({self.__name__}-{other})", lambda x: x - other)
+
+    def __mul__(self, other):
+        assert type(other) is int, f"Expected int, got {type(other)}"
+        return self._derive(f"({self.__name__}*{other})", lambda x: x * other)
+
+    def _derive(self, name, fn):
+        return _DerivedDim(name, (int,), {"root": self, "fn": fn})
+
+
+class _DerivedDim(_Dim):
+    @property
+    def min(self):
+        # assume monotonic
+        return self.fn(self.root.min)
+
+    @property
+    def max(self):
+        # assume monotonic
+        return self.fn(self.root.max)
+
+    def _derive(self, name, fn):
+        return _DerivedDim(name, (int,), {"root": self.root, "fn": lambda x: fn(self.fn(x))})
+
 
 def Dim(name: str, *, min: Optional[int] = None, max: Optional[int] = None):
     """
@@ -183,14 +213,6 @@ class Constraint(_ConstraintTarget, metaclass=_ConstraintFactory):
             "dim": self.dim,
             "min": self.constraint_range.vr.lower,
             "max": self.constraint_range.vr.upper,
-            "shared": (
-                None
-                if self.shared is None
-                else {
-                    "t_id": self.shared.t_id,
-                    "dim": self.shared.dim,
-                }
-            ),
         }
 
     def __eq__(self, other):
@@ -220,6 +242,28 @@ class Constraint(_ConstraintTarget, metaclass=_ConstraintFactory):
             shared=_ConstraintTarget(other.w_tensor, other.t_id, other.dim),
             debug_name=debug_name,
         )
+
+
+@dataclasses.dataclass
+class DerivedConstraint(_ConstraintTarget):
+    root: _ConstraintTarget
+    fn: Callable
+    constraint_range: "StrictMinMaxConstraint"
+    debug_name: Optional[str] = None
+
+    @property
+    def shared(self):
+        return None
+
+    @property
+    def serializable_spec(self):
+        # same as Constraint.serializable_spec
+        return {
+            "t_id": self.t_id,
+            "dim": self.dim,
+            "min": self.constraint_range.vr.lower,
+            "max": self.constraint_range.vr.upper,
+        }
 
 
 def dynamic_dim(t: torch.Tensor, index: int, debug_name: Optional[str] = None):
@@ -394,14 +438,84 @@ def _process_dynamic_shapes(
                     f"got {dynamic_shapes} instead",
                 )
 
-    def to_constraint(dim, tensor, i):
-        constraint = dynamic_dim(tensor, i, debug_name=dim.__name__)
-        if dim.min != 2:
-            constraint = constraint >= dim.min
-        if dim.max != sys.maxsize - 1:
-            constraint = constraint <= dim.max
-        return constraint
+    phantom_roots = {}
 
+    def to_constraint(dim, tensor, i):
+        import sympy
+        from torch.fx.experimental.symbolic_shapes import StrictMinMaxConstraint, DimConstraints
+        from torch.utils._sympy.value_ranges import ValueRanges
+
+        def get_value():
+            try:
+                return DimConstraints.solve_supported_equivalence(
+                    dim.fn(sympy.Symbol(dim.root.__name__)), tensor.shape[i]
+                )
+            except ValueError as e:
+                raise UserError(
+                    UserErrorType.CONSTRAINT_VIOLATION,
+                    e.args[0],
+                )
+
+        if isinstance(dim, _DerivedDim):
+            if dim.root.__name__ in symbols:
+                root_constraint = symbols[dim.root.__name__][0]
+                constraint = DerivedConstraint(
+                    weakref.ref(tensor),
+                    id(tensor),
+                    i,
+                    _ConstraintTarget(
+                        root_constraint.w_tensor,
+                        root_constraint.t_id,
+                        root_constraint.dim,
+                    ),
+                    dim.fn,
+                    StrictMinMaxConstraint(
+                        vr=ValueRanges(lower=dim.min, upper=dim.max),
+                        warn_only=False,
+                    ),
+                    debug_name=dim.__name__,
+                )
+            else:
+                if dim.root.__name__ not in phantom_roots:
+                    phantom_root = {
+                        "val": get_value(),
+                        "name": dim.root.__name__,
+                        "constraint_range": StrictMinMaxConstraint(
+                            vr=ValueRanges(lower=dim.root.min, upper=dim.root.max),
+                            warn_only=False,
+                        ),
+                    }
+                    phantom_roots[dim.root.__name__] = phantom_root
+                else:
+                    phantom_root = phantom_roots[dim.root.__name__]
+                    val = phantom_root["val"]
+                    new_val = get_value()
+                    if new_val != val:
+                        # TODO(avik): better error message here
+                        raise UserError(
+                            UserErrorType.INVALID_INPUT,
+                            f"Input shapes lead to inconsistent values of {dim.root.__name__}: "
+                            f"expected {val}, got {new_val}"
+                        )
+                constraint = DerivedConstraint(
+                    weakref.ref(tensor),
+                    id(tensor),
+                    i,
+                    phantom_root,
+                    dim.fn,
+                    StrictMinMaxConstraint(
+                        vr=ValueRanges(lower=dim.min, upper=dim.max),
+                        warn_only=False,
+                    ),
+                    debug_name=dim.__name__,
+                )
+        else:
+            constraint = dynamic_dim(tensor, i, debug_name=dim.__name__)
+            if dim.min != 2:
+                constraint = constraint >= dim.min
+            if dim.max != sys.maxsize - 1:
+                constraint = constraint <= dim.max
+        return constraint
     from collections import defaultdict
 
     symbols = defaultdict(list)
@@ -565,7 +679,7 @@ def _process_constraints(
         assert isinstance(
             symint, SymInt
         ), f"Expected SymInt but got {symint}: {type(symint)}"
-        symbol = symint.node._expr
+        symbol = symint.node.expr
         range_constraints[symbol] = ValueRanges(min_val, max_val)
 
     return range_constraints
