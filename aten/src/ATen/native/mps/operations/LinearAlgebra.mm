@@ -193,16 +193,8 @@ static Tensor& mm_out_mps_impl(const Tensor& self, const Tensor& other, Tensor& 
     auto otherPlaceholder = other.numel() != 0 ? Placeholder(cachedGraph->otherTensor_, other) : Placeholder();
     auto outputPlaceholder = Placeholder(cachedGraph->outputTensor_, output);
 
-    NSDictionary<MPSGraphTensor*, MPSGraphTensorData*>* feeds = self.numel() != 0 ? @{
-      selfPlaceholder.getMPSGraphTensor() : selfPlaceholder.getMPSGraphTensorData(),
-      otherPlaceholder.getMPSGraphTensor() : otherPlaceholder.getMPSGraphTensorData(),
-    }
-                                                                                  : nil;
-
-    NSDictionary<MPSGraphTensor*, MPSGraphTensorData*>* results = @{
-      outputPlaceholder.getMPSGraphTensor() : outputPlaceholder.getMPSGraphTensorData(),
-    };
-
+    auto feeds = self.numel() != 0 ? dictionaryFromPlaceholders(selfPlaceholder, otherPlaceholder) : nil;
+    auto results = dictionaryFromPlaceholders(outputPlaceholder);
     runMPSGraph(getCurrentMPSStream(), cachedGraph->graph(), feeds, results);
   }
 
@@ -311,19 +303,14 @@ static Tensor& addbmm_or_baddbmm_out_mps_impl(const Tensor& input,
       newCachedGraph->batch2Tensor_ = batch2Tensor;
       newCachedGraph->outputTensor_ = outputTensor;
     });
+
     Placeholder inputPlaceholder = Placeholder(cachedGraph->inputTensor_, input);
     Placeholder batch1Placeholder = Placeholder(cachedGraph->batch1Tensor_, batch1);
     Placeholder batch2Placeholder = Placeholder(cachedGraph->batch2Tensor_, batch2);
     Placeholder outputPlaceholder = Placeholder(cachedGraph->outputTensor_, result);
 
-    NSDictionary<MPSGraphTensor*, MPSGraphTensorData*>* feeds = @{
-      inputPlaceholder.getMPSGraphTensor() : inputPlaceholder.getMPSGraphTensorData(),
-      batch1Placeholder.getMPSGraphTensor() : batch1Placeholder.getMPSGraphTensorData(),
-      batch2Placeholder.getMPSGraphTensor() : batch2Placeholder.getMPSGraphTensorData(),
-    };
-
-    NSDictionary<MPSGraphTensor*, MPSGraphTensorData*>* results =
-        @{outputPlaceholder.getMPSGraphTensor() : outputPlaceholder.getMPSGraphTensorData()};
+    auto feeds = dictionaryFromPlaceholders(inputPlaceholder, batch1Placeholder, batch2Placeholder);
+    auto results = dictionaryFromPlaceholders(outputPlaceholder);
 
     mps::runMPSGraph(stream, cachedGraph->graph(), feeds, results);
   }
@@ -427,17 +414,10 @@ static Tensor& addmm_out_mps_impl(const Tensor& bias,
     Placeholder biasPlaceholder = Placeholder(cachedGraph->biasTensor_, *bias_);
     Placeholder outputPlaceholder = Placeholder(cachedGraph->outputTensor_, output);
 
-    NSDictionary<MPSGraphTensor*, MPSGraphTensorData*>* feeds = self.numel() != 0
-        ? @{
-            selfPlaceholder.getMPSGraphTensor() : selfPlaceholder.getMPSGraphTensorData(),
-            otherPlaceholder.getMPSGraphTensor() : otherPlaceholder.getMPSGraphTensorData(),
-            biasPlaceholder.getMPSGraphTensor() : biasPlaceholder.getMPSGraphTensorData()
-          }
-        : @{biasPlaceholder.getMPSGraphTensor() : biasPlaceholder.getMPSGraphTensorData()};
+    auto feeds = self.numel() != 0 ? dictionaryFromPlaceholders(selfPlaceholder, otherPlaceholder, biasPlaceholder)
+                                   : dictionaryFromPlaceholders(biasPlaceholder);
 
-    NSDictionary<MPSGraphTensor*, MPSGraphTensorData*>* results =
-        @{outputPlaceholder.getMPSGraphTensor() : outputPlaceholder.getMPSGraphTensorData()};
-
+    auto results = dictionaryFromPlaceholders(outputPlaceholder);
     runMPSGraph(getCurrentMPSStream(), cachedGraph->graph(), feeds, results);
   }
 
@@ -484,14 +464,8 @@ static Tensor& bmm_out_mps_impl(const Tensor& batch1, const Tensor& batch2, Tens
     Placeholder batch2Placeholder = Placeholder(cachedGraph->batch2Tensor_, batch2);
     Placeholder outputPlaceholder = Placeholder(cachedGraph->outputTensor_, result);
 
-    NSDictionary<MPSGraphTensor*, MPSGraphTensorData*>* feeds = @{
-      batch1Placeholder.getMPSGraphTensor() : batch1Placeholder.getMPSGraphTensorData(),
-      batch2Placeholder.getMPSGraphTensor() : batch2Placeholder.getMPSGraphTensorData(),
-    };
-
-    NSDictionary<MPSGraphTensor*, MPSGraphTensorData*>* results =
-        @{outputPlaceholder.getMPSGraphTensor() : outputPlaceholder.getMPSGraphTensorData()};
-
+    auto feeds = dictionaryFromPlaceholders(batch1Placeholder, batch2Placeholder);
+    auto results = dictionaryFromPlaceholders(outputPlaceholder);
     mps::runMPSGraph(stream, cachedGraph->graph(), feeds, results);
   }
 
@@ -707,15 +681,8 @@ Tensor& addr_out_mps(const Tensor& self,
     Placeholder selfPlaceholder = Placeholder(cachedGraph->selfTensor_, *self_);
     Placeholder resultPlaceholder = Placeholder(cachedGraph->resultTensor_, result);
 
-    NSDictionary<MPSGraphTensor*, MPSGraphTensorData*>* feeds = @{
-      vec1Placeholder.getMPSGraphTensor() : vec1Placeholder.getMPSGraphTensorData(),
-      vec2Placeholder.getMPSGraphTensor() : vec2Placeholder.getMPSGraphTensorData(),
-      selfPlaceholder.getMPSGraphTensor() : selfPlaceholder.getMPSGraphTensorData()
-    };
-
-    NSDictionary<MPSGraphTensor*, MPSGraphTensorData*>* results =
-        @{resultPlaceholder.getMPSGraphTensor() : resultPlaceholder.getMPSGraphTensorData()};
-
+    auto feeds = dictionaryFromPlaceholders(vec1Placeholder, vec2Placeholder, selfPlaceholder);
+    auto results = dictionaryFromPlaceholders(resultPlaceholder);
     mps::runMPSGraph(stream, cachedGraph->graph(), feeds, results);
   }
 
