@@ -10,9 +10,10 @@ try:
 except ModuleNotFoundError:
     np = None  # type: ignore[assignment]
 
+_is_compiling_flag: bool = False
 
 def is_compiling() -> bool:
-    return False
+    return _is_compiling_flag
 
 
 def wrap_inline(fn):

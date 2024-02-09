@@ -847,10 +847,11 @@ def classproperty(func):
         func = classmethod(func)
     return _ClassPropertyDescriptor(func)
 
+_is_compiling_flag: bool = False
 
 # Whether we are compiling with torch.compile or not
-def is_compiling():
-    return False
+def is_compiling() -> bool:
+    return _is_compiling_flag
 
 
 def _functionalize_sync(t):
