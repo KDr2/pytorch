@@ -3,7 +3,7 @@ from typing import Dict, List, Any
 import torch
 
 from .. import config
-from ..utils import create_instance_descriptor
+from ..utils import instance_descriptor
 from ..virtualized import V
 from .common import KernelArgType, SizeArg, TensorArg, WorkspaceArg
 
@@ -99,4 +99,4 @@ def config_of(args: List[KernelArgType]) -> Any:
         for i, arg in enumerate(args)
         if is_aligned(arg, alignment=8, include_tensor=False)
     )
-    return create_instance_descriptor(divisible_by_16, (), (), divisible_by_8)
+    return instance_descriptor(divisible_by_16, (), (), divisible_by_8)
