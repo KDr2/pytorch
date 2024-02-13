@@ -658,7 +658,7 @@ InstanceDescriptorFallback = collections.namedtuple(
 )
 
 
-def create_instance_descriptor(
+def instance_descriptor(
     divisible_by_16, equal_to_1, ids_of_folded_args, divisible_by_8
 ):
     if attrs_descriptor_available:
