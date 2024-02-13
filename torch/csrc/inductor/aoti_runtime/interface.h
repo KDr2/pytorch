@@ -75,6 +75,14 @@ AOTIRuntimeError AOTInductorModelContainerGetConstantOriginalFQN(
     size_t idx,
     const char** original_fqn);
 
+ 
+// Retrieves whether a constant is from folded.
+ AOTIRuntimeError AOTInductorModelContainerGetConstantFromFolded(
+     AOTInductorModelContainerHandle container_handle,
+     size_t idx,
+     bool* from_folded);
+
+
 // Retrieves a constant's dtype.
 AOTIRuntimeError AOTInductorModelContainerGetConstantDtype(
     AOTInductorModelContainerHandle container_handle,
