@@ -659,20 +659,27 @@ InstanceDescriptorFallback = collections.namedtuple(
 
 
 def instance_descriptor(
-    divisible_by_16, equal_to_1, ids_of_folded_args, divisible_by_8
+    divisible_by_16=None, equal_to_1=None, ids_of_folded_args=None, divisible_by_8=None
 ):
     if attrs_descriptor_available:
+        # Prepare arguments as a dictionary
+        args = {
+            "divisible_by_16": divisible_by_16,
+            "equal_to_1": equal_to_1,
+            "divisible_by_8": divisible_by_8,
+        }
+        # Include 'ids_of_folded_args' only if it's needed
         if needs_ids_of_folded_args:
-            # If AttrsDescriptor accepts 'ids_of_folded_args'
-            return AttrsDescriptor(
-                divisible_by_16, equal_to_1, ids_of_folded_args, divisible_by_8
-            )
-        else:
-            # If AttrsDescriptor does not accept 'ids_of_folded_args', omit it
-            return AttrsDescriptor(divisible_by_16, equal_to_1, divisible_by_8)
+            args["ids_of_folded_args"] = ids_of_folded_args
+        # Unpack dictionary as keyword arguments
+        return AttrsDescriptor(**args)
     else:
+        # Use the fallback namedtuple, always including all arguments
         return InstanceDescriptorFallback(
-            divisible_by_16, equal_to_1, ids_of_folded_args, divisible_by_8
+            divisible_by_16=divisible_by_16,
+            equal_to_1=equal_to_1,
+            ids_of_folded_args=ids_of_folded_args,
+            divisible_by_8=divisible_by_8,
         )
 
 
