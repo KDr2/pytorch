@@ -1,3 +1,4 @@
+import copy
 import functools
 import itertools
 import logging
@@ -12,6 +13,7 @@ import torch._inductor as inductor
 import torch.utils._pytree as pytree
 from torch import fx
 from torch._decomp import register_decomposition
+from torch._dynamo.utils import counters, optimus_scuba_log
 
 from torch._prims_common import is_boolean_dtype, is_expandable_to, is_integer_dtype
 
@@ -79,18 +81,20 @@ def post_grad_passes(gm: torch.fx.GraphModule, is_inference: bool):
 
     if config.pattern_matcher:
         lazy_init()
-
-        print_graph(gm.graph, "Before group batch fusion in post grad pass.")
+        inductor_before_change = copy.deepcopy(counters["inductor"])
         group_batch_fusion_passes(gm.graph, pre_grad=False)
-        print_graph(gm.graph, "After group batch fusion in post grad pass.")
+        if counters["inductor"] != inductor_before_change:
+            optimus_scuba_log["group_batch_fusion_post_grad"] = print_graph(gm.graph)
         remove_noop_ops(gm.graph)
-        print_graph(gm.graph, "Before split cat in post grad pass.")
         for patterns in pass_patterns:
+            split_cat_index = 0
+            inductor_before_change = copy.deepcopy(counters["inductor"])
             patterns.apply(gm.graph)  # type: ignore[arg-type]
-            print_graph(
-                gm.graph,
-                "Apply split cat pattern matcher PatternMatcherPass in post grad.",
-            )
+            if counters["inductor"] != inductor_before_change:
+                optimus_scuba_log[
+                    f"split_cat_pattern_{split_cat_index}_post_grad"
+                ] = print_graph(gm.graph)
+            split_cat_index += 1
         if is_inference:
             inference_patterns.apply(gm.graph)  # type: ignore[arg-type]
 
@@ -111,7 +115,6 @@ def post_grad_passes(gm: torch.fx.GraphModule, is_inference: bool):
     gm.recompile()
     gm.graph.lint()
 
-    print_graph(gm.graph, "After recompile in post grad pass.")
 
 
 @init_once_fakemode
