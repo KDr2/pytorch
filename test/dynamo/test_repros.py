@@ -36,13 +36,14 @@ from torch.nn import functional as F
 from torch.testing._internal.common_cuda import PLATFORM_SUPPORTS_FLASH_ATTENTION
 from torch.testing._internal.common_utils import (
     disable_translation_validation_if_dynamic_shapes,
+    TEST_WITH_ROCM,
 )
 
 
 _orig_module_call = torch.nn.Module.__call__
 
 # Custom operator that only supports CPU and Meta
-lib = torch.library.Library("test_sample", "DEF")
+lib = torch.library.Library("test_sample", "DEF")  # noqa: TOR901
 lib.define("foo(Tensor self) -> Tensor")
 lib.impl("foo", torch.sin, "CPU")
 
@@ -4000,7 +4001,8 @@ class ReproTests(torch._dynamo.test_case.TestCase):
                 self.assertEqual(cnt.frame_count, 1)
 
     @unittest.skipIf(
-        not PLATFORM_SUPPORTS_FLASH_ATTENTION, "flash attention not supported"
+        TEST_WITH_ROCM or not PLATFORM_SUPPORTS_FLASH_ATTENTION,
+        "flash attention not supported",
     )
     def test_flash_attn_backward_mixed_strides(self):
         # in this repro, "grad_out" and "value" are transposed tensors,
