@@ -341,10 +341,15 @@ class TestDeviceMeshGetItem(DTensorTestBase):
             mesh_3d["Replicate"].mesh.tolist(), replicate_group[replicate_group_idx]
         )
 
-        hsdp_mesh = mesh_3d[["Replicate", "Shard"]]
+        # We support both UX for nD slicing.
+        # mesh_3d[["Replicate", "Shard"]] or mesh_3d["Replicate", "Shard"]
+        hsdp_mesh_1 = mesh_3d[["Replicate", "Shard"]]
+        hsdp_mesh_2 = mesh_3d["Replicate", "Shard"]
         hsdp_group = [[[0, 2], [4, 6]], [[1, 3], [5, 7]]]
         hsdp_group_idx = self.rank % 2
-        self.assertEqual(hsdp_mesh.mesh.tolist(), hsdp_group[hsdp_group_idx])
+        self.assertEqual(hsdp_mesh_1.mesh.tolist(), hsdp_group[hsdp_group_idx])
+        self.assertEqual(hsdp_mesh_2.mesh.tolist(), hsdp_group[hsdp_group_idx])
+        self.assertEqual(hsdp_mesh_1, hsdp_mesh_2)
 
 
 class TestMeshEnv(DTensorTestBase):

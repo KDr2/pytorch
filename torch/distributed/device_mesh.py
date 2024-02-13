@@ -69,12 +69,12 @@ else:
         def create_child_mesh(
             self,
             device_mesh: "DeviceMesh",
-            mesh_dim_names: str,
+            mesh_dim_names: Tuple[str],
         ) -> "DeviceMesh":
             # swap the current dim to the last dim then reshape to flatten out other
             # dims, so we can just extract the list of ranks which contains cur_rank.
             mesh_dims = [
-                device_mesh.mesh_dim_names.index(not_none(mesh_dim_name))
+                device_mesh.mesh_dim_names.index(mesh_dim_name)
                 for mesh_dim_name in mesh_dim_names
             ]
             cur_rank = device_mesh.get_rank()
@@ -394,14 +394,14 @@ else:
             if not self.mesh_dim_names:
                 raise RuntimeError("Cannot slice a DeviceMesh without mesh_dim_names.")
 
-            if isinstance(mesh_dim_names, str):
-                mesh_dim_names = (mesh_dim_names,)
+            mesh_dim_names = (
+                (mesh_dim_names,) if isinstance(mesh_dim_names, str) else mesh_dim_names
+            )
 
-            error_msg = f"Invalid mesh_dim_name {mesh_dim_names} specified. Valid mesh_dim_names should be a contiguous subsequence of {self.mesh_dim_names}."
-
-            # Sanity check the given mesh_dim_names are valid.
-            if not set(mesh_dim_names).issubset(set(self.mesh_dim_names)):
-                raise RuntimeError(error_msg)
+            error_msg = (
+                f"Invalid mesh_dim_name {mesh_dim_names} specified. "
+                f"Valid mesh_dim_names should be a contiguous subsequence of {self.mesh_dim_names}."
+            )
 
             # When the dimension slicing out is equal to the mesh dimensions of the current DeviceMesh,
             # we simply return self if the given slicing is valid.
@@ -413,14 +413,17 @@ else:
             # Check if the user-provided slicing is a valid contiguous subsequence of the mesh_dim_names
             # of the current DeviceMesh.
             else:
-                outermost_dim_name = mesh_dim_names[0]
-                outermost_dim_idx = self.mesh_dim_names.index(outermost_dim_name)
-                for i, j in zip(
-                    mesh_dim_names,
-                    self.mesh_dim_names[outermost_dim_idx : len(mesh_dim_names)],
-                ):
-                    if i != j:
-                        raise RuntimeError(error_msg)
+                try:
+                    outermost_dim_name = mesh_dim_names[0]
+                    outermost_dim_idx = self.mesh_dim_names.index(outermost_dim_name)
+                    for i, j in zip(
+                        mesh_dim_names,
+                        self.mesh_dim_names[outermost_dim_idx : len(mesh_dim_names)],
+                    ):
+                        if i != j:
+                            raise RuntimeError(error_msg)
+                except ValueError:
+                    raise RuntimeError(error_msg)
 
             submesh = _mesh_resources.create_child_mesh(self, mesh_dim_names)
             return submesh
