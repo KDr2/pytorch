@@ -652,7 +652,7 @@ else:
 
 # Define the fallback namedtuple
 InstanceDescriptorFallback = collections.namedtuple(
-    "InstanceDescriptorFallback",
+    "instance_descriptor",
     ["divisible_by_16", "equal_to_1", "ids_of_folded_args", "divisible_by_8"],
     defaults=(tuple(),) * 4,
 )
