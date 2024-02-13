@@ -99,4 +99,4 @@ def config_of(args: List[KernelArgType]) -> Any:
         for i, arg in enumerate(args)
         if is_aligned(arg, alignment=8, include_tensor=False)
     )
-    return create_instance_descriptor(divisible_by_16, (), divisible_by_8)
+    return create_instance_descriptor(divisible_by_16, (), (), divisible_by_8)
