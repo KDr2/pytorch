@@ -651,13 +651,10 @@ else:
     needs_ids_of_folded_args = True
 
 # Define the fallback namedtuple
-if needs_ids_of_folded_args:
-    fields = ["divisible_by_16", "equal_to_1", "ids_of_folded_args", "divisible_by_8"]
-else:
-    fields = ["divisible_by_16", "equal_to_1", "divisible_by_8"]
-
 InstanceDescriptorFallback = collections.namedtuple(
-    "InstanceDescriptorFallback", fields, defaults=(tuple(),) * len(fields)
+    "InstanceDescriptorFallback",
+    ["divisible_by_16", "equal_to_1", "ids_of_folded_args", "divisible_by_8"],
+    defaults=(tuple(),) * 4,
 )
 
 
