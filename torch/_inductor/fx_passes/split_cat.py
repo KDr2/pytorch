@@ -159,6 +159,51 @@ def normalize_split_default(match: Match, *args, **kwargs):
 
 
 @register_graph_pattern(
+    CallFunctionVarArgs(torch.unbind, users=MULTIPLE),
+    pass_dict=normalization_pass,
+    extra_check=config_flag("split_cat_fx_passes"),
+)
+@register_graph_pattern(
+    CallMethodVarArgs("unbind", users=MULTIPLE),
+    pass_dict=normalization_pass,
+    extra_check=config_flag("split_cat_fx_passes"),
+)
+def normalize_unbind_default(match: Match, *args, **kwargs):
+    node = match.nodes[0]
+    graph = match.graph
+    input = get_arg_value(node, 0, "input")
+    dim = get_arg_value(node, 1, "dim")
+    if dim is None:
+        axis = node.kwargs.get("axis")
+        if axis is not None:
+            dim = axis
+        else:
+            dim = 0
+    if input is None:
+        log.info("couldn't find unbind args")
+        return
+    if "example_value" not in node.meta:
+        log.warning("example value absent for node: %s", node)
+        return
+    example_value = node.meta["example_value"]
+    ndims = [t.ndim for t in example_value]
+    assert all(ndims[0] == t.ndim for t in example_value)
+    if dim < 0:  # Normalize unbind dim
+        dim += ndims[0]
+
+    with graph.inserting_after(node):
+        new_node = graph.call_function(
+            torch.unbind,
+            args=(input,),
+            kwargs={"dim": dim},
+        )
+    node.replace_all_uses_with(new_node)
+    new_node.meta.update(node.meta)
+    graph.erase_node(node)
+    counters["inductor"]["split_cat_norm"] += 1
+
+
+@register_graph_pattern(
     CallFunctionVarArgs(torch.cat, users=MULTIPLE),
     pass_dict=normalization_pass,
     extra_check=config_flag("split_cat_fx_passes"),
