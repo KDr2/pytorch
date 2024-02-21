@@ -112,6 +112,9 @@ def _sfdp_pattern_5(query, key, value, attn_mask):
 
 def _sfdp_replacement_5(query, key, value, attn_mask):
     counters["inductor"]["fuse_attention"] += 1
+    scale_tensor = torch.full((), math.sqrt(query.size(-1)), dtype=query.dtype)
+    return torch.ops.mkldnn._graph_sdpa_pattern(0, key.transpose(2, -1), query, value, scale_tensor, attn_mask)
+    '''
     return aten.scaled_dot_product_attention(
         query.contiguous(),
         key.contiguous(),
@@ -120,7 +123,7 @@ def _sfdp_replacement_5(query, key, value, attn_mask):
         dropout_p=0.0,
         is_causal=False,
     )
-
+    '''
 
 def _sfdp_pattern_6(query, key, value, attn_mask, dropout_p):
     attn_weight = torch.softmax(
