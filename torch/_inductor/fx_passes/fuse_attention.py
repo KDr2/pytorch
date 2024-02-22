@@ -112,14 +112,25 @@ def _sfdp_pattern_5(query, key, value, attn_mask):
 
 def _sfdp_replacement_5(query, key, value, attn_mask):
     counters["inductor"]["fuse_attention"] += 1
-    return aten.scaled_dot_product_attention(
-        query.contiguous(),
-        key.contiguous(),
-        value.contiguous(),
-        attn_mask=attn_mask.to(dtype=query.dtype),
-        dropout_p=0.0,
-        is_causal=False,
-    )
+    if torch._C._has_onednn_graph:
+        scale_tensor = torch.full((), math.sqrt(query.size(-1)), dtype=query.dtype)
+        return torch.ops.mkldnn._graph_sdpa_pattern(
+            0 if query.dtype == torch.float else 1,
+            query,
+            key.transpose(2, -1),
+            value,
+            scale_tensor,
+            attn_mask.to(dtype=query.dtype),
+        )
+    else:
+        return aten.scaled_dot_product_attention(
+            query.contiguous(),
+            key.contiguous(),
+            value.contiguous(),
+            attn_mask=attn_mask.to(dtype=query.dtype),
+            dropout_p=0.0,
+            is_causal=False,
+        )
 
 
 def _sfdp_pattern_6(query, key, value, attn_mask, dropout_p):
@@ -478,17 +489,19 @@ def _sfdp_params_check(match):
 
 def _sfdp_extra_check(scale_factor_op, disable_cuda=False):
     def fn(match):
-        scale_factor_node = filter_nodes(match.nodes, scale_factor_op)[0]
-        # Note: args[1] of the scale_factor_node is always the scale_factor for the current patterns.
-        scale_factor = scale_factor_node.args[1]
-        # make sure the scale_factor a float/int. SymInt?
-        if not isinstance(scale_factor, (float, int)):
-            return False
+        # first check device
         if (
             disable_cuda
             and "query" in match.kwargs
             and "cuda" in str(match.kwargs["query"].meta["val"].device)
         ):
+            return False
+        # attempt scale_factor_op match
+        scale_factor_node = filter_nodes(match.nodes, scale_factor_op)[0]
+        # Note: args[1] of the scale_factor_node is always the scale_factor for the current patterns.
+        scale_factor = scale_factor_node.args[1]
+        # make sure the scale_factor a float/int. SymInt?
+        if not isinstance(scale_factor, (float, int)):
             return False
         return _sfdp_params_check(match)
 

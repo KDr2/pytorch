@@ -232,10 +232,14 @@ class TestSDPAPatternRewriterTemplate(TestCase):
             )
             return attn_weight @ value
 
-        self._check_common(sfdp_pattern_5_v1, contains=False)
-        self._check_common(checkpoint_wrapper(sfdp_pattern_5_v1), contains=False)
-        self._check_common(sfdp_pattern_5_v2, contains=False)
-        self._check_common(checkpoint_wrapper(sfdp_pattern_5_v2), contains=False)
+        self._check_common(sfdp_pattern_5_v1, contains=False, check_train=False)
+        self._check_common(
+            checkpoint_wrapper(sfdp_pattern_5_v1), contains=False, check_train=False
+        )
+        self._check_common(sfdp_pattern_5_v2, contains=False, check_train=False)
+        self._check_common(
+            checkpoint_wrapper(sfdp_pattern_5_v2), contains=False, check_train=False
+        )
 
     @skipIfRocm
     def _test_sdpa_rewriter_6(self):
