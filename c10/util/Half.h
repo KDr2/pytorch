@@ -49,6 +49,19 @@
 #include <arm_neon.h>
 #endif
 
+#ifndef __C10_NOT_CPU__
+#if defined(__GNUC__) || defined(__clang__)
+#if defined(__aarch64__)
+#if (!defined(__ARM_32BIT_STATE)) || (__ARM_32BIT_STATE != 1)
+#define __C10_NATIVE_FP16__ 1
+#endif // !__ARM_32BIT_STATE
+#endif // __aarch64__
+#endif // GNUC or clang
+#endif // __C10_NOT_CPU__
+
+
+#ifndef __C10_NATIVE_FP16__
+
 namespace c10 {
 
 namespace detail {
@@ -531,3 +544,11 @@ C10_API std::ostream& operator<<(std::ostream& out, const Half& value);
 } // namespace c10
 
 #include <c10/util/Half-inl.h> // IWYU pragma: keep
+
+#else
+
+namespace c10 {
+  using Half = float16_t;
+} // namespace c10
+
+#endif // __C10_NATIVE_FP16__
