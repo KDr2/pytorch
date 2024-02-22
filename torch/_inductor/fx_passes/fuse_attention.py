@@ -112,10 +112,11 @@ def _sfdp_pattern_5(query, key, value, attn_mask):
 
 def _sfdp_replacement_5(query, key, value, attn_mask):
     counters["inductor"]["fuse_attention"] += 1
-    if torch._C._has_onednn_graph:
-        scale_tensor = torch.full((), math.sqrt(query.size(-1)), dtype=query.dtype)
+    if torch._C._has_onednn_graph and str(query.device) == "cpu":
+        data_type = query.dtype
+        scale_tensor = torch.full((), math.sqrt(query.size(-1)), dtype=data_type)
         return torch.ops.mkldnn._graph_sdpa_pattern(
-            0 if query.dtype == torch.float else 1,
+            0 if data_type == torch.float32 else 1,
             query,
             key.transpose(2, -1),
             value,
