@@ -538,3 +538,16 @@ def _disallow_eval_train(model: GraphModule):
     model.train = types.MethodType(_train, model)  # type: ignore[method-assign]
     model.eval = types.MethodType(_eval, model)  # type: ignore[method-assign]
     return model
+
+class _WrapperModule(torch.nn.Module):
+    """Class to wrap a callable in an :class:`torch.nn.Module`. Use this if you
+    are trying to export a callable.
+    """
+
+    def __init__(self, fn: Callable):
+        super().__init__()
+        self.fn = fn
+
+    def forward(self, *args, **kwargs):
+        """Simple forward that just calls the ``fn`` provided to :meth:`WrapperModule.__init__`."""
+        return self.fn(*args, **kwargs)

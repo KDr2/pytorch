@@ -3,6 +3,8 @@ import types
 import torch
 import torch.nn.functional as F
 
+from torch.ao.quantization.pt2e.utils import _WrapperModule
+
 
 __all__ = [
     "model_is_exported",
@@ -47,11 +49,11 @@ def _replace_dropout(m: torch.fx.GraphModule, train_to_eval: bool):
 
         example_inputs = (torch.randn(1),)
         if train_to_eval:
-            match_pattern = get_aten_graph_module(dropout_train, example_inputs)
-            replacement_pattern = get_aten_graph_module(dropout_eval, example_inputs)
+            match_pattern = get_aten_graph_module(_WrapperModule(dropout_train), example_inputs)
+            replacement_pattern = get_aten_graph_module(_WrapperModule(dropout_eval), example_inputs)
         else:
-            match_pattern = get_aten_graph_module(dropout_eval, example_inputs)
-            replacement_pattern = get_aten_graph_module(dropout_train, example_inputs)
+            match_pattern = get_aten_graph_module(_WrapperModule(dropout_eval), example_inputs)
+            replacement_pattern = get_aten_graph_module(_WrapperModule(dropout_train), example_inputs)
 
         from torch.fx.subgraph_rewriter import replace_pattern_with_filters
 
@@ -114,11 +116,11 @@ def _replace_batchnorm(m: torch.fx.GraphModule, train_to_eval: bool):
         torch.randn(1),  # bn_running_var
     )
     if train_to_eval:
-        match_pattern = get_aten_graph_module(bn_train, example_inputs)
-        replacement_pattern = get_aten_graph_module(bn_eval, example_inputs)
+        match_pattern = get_aten_graph_module(_WrapperModule(bn_train), example_inputs)
+        replacement_pattern = get_aten_graph_module(_WrapperModule(bn_eval), example_inputs)
     else:
-        match_pattern = get_aten_graph_module(bn_eval, example_inputs)
-        replacement_pattern = get_aten_graph_module(bn_train, example_inputs)
+        match_pattern = get_aten_graph_module(_WrapperModule(bn_eval), example_inputs)
+        replacement_pattern = get_aten_graph_module(_WrapperModule(bn_train), example_inputs)
 
     from torch.fx.subgraph_rewriter import replace_pattern_with_filters
 

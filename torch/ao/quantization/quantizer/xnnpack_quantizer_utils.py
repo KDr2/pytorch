@@ -12,6 +12,7 @@ from torch.ao.quantization.pt2e.utils import (
     _conv1d_bn_example_inputs,
     _conv2d_bn_example_inputs,
     get_aten_graph_module,
+    _WrapperModule,
 )
 from torch.ao.quantization.quantizer import (
     QuantizationAnnotation,
@@ -445,7 +446,7 @@ def _do_annotate_conv_bn(
                 "output": output,
             }
 
-        return _conv_bn
+        return _WrapperModule(_conv_bn)
 
     # Needed for matching, otherwise the matches gets filtered out due to unused
     # nodes returned by batch norm
