@@ -392,10 +392,9 @@ class intrusive_ptr final {
     return *this;
   }
 
+  // NOLINTNEXTLINE(bugprone-unhandled-self-assignment) - the assignment is
+  // implemented using copy and swap. That's safe for self assignment.
   intrusive_ptr& operator=(const intrusive_ptr& rhs) & noexcept {
-    if (this == &rhs) {
-      return *this;
-    }
     // NOLINTNEXTLINE(*assign-operator, *assignment-signature)
     return operator= <TTarget, NullType>(rhs);
   }
