@@ -778,16 +778,23 @@ def hash_configs(configs: List[Config]):
 
 
 def load_cached_autotuning(
-    cache_filename: str, configs_hash: str, configs: List[Config]
+    cache_filename: str,
+    remote_cache: Optional[Any],
+    remote_cache_key: Optional[str],
+    configs_hash: str,
+    configs: List[Config],
 ):
     """
     Read a cached autotuning result from disk
     """
-    if not os.path.exists(cache_filename):
+    if os.path.exists(cache_filename):
+        with open(cache_filename) as fd:
+            best_config = json.loads(fd.read())
+    elif remote_cache is not None and remote_cache_key is not None:
+        best_config = remote_cache.get([remote_cache_key])
+    else:
         return None
 
-    with open(cache_filename) as fd:
-        best_config = json.loads(fd.read())
     if best_config.pop("configs_hash", None) != configs_hash:
         return None
 
@@ -829,27 +836,52 @@ def cached_autotune(
     save_cache_hook: Optional[Callable[[Any, Any], Any]]
     inductor_meta = {} if inductor_meta is None else inductor_meta
 
-    # on disk caching logic
+    # on disk caching logic and/or remote caching
     if filename is not None and (len(configs) > 1 or config.coordinate_descent_tuning):
         cache_filename = os.path.splitext(filename)[0] + ".best_config"
         configs_hash = hash_configs(configs)
-        best_config = load_cached_autotuning(cache_filename, configs_hash, configs)
+        remote_cache = None
+        remote_cache_key = None
+        if config.use_remote_cache_for_autotune:
+            from triton.compiler.compiler import make_backend, triton_key
+            from triton.runtime.driver import driver
+
+            target = driver.active.get_current_target()
+            backend = make_backend(target)
+            key = f"{triton_key()}-{backend.hash()}-autotune-best-config"
+            key = hashlib.sha256(key.encode("utf-8")).hexdigest()
+            if config.is_fbcode():
+                from triton.runtime.fb_memcache import FbMemcacheRemoteCacheBackend
+
+                remote_cache = FbMemcacheRemoteCacheBackend(key, is_autotune=True)
+            else:
+                from triton.runtime.cache import RedisRemoteCacheBackend
+
+                remote_cache = RedisRemoteCacheBackend(key)
+            # we already SHA-1 hash the source contents
+            remote_cache_key = os.path.basename(filename)
+
+        best_config = load_cached_autotuning(
+            cache_filename, remote_cache, remote_cache_key, configs_hash, configs
+        )
         if best_config:
             configs = [best_config]
 
         def save_cache_hook(cfg, found_by_coordesc=False):
+            data = json.dumps(
+                {
+                    **cfg.kwargs,
+                    "num_warps": cfg.num_warps,
+                    "num_stages": cfg.num_stages,
+                    "configs_hash": configs_hash,
+                    "found_by_coordesc": found_by_coordesc,
+                }
+            )
             with open(cache_filename, "w") as fd:
-                fd.write(
-                    json.dumps(
-                        {
-                            **cfg.kwargs,
-                            "num_warps": cfg.num_warps,
-                            "num_stages": cfg.num_stages,
-                            "configs_hash": configs_hash,
-                            "found_by_coordesc": found_by_coordesc,
-                        }
-                    )
-                )
+                fd.write(data)
+            if remote_cache is not None and remote_cache_key is not None:
+                remote_cache.put(remote_cache_key, data)
+
             if log.isEnabledFor(logging.DEBUG):
                 type_str = "coordesc" if found_by_coordesc else "heuristic"
                 log.debug("Save %s tuning result to %s", type_str, cache_filename)
