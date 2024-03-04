@@ -219,6 +219,9 @@ ALL_OPS_IN_DB = frozenset(op_info.name for op_info in OPS_DB)
 # Assert all ops in OPINFO_FUNCTION_MAPPING are in the OPS_DB
 assert TESTED_OPS.issubset(ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in OPS_DB"
 
+torch.fx._pytree.register_pytree_flatten_spec(
+    torch.Size, lambda t: [t[0][i] for i in range(len(t[1].children_specs))],
+)
 
 class SingleOpModel(torch.nn.Module):
     """Test model to wrap around a single op for export."""
