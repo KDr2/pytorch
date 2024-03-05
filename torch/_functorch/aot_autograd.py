@@ -385,7 +385,7 @@ aot_autograd_decompositions = {}
 
 @dynamo_timed
 def create_aot_dispatcher_function(
-    flat_fn, flat_args: List[Any], aot_config: AOTConfig
+    flat_fn, flat_args: List[Any], aot_config: AOTConfig, default_fake_mode=None
 ):
     """
     Traces the forward and backward graphs of the attr:`flat_fn` to generate a
@@ -432,7 +432,7 @@ def create_aot_dispatcher_function(
     # Check flat_args to see if they're already fake.  If so, use that fake
     # mode instead.
 
-    fake_mode = detect_fake_mode(flat_args)
+    fake_mode = detect_fake_mode(flat_args) or default_fake_mode
     if fake_mode is None:
         shape_env = ShapeEnv() if aot_config.dynamic_shapes else None
         fake_mode = FakeTensorMode(shape_env=shape_env)
@@ -912,6 +912,7 @@ def aot_export_module(
     output_loss_index: Optional[int] = None,
     pre_dispatch: bool = False,
     kwargs=None,
+    default_fake_mode=None,
 ) -> Tuple[torch.fx.GraphModule, GraphSignature]:
     """
     This function takes in a module, and returns:
@@ -1027,6 +1028,7 @@ We require the output marked as the loss (at index {output_loss_index}) to be a 
             no_tangents=True,
             pre_dispatch=pre_dispatch,
             kwargs=kwargs,
+            default_fake_mode=default_fake_mode,
         )
     if trace_joint:
         def flattened_joint(*args):
@@ -1175,6 +1177,7 @@ def _aot_export_function(
     no_tangents: bool = False,
     pre_dispatch: bool = False,
     kwargs=None,
+    default_fake_mode=None,
 ) -> Tuple[torch.fx.GraphModule, ViewAndMutationMeta, pytree.TreeSpec, pytree.TreeSpec]:
     kwargs = kwargs or {}
 
@@ -1213,6 +1216,7 @@ def _aot_export_function(
         flat_fn,
         flat_args,
         aot_config,
+        default_fake_mode=default_fake_mode,
     )
     return fx_g, meta, in_spec, out_spec.spec
 

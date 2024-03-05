@@ -412,6 +412,7 @@ def _export_non_strict(
     *,
     transform=lambda x: x,  # TODO(zhxchen17) Revisit if this is needed later.
     pre_dispatch=False,
+    default_fake_mode=None,
 ):
     # [NOTE] If the user is exporting under training mode, we want to detect if there is any
     # state change in the autograd global state and error. If the user is exporting under inference
@@ -442,6 +443,7 @@ def _export_non_strict(
             trace_joint=False,
             pre_dispatch=pre_dispatch,
             kwargs=fake_kwargs,
+            default_fake_mode=default_fake_mode,
         )
     # TODO unfortunately preserving graph-level metadata is not
     # working well with aot_export. So we manually copy it.
@@ -518,7 +520,14 @@ def _export_non_strict(
     )
 
     constants = rewrite_script_object_meta(gm)
-    constants.update(lift_constants_pass(gm, export_graph_signature, constant_attrs))
+    constants.update(
+        lift_constants_pass(
+            gm,
+            export_graph_signature,
+            constant_attrs,
+            default_fake_mode=default_fake_mode,
+        )
+    )
 
     @dataclasses.dataclass
     class _ExportedProgramNonStrict:
@@ -786,6 +795,7 @@ def _export(
             constant_attrs,
             pre_dispatch=pre_dispatch,
             transform=_tuplify_outputs,
+            default_fake_mode=fake_mode,
         )
         try:
             range_constraints = make_constraints(

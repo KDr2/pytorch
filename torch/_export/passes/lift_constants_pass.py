@@ -83,6 +83,7 @@ def lift_constants_pass(
     gm: torch.fx.GraphModule,
     graph_signature: ExportGraphSignature,
     constant_attrs: ConstantAttrMap,
+    default_fake_mode=None,
 ) -> Dict[str, Union[torch.Tensor, torch._C.ScriptObject]]:
     """
     Takes a graph module, graph signature, and modifies them implace to lift any
@@ -103,9 +104,6 @@ def lift_constants_pass(
     """
     all_constants: Dict[str, Union[torch.Tensor, torch._C.ScriptObject]] = {}
 
-    if len([node for node in gm.graph.nodes if node.op == "placeholder"]) == 0:
-        return {}
-
     inputs = graph_signature.input_specs
     num_custom_obj = sum(
         input_specs.kind == InputKind.CUSTOM_OBJ for input_specs in inputs
@@ -114,9 +112,10 @@ def lift_constants_pass(
         input_specs.kind == InputKind.CONSTANT_TENSOR for input_specs in inputs
     )
 
-    fake_mode = detect_fake_mode(
+    detected_fake_mode = detect_fake_mode(
         tuple(node.meta["val"] for node in gm.graph.nodes if node.op == "placeholder")
     )
+    fake_mode = detected_fake_mode or default_fake_mode
 
     first_user_input_loc, first_user_input = 0, None
     for node in gm.graph.nodes:
