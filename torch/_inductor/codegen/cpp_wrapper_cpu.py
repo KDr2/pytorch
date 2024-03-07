@@ -641,7 +641,7 @@ class CppWrapperCpu(WrapperCodeGen):
             self.prefix.splice(
                 """
                     if (!initialization) {
-                        throw std::runtime_error(std::string("use_runtime_constant_folding is not set."));
+                        std::cerr << "[Warning] Calling constant_folding with aot_inductor.use_runtime_constant_folding=False in config during compilation!\n";
                     }
                     return {};
                 }
