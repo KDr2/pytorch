@@ -63,6 +63,7 @@ class ComposableQuantizer(Quantizer):
     def annotate(self, model: torch.fx.GraphModule) -> torch.fx.GraphModule:
         """just handling global spec for now"""
         for quantizer in self.quantizers:
+            quantizer.transform_for_annotation(model)
             quantizer.annotate(model)
             self._record_and_validate_annotations(model, quantizer)
         return model
