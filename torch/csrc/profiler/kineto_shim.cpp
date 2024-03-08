@@ -2,6 +2,9 @@
 #include <torch/csrc/profiler/kineto_shim.h>
 
 #ifdef USE_KINETO
+#ifdef KINETO_HAS_NCCL_PROFILER
+#include <nccl.h>
+#endif // KINETO_HAS_NCCL_PROFILER
 #include <libkineto.h>
 #endif
 
@@ -203,6 +206,26 @@ class ExperimentalConfigWrapper {
 };
 } // namespace
 
+bool collectivesProfilerExists() {
+#ifdef NCCL_PROXY_PROFILER_ENABLED
+  return true;
+#else
+  return false;
+#endif
+}
+
+void collectivesProfilerRecord(const std::string& collective_name) {
+#ifdef NCCL_PROXY_PROFILER_ENABLED
+  // If a collective profiler exists and we know that it has
+  // the ability to record param comms metadata, then we can use it here.
+  // Currently our NCCL profiler has the ability to tag the
+  // trace with collective names.
+  ncclCollectiveRecord(collective_name.c_str(), 'b' /*type*/);
+#else
+  return;
+#endif
+}
+
 void prepareTrace(
     const bool cpuOnly,
     const ActivitySet& activities,
@@ -236,6 +259,9 @@ void prepareTrace(
       LOG(INFO) << "Enabling CUDA Sync Events";
       k_activities.insert(libkineto::ActivityType::CUDA_SYNC);
     }
+  }
+  if (collectivesProfilerExists()) {
+    k_activities.insert(libkineto::ActivityType::COLLECTIVE_COMM);
   }
 
   ExperimentalConfigWrapper configWrap(config);

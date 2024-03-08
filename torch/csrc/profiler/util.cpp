@@ -9,6 +9,7 @@
 #ifdef USE_KINETO
 #include <libkineto.h>
 #endif
+
 #ifdef USE_DISTRIBUTED
 #ifdef USE_C10D
 #include <torch/csrc/distributed/c10d/ParamCommsUtils.hpp>
@@ -421,6 +422,10 @@ std::unordered_map<std::string, std::string> saveNcclMeta(
                 ", "),
             groupRanks.back()));
   }
+#ifdef USE_KINETO
+  torch::profiler::impl::kineto::collectivesProfilerRecord(
+      debugInfo->getColumnName());
+#endif
 #endif // USE_C10D
 #endif // USE_DISTRIBUTED
   return map;
