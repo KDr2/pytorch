@@ -45,7 +45,7 @@ from torch.utils._sympy.value_ranges import ValueRangeError
 
 from ._safeguard import AutogradStateOpsFailSafeguard
 
-from .dynamic_shapes import _process_constraints, Constraint
+from .dynamic_shapes import _process_constraints
 from .exported_program import (
     _disable_prexisiting_fake_mode,
     ExportedProgram,
@@ -315,7 +315,7 @@ def _export_to_torch_ir(
     f: Callable,
     args: Tuple[Any, ...],
     kwargs: Optional[Dict[str, Any]] = None,
-    constraints: Optional[List[Constraint]] = None,
+    dynamic_shapes: Optional[Union[Dict[str, Any], Tuple[Any], List[Any]]] = None,
     *,
     preserve_module_call_signature: Tuple[str, ...] = (),
     disable_constraint_solver: bool = False,
@@ -346,7 +346,7 @@ def _export_to_torch_ir(
             ), _ignore_backend_decomps():
                 gm_torch_level, _ = torch._dynamo.export(
                     f,
-                    constraints=constraints,  # type: ignore[arg-type]
+                    dynamic_shapes=dynamic_shapes,  # type: ignore[arg-type]
                     assume_static_by_default=True,
                     tracing_mode="symbolic",
                     disable_constraint_solver=disable_constraint_solver,
@@ -685,16 +685,12 @@ def _export(
     Returns:
         An ExportedProgram containing the traced method.
     """
-    from .dynamic_shapes import _process_dynamic_shapes
-
     global _EXPORT_FLAGS
     flags = set()
     flags.add("strict" if strict else "non_strict")
     flags.add("pre_dispatch" if pre_dispatch else "aot_dispatch")
     log_export_usage(event="export.enter", flags=flags)
     _EXPORT_FLAGS = flags
-
-    constraints = _process_dynamic_shapes(mod, args, kwargs, dynamic_shapes) or []
 
     kwargs = kwargs or {}
 
@@ -779,7 +775,7 @@ def _export(
             fake_kwargs,
             equalities_inputs,
             original_signature,
-        ) = make_fake_inputs(mod, args, kwargs, constraints)
+        ) = make_fake_inputs(mod, args, kwargs, dynamic_shapes)
 
         fake_params_buffers = make_fake_params_buffers(
             fake_mode, _get_params_buffers(mod)
@@ -861,7 +857,7 @@ def _export(
         mod,
         args,
         kwargs,
-        constraints,
+        dynamic_shapes,
         preserve_module_call_signature=preserve_module_call_signature,
         restore_fqn=False,  # don't need to restore because we will do it later
         _log_export_usage=False,
