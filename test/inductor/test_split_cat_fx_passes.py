@@ -608,7 +608,10 @@ class TestSplitCatFxPasses(TestCase):
             )
             counters.clear()
 
-    @torch._inductor.config.patch(split_cat_fx_passes=False)
+    @torch._inductor.config.patch(
+        pre_grad_split_cat_options={},
+        post_grad_split_cat_options={},
+    )
     def test_config_flag_is_respected(self):
         def split_with_cat(x):
             fs = torch.split(x, [4, 4, 24], dim=-1)

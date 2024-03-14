@@ -7,7 +7,10 @@ from torch.func import functional_call
 
 from ..pattern_matcher import CallModuleVarArgs, Match, register_graph_pattern
 
-from .pre_grad import efficient_conv_bn_eval_pass
+from .pre_grad import get_pattern_matcher_pass
+
+
+efficient_conv_bn_eval_pass = get_pattern_matcher_pass("efficient_conv_bn_eval_pass")
 
 
 def efficient_conv_bn_eval(

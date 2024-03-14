@@ -256,7 +256,8 @@ class NumBytesMetricTests(TestCase):
         inp = (T(10, 10), T(10, 10))
         self.assertExpectedInline(count_numel(f, *inp), """400""")
 
-    @patch.object(config, "split_cat_fx_passes", False)
+    @patch.object(config, "pre_grad_split_cat_options", {})
+    @patch.object(config, "post_grad_split_cat_options", {})
     def test_cat_pointwise_many_complex_inputs(self):
         def f(*inputs):
             input = [torch.nn.functional.gelu(val) for val in inputs]
@@ -265,7 +266,8 @@ class NumBytesMetricTests(TestCase):
         inp = (T(10, 10) for _ in range(16))
         self.assertExpectedInline(count_numel(f, *inp), """6400""")
 
-    @patch.object(config, "split_cat_fx_passes", False)
+    @patch.object(config, "pre_grad_split_cat_options", {})
+    @patch.object(config, "post_grad_split_cat_options", {})
     def test_cat_pointwise_many_simple_inputs(self):
         def f(*inputs):
             input = [torch.nn.functional.relu(val) for val in inputs]
