@@ -31,6 +31,7 @@ from torch.export._trace import (
     DEFAULT_EXPORT_DYNAMO_CONFIG,
 )
 from torch.fx.experimental.proxy_tensor import make_fx
+from torch.library import Library, impl
 from torch.testing import FileCheck
 from torch.testing._internal.common_cuda import PLATFORM_SUPPORTS_FLASH_ATTENTION
 from torch.testing._internal.common_device_type import onlyCPU, onlyCUDA
@@ -3601,6 +3602,50 @@ def forward(self, arg0_1, arg1_1, arg2_1):
 
         self._test_export_same_as_eager(Module(), (torch.randn(4, 4),))
 
+    def test_custom_op_auto_functionalize(self):
+        lib = torch.library.Library("mylib", "FRAGMENT")
+        torch.library.define(
+            "mylib::foo",
+            "(Tensor(a!) x, Tensor(b!) z) -> (Tensor, Tensor, Tensor)",
+            tags=torch.Tag.pt2_compliant_tag,
+            lib=lib,
+        )
+
+        @torch.library.impl("mylib::foo", "cpu", lib=lib)
+        @torch._dynamo.disable
+        def foo_impl(x, z):
+            x.add_(5)
+            z.add_(5)
+            return x, z, x + z
+
+        @torch.library.impl_abstract("mylib::foo", lib=lib)
+        def foo_abstract(x, z):
+            return x, z, x + z
+
+
+        class M(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+
+            def forward(self, x, z):
+                return torch.ops.mylib.foo(x, z)
+
+        inps = (torch.ones(5), torch.ones(5))
+        inps_for_export = (torch.ones(5), torch.ones(5))
+        inps_for_export_with_decomp = (torch.ones(5), torch.ones(5))
+
+        ep = torch.export.export(M(), inps_for_export)
+        x_new_eager, z_new_eager, legit_eager = M()(*inps)
+        x_new_export, z_new_export, legit_export = ep.module()(*inps_for_export)
+        self.assertTrue(torch.allclose(x_new_eager, x_new_export))
+        self.assertTrue(torch.allclose(z_new_eager, z_new_export))
+        self.assertTrue(torch.allclose(legit_eager, legit_export))
+
+        ep = ep.run_decompositions()
+        x_new_export, z_new_export, legit_export = ep.module()(*inps_for_export_with_decomp)
+        self.assertTrue(torch.allclose(x_new_eager, x_new_export))
+        self.assertTrue(torch.allclose(z_new_eager, z_new_export))
+        self.assertTrue(torch.allclose(legit_eager, legit_export))
 
 @unittest.skipIf(not torchdynamo.is_dynamo_supported(), "dynamo isn't support")
 class TestOneOffModelExportResult(TestCase):
