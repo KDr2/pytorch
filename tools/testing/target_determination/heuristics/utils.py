@@ -29,6 +29,7 @@ def get_pr_number() -> Optional[int]:
         re_match = re.match(r"^refs/tags/.*/(\d+)$", os.environ.get("GITHUB_REF", ""))
         if re_match is not None:
             pr_number = re_match.group(1)
+    print(pr_number)
     if pr_number != "":
         return int(pr_number)
     return None
@@ -37,6 +38,7 @@ def get_pr_number() -> Optional[int]:
 @lru_cache(maxsize=None)
 def get_base_ref() -> str:
     pr_number = get_pr_number()
+    print(pr_number)
     if pr_number is not None:
         github_token = os.environ.get("GITHUB_TOKEN")
         headers = {
@@ -47,7 +49,9 @@ def get_base_ref() -> str:
         with urlopen(Request(url, headers=headers)) as conn:
             pr_info = json.loads(conn.read().decode())
             base: str = pr_info["base"]["ref"]
+            print(base)
             return base
+    print(base)
     return "HEAD^"
 
 
