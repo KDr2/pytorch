@@ -22,7 +22,7 @@ def python_test_file_to_test_name(tests: Set[str]) -> Set[str]:
     return valid_tests
 
 
-@lru_cache
+@lru_cache(maxsize=None)
 def get_pr_number() -> Optional[int]:
     pr_number = os.environ.get("PR_NUMBER")
     if pr_number is None:
@@ -34,7 +34,7 @@ def get_pr_number() -> Optional[int]:
     return None
 
 
-@lru_cache
+@lru_cache(maxsize=None)
 def get_base_ref() -> str:
     pr_number = get_pr_number()
     if pr_number is not None:
