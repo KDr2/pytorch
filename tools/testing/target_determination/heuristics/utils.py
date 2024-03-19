@@ -24,12 +24,12 @@ def python_test_file_to_test_name(tests: Set[str]) -> Set[str]:
 
 @lru_cache(maxsize=None)
 def get_pr_number() -> Optional[int]:
-    pr_number = os.environ.get("PR_NUMBER")
-    if pr_number is None:
+    pr_number = os.environ.get("PR_NUMBER", "")
+    if pr_number == "":
         re_match = re.match(r"^refs/tags/.*/(\d+)$", os.environ.get("GITHUB_REF", ""))
         if re_match is not None:
             pr_number = re_match.group(1)
-    if pr_number is not None:
+    if pr_number != "":
         return int(pr_number)
     return None
 
@@ -38,9 +38,13 @@ def get_pr_number() -> Optional[int]:
 def get_base_ref() -> str:
     pr_number = get_pr_number()
     if pr_number is not None:
-        with urlopen(
-            Request(f"https://api.github.com/repos/pytorch/pytorch/pulls/{pr_number}")
-        ) as conn:
+        github_token = os.environ.get("GITHUB_TOKEN")
+        headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "Authorization": f"token {github_token}",
+        }
+        url = f"https://api.github.com/repos/pytorch/pytorch/pulls/{pr_number}"
+        with urlopen(Request(url, headers=headers)) as conn:
             pr_info = json.loads(conn.read().decode())
             base: str = pr_info["base"]["ref"]
             return base
