@@ -515,6 +515,10 @@ void initPythonBindings(PyObject* module) {
       "_disable_execution_trace_observer",
       &torch::profiler::impl::disableExecutionTraceObserver);
   m.def(
+      "_save_generated_kernels",
+      &torch::profiler::impl::savePath4GeneratedKernels,
+      py::arg("kernel_file_paths"));
+  m.def(
       "_set_record_concrete_inputs_enabled_val",
       &torch::profiler::impl::set_record_concrete_inputs_enabled_val);
   m.def(

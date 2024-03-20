@@ -19,6 +19,7 @@ from torch._C._profiler import (
     _enable_execution_trace_observer,
     _ExperimentalConfig,
     _remove_execution_trace_observer,
+    _save_generated_kernels,
 )
 from torch.autograd import kineto_available, ProfilerActivity
 from torch.profiler._memory_profiler import MemoryProfile, MemoryProfileTimeline
@@ -788,6 +789,13 @@ class ExecutionTraceObserver(_ITraceObserver):
         """
         if self._registered:
             self.stop()
+
+            # Save the kernel paths for the generated kernels
+            from torch._inductor.codecache import PyCodeCache as PyCodeCache
+
+            paths = [v.__file__ for v in PyCodeCache.cache.values()]
+            _save_generated_kernels(paths)
+
             _remove_execution_trace_observer()
             self._registered = False
 

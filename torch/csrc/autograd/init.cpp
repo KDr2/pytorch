@@ -35,6 +35,7 @@
 #include <torch/csrc/utils/python_raii.h>
 #include <torch/csrc/utils/python_torch_function_mode.h>
 
+#include <filesystem>
 #include <set>
 #include <unordered_set>
 #include <utility>
@@ -285,7 +286,10 @@ PyObject* THPAutograd_initExtension(PyObject* _unused, PyObject* unused) {
   // callbacks.
   m.def(
       "_record_function_with_args_enter",
-      [](const std::string& name, const py::args& args) {
+      [](const std::string& name,
+         const std::string& kernel_file,
+         const py::args& args,
+         const py::kwargs& kwargs) {
         using torch::autograd::profiler::PythonRecordFunction;
         auto python_rec = c10::make_intrusive<PythonRecordFunction>(
             at::RecordScope::USER_SCOPE);
@@ -296,12 +300,24 @@ PyObject* THPAutograd_initExtension(PyObject* _unused, PyObject* unused) {
             for (const auto& arg : args) {
               iv_inputs.push_back(torch::jit::toTypeInferredIValue(arg));
             }
+            for (auto item : kwargs) {
+              iv_inputs.push_back(
+                  torch::jit::toTypeInferredIValue(item.second));
+            }
+
             rec->before(
                 name,
                 c10::ArrayRef<const c10::IValue>(
                     iv_inputs.data(), iv_inputs.size()));
           } else {
             rec->before(name);
+          }
+
+          if (!kernel_file.empty()) {
+            std::filesystem::path file_path =
+                std::filesystem::path(kernel_file);
+            const std::string file_name = file_path.filename().string();
+            rec->setKernelFile(file_name);
           }
         }
         return torch::jit::toPyObject(std::move(python_rec));
