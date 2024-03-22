@@ -9,6 +9,7 @@ import torch.distributed as dist
 import torch.distributed._tensor.api as dtensor
 import torch.distributed._tensor.random as random
 from torch.distributed._tensor._utils import try_find_mesh_from_args
+from torch.distributed._tensor.attention import sdpa_handler
 from torch.distributed._tensor.op_schema import (
     _is_inplace_op,
     _is_out_variant_op,
@@ -86,6 +87,8 @@ class OpDispatcher:
             aten.is_same_size.default: is_same_size_handler,
             aten.convolution.default: convolution_handler,
             aten.convolution_backward.default: convolution_backward_handler,
+            # aten.scaled_dot_product_attention.default: sdpa_handler,
+            aten._scaled_dot_product_flash_attention.default: sdpa_handler,
         }
 
         # This flag is used internally to control whether we treat the torch.Tensor(non-DTensor)
