@@ -17,11 +17,11 @@ from .semi_structured import (
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from torch.types import _dtype as DType
-    DimOrDims = Optional[Union[int, Tuple[int], List[int]]]
+    DimOrDims = Optional[Union[int, Tuple[int, ...], List[int]]]
 else:
     # The JIT doesn't understand Union, nor torch.dtype here
     DType = int
-    DimOrDims = Optional[Tuple[int]]
+    DimOrDims = Optional[Tuple[int, ...]]
 
 
 __all__ = [
