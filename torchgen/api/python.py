@@ -234,7 +234,8 @@ class PythonArgument:
         if self.default is not None:
             default = {
                 "nullptr": "None",
-                "c10::nullopt": "None",
+                "std::nullopt": "None",
+                "::std::nullopt": "None",
                 "{}": "None",
             }.get(self.default, self.default)
             return f"{type_str} {name}={default}"
@@ -279,7 +280,8 @@ class PythonArgument:
             else:
                 default = {
                     "nullptr": "None",
-                    "c10::nullopt": "None",
+                    "std::nullopt": "None",
+                    "::std::nullopt": "None",
                     "{}": "None",
                     "MemoryFormat::Contiguous": "contiguous_format",
                     "QScheme::PER_TENSOR_AFFINE": "per_tensor_affine",
@@ -1308,7 +1310,7 @@ def arg_parser_unpack_method(
             return "generator"
         elif str(t.elem) == "Dimname[]":
             return "toDimnameListOptional"
-        elif not has_default_init and default in (None, "None", "c10::nullopt"):
+        elif not has_default_init and default in (None, "None", "::std::nullopt", "std::nullopt"):
             # If default is None: append 'Optional' to elem's unpacking method
             return (
                 arg_parser_unpack_method(t.elem, None, None, symint=symint) + "Optional"
