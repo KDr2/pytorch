@@ -65,6 +65,15 @@ def _check_val(node: torch.fx.Node) -> None:
         raise SpecViolationError(f"Node.meta {node.name} has invalid val field {val}")
 
 
+def _check_torch_fn(node: torch.fx.Node) -> None:
+    torch_fn = node.meta["torch_fn"]
+    if (
+        not isinstance(torch_fn, tuple) and
+        isinstance(torch_fn[0], str) and
+        isinstance(torch_fn[1], str)
+    ):
+        raise SpecViolationError(f"Node.meta {node.name} has invalid torch_fn field {torch_fn}")
+
 class _VerifierMeta(type):
     _registry: Dict[str, Type['Verifier']] = {}
 
@@ -205,6 +214,7 @@ class Verifier(metaclass=_VerifierMeta):
 
                 elif node.op == "call_function":
                     _check_val(node)
+                    _check_torch_fn(node)
 
                     _check_valid_op(node.target)
 
