@@ -14,6 +14,8 @@ from torch.distributed._tensor.placement_types import _Partial, Shard
 from torch.distributed.device_mesh import _mesh_resources, DeviceMesh, init_device_mesh
 
 from torch.distributed.distributed_c10d import (
+    _get_process_group_name,
+    _world,
     get_global_rank,
     get_world_size,
     init_process_group,
@@ -320,6 +322,44 @@ class TestDeviceMeshGetItem(DTensorTestBase):
         with self.assertRaisesRegex(RuntimeError, "Invalid mesh_dim_name"):
             dp_mesh = mesh["dim0"]
 
+    def _get_tags_to_pg_name(self, tags_to_pg):
+        tags_to_pg_name = {}
+        for tag_name, groups in tags_to_pg.items():
+            tags_to_pg_name[tag_name] = []
+            for group in groups:
+                tags_to_pg_name[tag_name].append(_get_process_group_name(group))
+        return tags_to_pg_name
+
+    @with_comms
+    @run_with_both_funcol_impls
+    def test_cache_and_reuse_submesh_slice_result(self):
+        mesh = init_device_mesh(self.device_type, (2, 4), mesh_dim_names=("dp", "tp"))
+
+        dp_mesh = mesh["dp"]
+        # Record the pg tags_to_pg_name so we can check whether the next mesh["dp"] slice create new pg.
+        # We cannot do a deepcopy of ProcessGroup for comparison,
+        # since we cannot pickle 'torch._C._distributed_c10d.ProcessGroup' object.
+        # Therefore, we rely on the tags_to_pg_name for comparison to make sure
+        # before/after two mesh["dp"] call, tags_to_pg in the current world does not change.
+        ref_tags_to_pg_name = self._get_tags_to_pg_name(_world.tags_to_pg)
+
+        # When we call the "dp" slice second time, it should not create any new pg,
+        # as we are just using the cached result.
+        dp_mesh_2 = mesh["dp"]
+        self.assertEqual(
+            ref_tags_to_pg_name, self._get_tags_to_pg_name(_world.tags_to_pg)
+        )
+
+        # When we call the "tp" slice, it should create a new pg, as the "tp" slice is called
+        # for the first time.
+        tp_mesh = mesh["tp"]
+        self.assertNotEqual(
+            ref_tags_to_pg_name, self._get_tags_to_pg_name(_world.tags_to_pg)
+        )
+        self.assertTrue(
+            len(self._get_tags_to_pg_name(_world.tags_to_pg)) > len(ref_tags_to_pg_name)
+        )
+
 
 @instantiate_parametrized_tests
 class TestMeshEnv(DTensorTestBase):
@@ -482,9 +522,11 @@ class DeviceMeshCollectiveTest(DTensorTestBase):
                 torch.chunk(big_tensor, device_mesh.size(), dim=shard_dim)
             )
             unpadded_list = [
-                shard_placement._unpad_tensor(big_tensor_chunks[i], pad_sizes[i])
-                if pad_sizes[i] > 0
-                else big_tensor_chunks[i]
+                (
+                    shard_placement._unpad_tensor(big_tensor_chunks[i], pad_sizes[i])
+                    if pad_sizes[i] > 0
+                    else big_tensor_chunks[i]
+                )
                 for i, big_tensor in enumerate(big_tensor_chunks)
             ]
             all_gathered_tensor = torch.cat(unpadded_list, dim=shard_dim)

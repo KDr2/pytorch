@@ -60,6 +60,7 @@ else:
         def __init__(self) -> None:
             self.mesh_stack: List[DeviceMesh] = []
             self.child_to_parent_mapping: Dict[DeviceMesh, DeviceMesh] = {}
+            self.parent_to_child_mapping: Dict[DeviceMesh, Dict[str, DeviceMesh]] = {}
 
         def get_current_mesh(self) -> "DeviceMesh":
             if len(self.mesh_stack) == 0:
@@ -88,6 +89,9 @@ else:
             res_sub_mesh._dim_group_infos = [device_mesh._dim_group_infos[mesh_dim]]  # type: ignore[possibly-undefined]
             # Assign the current DeviceMesh as the parent of the child DeviceMesh.
             self.child_to_parent_mapping[res_sub_mesh] = device_mesh
+            self.parent_to_child_mapping.setdefault(device_mesh, {})[
+                mesh_dim_name
+            ] = res_sub_mesh
             return res_sub_mesh
 
         def get_parent_mesh(self, device_mesh: "DeviceMesh") -> Optional["DeviceMesh"]:
@@ -134,6 +138,15 @@ else:
                     f"Available mesh dimensions are: mesh_dim_names={device_mesh.mesh_dim_names}",
                 )
             return not_none(device_mesh.mesh_dim_names.index(mesh_dim_name))
+
+        def get_child_mesh(
+            self, device_mesh: "DeviceMesh", mesh_dim_name: str
+        ) -> Optional["DeviceMesh"]:
+            child_mesh_mappings = self.parent_to_child_mapping.get(device_mesh)
+            if child_mesh_mappings:
+                return child_mesh_mappings.get(mesh_dim_name)
+            else:
+                return None
 
     _mesh_resources: _MeshEnv = _MeshEnv()
 
@@ -376,10 +389,16 @@ else:
                         f"Invalid mesh_dim_name {mesh_dim_name} specified."
                     )
 
-            mesh_dim = _mesh_resources.get_mesh_dim_by_name(self, mesh_dim_name)
-            submesh = _mesh_resources.create_child_mesh(self, mesh_dim, mesh_dim_name)
-
-            return submesh
+            # Directly return the child mesh if it is already created.
+            submesh = _mesh_resources.get_child_mesh(self, mesh_dim_name)
+            if submesh:
+                return submesh
+            else:
+                mesh_dim = _mesh_resources.get_mesh_dim_by_name(self, mesh_dim_name)
+                submesh = _mesh_resources.create_child_mesh(
+                    self, mesh_dim, mesh_dim_name
+                )
+                return submesh
 
         def get_group(
             self, mesh_dim: Optional[Union[int, str]] = None
