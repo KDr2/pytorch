@@ -71,6 +71,13 @@ http_archive(
     ],
 )
 
+http_archive(
+    name = "com_github_opentelemetry-cpp",
+    urls = [
+        "https://github.com/open-telemetry/opentelemetry-cpp/archive/refs/tags/v1.14.2.tar.gz",
+    ],
+)
+
 new_local_repository(
     name = "gloo",
     build_file = "//third_party:gloo.BUILD",
@@ -153,6 +160,12 @@ new_local_repository(
     name = "kineto",
     build_file = "//third_party:kineto.BUILD",
     path = "third_party/kineto",
+)
+
+new_local_repository(
+    name = "opentelemetry-cpp",
+    build_file = "//third_party::opentelemetry-cpp.BUILD",
+    path = "third_party/opentelemetry-cpp",
 )
 
 new_patched_local_repository(
@@ -345,6 +358,200 @@ local_repository(
 local_repository(
     name = "unused_onnx_tensorrt_benchmark",
     path = "third_party/onnx-tensorrt/third_party/onnx/third_party/benchmark",
+)
+
+local_repository(
+    name = "unused_opentelemetry_api_test_baggage",
+    path = "third_party/opentelemetry-cpp/api/test/baggage",
+)
+
+local_repository(
+    name = "unused_opentelemetry_api_test_baggage_propagation",
+    path = "third_party/opentelemetry-cpp/api/test/baggage/propagation",
+)
+
+local_repository(
+    name = "unused_opentelemetry_api_test_common",
+    path = "third_party/opentelemetry-cpp/api/test/common",
+)
+
+local_repository(
+    name = "unused_opentelemetry_api_test_context",
+    path = "third_party/opentelemetry-cpp/api/test/context",
+)
+
+local_repository(
+    name = "unused_opentelemetry_api_test_context_propagation",
+    path = "third_party/opentelemetry-cpp/api/test/context/propagation",
+)
+
+local_repository(
+    name = "unused_opentelemetry_api_test_core",
+    path = "third_party/opentelemetry-cpp/api/test/core",
+)
+
+local_repository(
+    name = "unused_opentelemetry_api_test_logs",
+    path = "third_party/opentelemetry-cpp/api/test/logs",
+)
+
+local_repository(
+    name = "unused_opentelemetry_third_party_benchmark",
+    path = "third_party/opentelemetry-cpp/third_party/benchmark",
+)
+
+local_repository(
+    name = "unused_opentelemetry_third_party_benchmark_tools",
+    path = "third_party/opentelemetry-cpp/third_party/benchmark/tools",
+)
+
+local_repository(
+    name = "unused_opentelemetry_api_test_metrics",
+    path = "third_party/opentelemetry-cpp/api/test/metrics",
+)
+
+local_repository(
+    name = "unused_opentelemetry_api_test_nostd",
+    path = "third_party/opentelemetry-cpp/api/test/nostd",
+)
+
+local_repository(
+    name = "unused_opentelemetry_api_test_plugin",
+    path = "third_party/opentelemetry-cpp/api/test/plugin",
+)
+
+local_repository(
+    name = "unused_opentelemetry_api_test_singleton",
+    path = "third_party/opentelemetry-cpp/api/test/singleton",
+)
+
+local_repository(
+    name = "unused_opentelemetry_api_test_trace",
+    path = "third_party/opentelemetry-cpp/api/test/trace",
+)
+
+local_repository(
+    name = "unused_opentelemetry_api_test_trace_propagation",
+    path = "third_party/opentelemetry-cpp/api/test/trace/propagation",
+)
+
+local_repository(
+    name = "unused_opentelemetry_api_test_trace_propagation_detail",
+    path = "third_party/opentelemetry-cpp/api/test/trace/propgation/detail",
+)
+
+local_repository(
+    name = "unused_opentelemetry_third_party_prometheus",
+    path = "third_party/opentelemetry-cpp/third_party/prometheus-cpp",
+)
+
+local_repository(
+    name = "unused_opentelemetry_exporters",
+    path = "third_party/opentelemetry-cpp/exporters",
+)
+
+local_repository(
+    name = "unused_opentelemetry_exporters_elasticsearch",
+    path = "third_party/opentelemetry-cpp/exporters/elasticsearch",
+)
+
+local_repository(
+    name = "unused_opentelemetry_exporters_etw",
+    path = "third_party/opentelemetry-cpp/exporters/etw",
+)
+
+local_repository(
+    name = "unused_opentelemetry_exporters_memory",
+    path = "third_party/opentelemetry-cpp/exporters/memory",
+)
+
+local_repository(
+    name = "unused_opentelemetry_exporters_oltp",
+    path = "third_party/opentelemetry-cpp/exporters/otlp",
+)
+
+local_repository(
+    name = "unused_opentelemetry_exporters_prometheus",
+    path = "third_party/opentelemetry-cpp/exporters/prometheus",
+)
+
+local_repository(
+    name = "unused_opentelemetry_exporters_zipkin",
+    path = "third_party/opentelemetry-cpp/exporters/zipkin",
+)
+
+local_repository(
+    name = "unused_opentelemetry_examples_batch",
+    path = "third_party/opentelemetry-cpp/examples/batch",
+)
+
+local_repository(
+    name = "unused_opentelemetry_examples_common_foo_library",
+    path = "third_party/opentelemetry-cpp/examples/common/foo_library",
+)
+
+local_repository(
+    name = "unused_opentelemetry_examples_common_logs_foo_library",
+    path = "third_party/opentelemetry-cpp/examples/common/logs_foo_library",
+)
+
+local_repository(
+    name = "unused_opentelemetry_examples_common_metrics_foo_library",
+    path = "third_party/opentelemetry-cpp/examples/common/metrics_foo_library",
+)
+
+local_repository(
+    name = "unused_opentelemetry_examples_grpc",
+    path = "third_party/opentelemetry-cpp/examples/grpc",
+)
+
+local_repository(
+    name = "unused_opentelemetry_examples_http",
+    path = "third_party/opentelemetry-cpp/examples/http",
+)
+
+local_repository(
+    name = "unused_opentelemetry_examples_logs_simple",
+    path = "third_party/opentelemetry-cpp/examples/logs_simple",
+)
+
+local_repository(
+    name = "unused_opentelemetry_examples_metrics_simple",
+    path = "third_party/opentelemetry-cpp/examples/metrics_simple",
+)
+
+local_repository(
+    name = "unused_opentelemetry_examples_multi_processor",
+    path = "third_party/opentelemetry-cpp/examples/multi_processor",
+)
+
+local_repository(
+    name = "unused_opentelemetry_examples_multithreaded",
+    path = "third_party/opentelemetry-cpp/examples/multithreaded",
+)
+
+local_repository(
+    name = "unused_opentelemetry_examples_otlp",
+    path = "third_party/opentelemetry-cpp/examples/otlp",
+)
+
+local_repository(
+    name = "unused_opentelemetry_examples_plugin_load",
+    path = "third_party/opentelemetry-cpp/examples/plugin/load",
+)
+
+local_repository(
+    name = "unused_opentelemetry_examples_plugin_plugin",
+    path = "third_party/opentelemetry-cpp/examples/plugin/plugin",
+)
+
+local_repository(
+    name = "unused_opentelemetry_examples_prometheus",
+    path = "third_party/opentelemetry-cpp/examples/prometheus",
+)
+local_repository(
+    name = "unused_opentelemetry_examples_simple",
+    path = "third_party/opentelemetry-cpp/examples/simple",
 )
 
 ### Unused repos end
