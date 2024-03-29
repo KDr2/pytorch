@@ -114,8 +114,8 @@ pattern_matcher_passes: List[PatternMatcherPass] = [
     merge_stack_tahn_unbind_pass,
     merge_splits_pass,
     mutate_cat_pass,
-    split_cat_pass,
     unbind_stack_pass,
+    split_cat_pass,
     efficient_conv_bn_eval_pass,
 ]
 pattern_matcher_passes_aten: List[PatternMatcherPass] = [
