@@ -211,7 +211,10 @@ def _normalize_nn_module_stack(gm_torch_level, root_cls):
                     except Exception:  # TODO(zhxchen17) Remove this.
                         return path
 
-                nn_module_stack = {root_key: (root, root_cls), **nn_module_stack}
+                nn_module_stack = {
+                    root_key: (root, root_cls.__module__ + "." + root_cls.__qualname__),
+                    **nn_module_stack,
+                }
                 node.meta["nn_module_stack"] = {
                     key: (normalize_path(path), ty)
                     for key, (path, ty) in nn_module_stack.items()
