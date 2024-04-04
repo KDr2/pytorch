@@ -70,12 +70,24 @@ from .utils import (
 from .virtualized import V
 
 if config.is_fbcode():
+    from aiplatform.runtime_environment.runtime_environment_pybind import (
+        RuntimeEnvironment,
+    )
     from torch._inductor.fb.utils import time_and_log
 else:
     # no-op decorator
     def time_and_log(attr: str, extra_loggings: Optional[Dict[str, str]] = None):
         return dynamo_utils.identity
 
+    class RuntimeEnvironment:
+        def __init__(self) -> None:
+            pass
+
+        def get_root_workflow_model_type_name(self):
+            return None
+
+        def get_global_rank(self):
+            return None
 
 log = logging.getLogger(__name__)
 perf_hint_log = torch._logging.getArtifactLogger(__name__, "perf_hints")
@@ -670,6 +682,11 @@ def fx_codegen_and_compile(
             payload_fn=lambda: gm.print_readable(print_output=False),
         )
         optimus_scuba_log["inductor"] = counters["inductor"]
+        runtime_env: RuntimeEnvironment = RuntimeEnvironment()
+        optimus_scuba_log[
+            "model_type"
+        ] = runtime_env.get_root_workflow_model_type_name()
+        optimus_scuba_log["global_rank"] = runtime_env.get_global_rank()
         signpost_event(
             "optimus",
             "compile_fx",
