@@ -504,6 +504,44 @@ def all_to_all_single(
     return _maybe_wrap_tensor(tensor)
 
 
+def all_to_all_single_autograd(
+    self: torch.Tensor,
+    output_split_sizes: Optional[List[int]],
+    input_split_sizes: Optional[List[int]],
+    group: RANK_TYPES,
+    tag: str = "",
+) -> torch.Tensor:
+    """
+    Same as all_to_all_single but supports autograd.
+    """
+    if output_split_sizes is not None:
+        assert all(
+            isinstance(size, (int, torch.SymInt)) for size in output_split_sizes
+        ), output_split_sizes
+    if input_split_sizes is not None:
+        assert all(
+            isinstance(size, (int, torch.SymInt)) for size in input_split_sizes
+        ), input_split_sizes
+
+    group_name = _resolve_group_name(group, tag)
+    group_size = c10d._get_group_size_by_name(group_name)
+    if output_split_sizes is None or input_split_sizes is None:
+        assert output_split_sizes is None and input_split_sizes is None, (
+            "output_split_sizes and input_split_sizes must either be "
+            "specified together or both set to None"
+        )
+        output_split_sizes = [self.shape[0] // group_size] * group_size
+        input_split_sizes = output_split_sizes
+    tensor = torch.ops._c10d_functional_autograd.all_to_all_single(  # type: ignore[attr-defined]
+        self,
+        output_split_sizes,
+        input_split_sizes,
+        group_name,
+    )
+    wrapped = _maybe_wrap_tensor(tensor)
+    return wrapped
+
+
 def permute_tensor(
     self: torch.Tensor,
     src_dst: List[int],
@@ -626,7 +664,8 @@ class AsyncCollectiveTensor(torch.Tensor):
         unwrapped_kwargs = tree_map_only(AsyncCollectiveTensor, unwrap, kwargs)
 
         # we don't wrap the result as it doesn't need to be waited on.
-        out = func(*unwrapped_args, **unwrapped_kwargs)
+        with torch.overrides.enable_reentrant_dispatch():
+            out = func(*unwrapped_args, **unwrapped_kwargs)
 
         # View ops dont require a sync, so we should re-wrap the outputs.
         if is_view_op:
@@ -637,6 +676,8 @@ class AsyncCollectiveTensor(torch.Tensor):
     def numpy(self):
         return self.wait().numpy()
 
+
+torch._dynamo.allow_in_graph(AsyncCollectiveTensor)
 
 """
 Utils and infrastructure for tracing support
@@ -850,6 +891,7 @@ def _reduce_scatter_tensor_coalesced_meta(inputs, reduceOp, tag, rankset, group_
 def _all_to_all_single_meta(
     input, output_split_sizes, input_split_sizes, *args, **kwargs
 ):
+    print("meta")
     if output_split_sizes is None:
         return input.new_empty(input.size())
     else:
@@ -944,6 +986,9 @@ if not torch._running_with_deploy():
     _c10_lib_impl.impl("all_to_all_single", _all_to_all_single_meta, "Meta")
     _c10_lib_impl.impl("broadcast", _broadcast_meta, "Meta")
     _c10_lib_impl.impl("broadcast_", _broadcast__meta, "Meta")
+
+    _c10_autograd_lib_impl = torch.library.Library("_c10d_functional_autograd", "IMPL")
+    _c10_autograd_lib_impl.impl("all_to_all_single", _all_to_all_single_meta, "Meta")
 else:
     warnings.warn(
         "PyTorch Distributed functional collectives do not work with torch::deploy."

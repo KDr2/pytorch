@@ -781,6 +781,49 @@ class TestOpWaitiness(MultiProcessTestCase):
         res = None
         self.assertEqual(0, ft_c_impl._outstanding_wait_count())
 
+@instantiate_parametrized_tests
+class TestFunctionalAutograd(MultiThreadedTestCase):
+    @property
+    def world_size(self):
+        return 2
+
+    def setUp(self):
+        super().setUp()
+        self._spawn_threads()
+
+    @parametrize("compile", [True, False])
+    def test_all_to_all_single(self, compile: bool) -> None:
+        group = "0"
+
+        print("running")
+
+        t = torch.rand((self.world_size, 2), requires_grad=True)
+
+        def my_func(t: torch.Tensor, world_size: int) -> torch.Tensor:
+            sizes = [1] * world_size
+            t = t * 10
+            assert t.requires_grad
+            out = ft_c.all_to_all_single_autograd(
+                t,
+                sizes,
+                sizes,
+                group
+            )
+            out = out + 2
+            return out
+
+        if compile:
+            my_func = torch.compile(my_func, fullgraph=True, backend="eager")
+        print("preforward")
+        out = my_func(t, self.world_size)
+        self.assertIsNotNone(out.grad_fn)
+        self.assertTrue(out.requires_grad)
+        loss = out.sum()
+        print("forwards done")
+        loss.backward()
+        print("backwards done")
+        self.assertIsNotNone(t.grad)
+
 
 if __name__ == "__main__":
     run_tests()

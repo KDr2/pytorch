@@ -6285,6 +6285,23 @@ try:
         ir._WaitKernel.create_wait(_c10d_functional.wait_tensor.default, inp)
         return inp
 
+    _c10d_functional_autograd = torch.ops._c10d_functional
+
+    @register_lowering(_c10d_functional_autograd.all_to_all_single)
+    def _autograd_all_to_all_single(
+        inp, output_split_sizes, input_split_sizes, group_name
+    ):
+        print("lowering")
+        return ir.TensorBox.create(
+            ir._CollectiveKernel.create_out_of_place(
+                _c10d_functional_autograd.all_to_all_single.default,
+                inp,
+                output_split_sizes,
+                input_split_sizes,
+                group_name,
+            )
+        )
+
 except ImportError:
     log.info(
         "Inductor support for distributed collectives depends on building torch.distributed"
