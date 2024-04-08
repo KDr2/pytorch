@@ -2639,7 +2639,6 @@ class InliningGeneratorInstructionTranslator(InliningInstructionTranslator):
             self.pop()
             res = BuiltinVariable(iter).call_function(self, [tos], {})
             self.push(res)
-        return self.YIELD_FROM(inst)
 
     def YIELD_FROM(self, inst):
         while True:
@@ -2647,12 +2646,12 @@ class InliningGeneratorInstructionTranslator(InliningInstructionTranslator):
             if isinstance(tos, ConstantVariable) and tos.value is None:
                 self.pop()
                 return
+
             try:
                 val = tos.next_variable(self)
             except (StopIteration, exc.UserStopIteration) as ex:
                 self.pop()
                 self.push(ConstantVariable.create(ex.value))
-                return
             else:
                 self.push(val)
                 # TODO(voz): Unclear if we need the push None in YIELD_VALUE?
@@ -2665,8 +2664,14 @@ class InliningGeneratorInstructionTranslator(InliningInstructionTranslator):
         tos = self.stack[-1]
         if isinstance(tos, ListIteratorVariable):
             if isinstance(val, ConstantVariable) and val.value is None:
-                self.push(val)
-                self.instruction_pointer = self.indexof[inst.target]
+                try:
+                    val = tos.next_variable(self)
+                except (StopIteration, exc.UserStopIteration) as ex:
+                    self.pop()
+                    self.push(ConstantVariable.create(ex.value))
+                    self.instruction_pointer += inst.arg
+                else:
+                    self.push(val)
             else:
                 # invoke send
                 # Unreachable code - if you hit this, you are implementing generator support and have
