@@ -1062,7 +1062,7 @@ class TestSerializeCustomClass(TestCase):
 
         serialized_vals = serialize(ep)
         ep = deserialize(serialized_vals)
-        self.assertTrue(isinstance(ep.constants["custom_obj"].get(), FakeTensor))
+        self.assertTrue(isinstance(ep.constants["obj_custom_obj"].get(), FakeTensor))
 
 
 if __name__ == '__main__':
