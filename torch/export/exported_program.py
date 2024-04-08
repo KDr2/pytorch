@@ -594,7 +594,9 @@ class ExportedProgram:
         # (The node-level meta is addressed above.)
         gm.meta.update(self.graph_module.meta)
 
-        new_range_constraints = _get_updated_range_constraints(gm)
+        new_range_constraints = _get_updated_range_constraints(
+            gm, self.range_constraints
+        )
 
         constants = lift_constants_pass(gm, new_graph_signature, ConstantAttrMap())
         for k, v in constants.items():
@@ -700,7 +702,9 @@ class ExportedProgram:
                 self.graph_signature, transformed_gm
             ),
             state_dict=self.state_dict,
-            range_constraints=_get_updated_range_constraints(transformed_gm),
+            range_constraints=_get_updated_range_constraints(
+                transformed_gm, self.range_constraints
+            ),
             module_call_graph=copy.deepcopy(self._module_call_graph),
             example_inputs=self.example_inputs,
             verifier=self.verifier,
@@ -745,6 +749,7 @@ class ExportedProgram:
 
 def _get_updated_range_constraints(
     gm: torch.fx.GraphModule,
+    old_range_constraints: "Dict[sympy.Symbol, Any]",
 ) -> "Dict[sympy.Symbol, Any]":
     def get_shape_env(gm):
         vals = [
@@ -764,17 +769,14 @@ def _get_updated_range_constraints(
     shape_env = get_shape_env(gm)
     if shape_env is None:
         return {}
-    range_constraints = {
-        k: v
-        for k, v in shape_env.var_to_range.items()
-        if k not in shape_env.replacements
-    }
-    # Only when we have an unbacked symint, and it's used as constructor inputs,
-    # runtime_var_to_range will make a difference compated to var_to_range.
-    # e.g. [2, oo) -> [0, oo)
+    range_constraints = {}
     for k, v in shape_env.var_to_range.items():
         if k not in shape_env.replacements:
-            range_constraints[k] = v
+            # carry over ranges if possible, var_to_range lower bounds
+            # might differ from user-specified ranges (e.g. lower = 0,1)
+            range_constraints[k] = (
+                old_range_constraints[k] if k in old_range_constraints else v
+            )
     return range_constraints
 
 
