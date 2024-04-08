@@ -451,11 +451,13 @@ def placeholder_naming_pass(
     def _strip_name(x):
         if x.startswith("L__self___"):
             x = x[len("L__self___") :]
-        return x.replace(".", "_")
+        x = x.replace(".", "_").replace(":", "_")
+        return x
 
     def _extract_pytree_key(x):
         if isinstance(x, MappingKey):
-            return str(x.key).replace(".", "_")
+            x = str(x.key).replace(".", "_").replace(":", "_")
+            return x
         elif isinstance(x, SequenceKey):
             return str(x.idx)
         elif isinstance(x, GetAttrKey):
@@ -499,6 +501,8 @@ def placeholder_naming_pass(
             base_name = ""
         else:
             base_name = _strip_name(spec.target).lower()
+
+        base_name = base_name.replace(":", "_").replace(".", "_")
         _rename_without_collisions(
             name_map,
             spec.arg.name,
