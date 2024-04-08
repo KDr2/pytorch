@@ -3164,15 +3164,15 @@ class CppKernelProxy(CppKernel):
                 ):
                     continue
 
-                # Fast path if all operations can support bf16/fp16 without converting to fp32
-                if _node.target not in [
-                    "load",
-                    "store",
-                    "abs",
-                    "neg",
-                    "output",
-                ]:
-                    return False
+                # # Fast path if all operations can support bf16/fp16 without converting to fp32
+                # if _node.target not in [
+                #     "load",
+                #     "store",
+                #     "abs",
+                #     "neg",
+                #     "output",
+                # ]:
+                #     return False
 
                 if hasattr(_node, "meta") and _node.meta:
                     assert OptimizationContext.key in _node.meta
