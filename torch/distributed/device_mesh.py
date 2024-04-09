@@ -553,7 +553,7 @@ else:
                     f"Found len(mesh_dim_names): {len(mesh_dim_names)} and len(mesh_shape):{len(mesh_shape)}.",
                 )
 
-        mesh = torch.arange(math.prod(mesh_shape)).view(mesh_shape)
+        mesh = torch.arange(math.prod(mesh_shape), dtype=torch.int).view(mesh_shape)
         device_mesh = DeviceMesh(
             device_type=device_type,
             mesh=mesh,
