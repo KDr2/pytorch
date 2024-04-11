@@ -379,7 +379,15 @@ class GraphState:
     custom_obj_values: Dict[str, CustomObjArgument] = field(default_factory=dict)
 
 
-class GraphModuleSerializer:
+class Final(type):
+    def __new__(cls, name, bases, classdict):
+        for b in bases:
+            if isinstance(b, Final):
+                raise TypeError("type '{0}' is not an acceptable base type".format(b.__name__))
+        return type.__new__(cls, name, bases, dict(classdict))
+
+
+class GraphModuleSerializer(metaclass=Final):
     def __init__(
         self,
         graph_signature: ep.ExportGraphSignature,
@@ -1230,7 +1238,7 @@ class GraphModuleSerializer:
         )
 
 
-class ExportedProgramSerializer:
+class ExportedProgramSerializer(metaclass=Final):
     def __init__(self, opset_version: Optional[Dict[str, int]] = None):
         self.opset_version: Dict[str, int] = {}
         if opset_version:
@@ -1285,7 +1293,7 @@ class ExportedProgramSerializer:
         )
 
 
-class GraphModuleDeserializer:
+class GraphModuleDeserializer(metaclass=Final):
     @dataclasses.dataclass
     class Result:
         graph_module: torch.fx.GraphModule
@@ -2055,7 +2063,7 @@ class GraphModuleDeserializer:
         ]
 
 
-class ExportedProgramDeserializer:
+class ExportedProgramDeserializer(metaclass=Final):
     def __init__(self, expected_opset_version: Optional[Dict[str, int]] = None):
         self.expected_opset_version: Dict[str, int] = {}
         if expected_opset_version:
