@@ -3410,6 +3410,31 @@ def forward(self, arg_0):
         self.assertEqual(inputs[0][0] * 2.0, inputs_model[0][0])
         self.assertEqual(inputs[0][0] * 2.0, inputs_export[0][0])
 
+    def test_range_mismatch(self):
+        class Module(torch.nn.Module):
+            def forward(self, x, y):
+                n = x.max().item()
+                torch._check_is_size(n)
+                # torch._check_is_size(x.shape[1])
+                return y[:, 1:] + x
+        dx = Dim("x", min=0, max=200)
+        dynamic_shapes = {'x': [None, dx], 'y': [None, dx+1]}
+        fn = Module()
+        strict_ep = export(
+            fn,
+            (torch.randint(3, 4, (2, 2)), torch.randint(3, 5, (2, 3))),
+            strict=True,
+            dynamic_shapes=dynamic_shapes
+        )
+        non_strict_ep = export(
+            fn,
+            (torch.randint(3, 4, (2, 2)), torch.randint(3, 5, (2, 3))),
+            strict=False,
+            dynamic_shapes=dynamic_shapes
+        )
+        print("strict_ep.range_constraints:", strict_ep.range_constraints)
+        print("non_strict_ep.range_constraints:", non_strict_ep.range_constraints)
+
     def test_export_input_mutation_bug(self):
         class M(torch.nn.Module):
             def forward(self, x):

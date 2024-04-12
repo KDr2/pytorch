@@ -48,7 +48,6 @@ from torch.utils._sympy.value_ranges import ValueRangeError
 
 from ._safeguard import AutogradStateOpsFailSafeguard
 
-from .dynamic_shapes import _process_constraints
 from .exported_program import (
     _disable_prexisiting_fake_mode,
     ExportedProgram,
@@ -1073,14 +1072,22 @@ def _export(
             for k, v in fake_mode.shape_env.var_to_range.items()
             if free_unbacked_symbols(k)
         }
+        num_lifted = len(
+            [
+                spec
+                for spec in ep_non_strict.sig.input_specs
+                if spec.kind != InputKind.USER_INPUT
+            ]
+        )
         try:
             range_constraints = make_constraints(
                 fake_mode,
-                equalities_inputs,
-                dynamic_shapes if dynamic_shapes else [],
-                ep_non_strict.sig.input_specs,
-                original_signature,
                 ep_non_strict.gm,
+                dynamic_shapes if dynamic_shapes else [],
+                num_lifted,
+                equalities_inputs,
+                original_signature,
+                skip_produce_guards=False,
             )
         except (ConstraintViolationError, ValueRangeError) as e:
             raise UserError(UserErrorType.CONSTRAINT_VIOLATION, str(e))  # noqa: TRY200
@@ -1277,11 +1284,12 @@ def _export(
         ),
         len(export_graph_signature.input_specs),
     )
-    range_constraints = _process_constraints(
+    range_constraints = make_constraints(
         dynamo_fake_mode,
         gm,
+        dynamic_shapes if dynamic_shapes else [],
         num_lifted,
-        flat_args,
+        skip_produce_guards=True,
     )
 
     # Do some cleanups on the graph module to restore the state dict to the

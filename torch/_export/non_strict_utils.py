@@ -1,6 +1,6 @@
 import inspect
 from collections import defaultdict
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, List, Tuple, Optional, Union
 
 import torch
 from torch._dynamo.source import (
@@ -16,8 +16,7 @@ from torch._guards import Source
 from torch._subclasses.fake_tensor import FakeTensorMode
 from torch.export import Constraint
 from torch.export.dynamic_shapes import _Dim
-from torch.export.exported_program import InputKind
-from torch.export.graph_signature import CustomObjArgument, InputSpec, TensorArgument
+from torch.export.graph_signature import CustomObjArgument
 from torch.fx.experimental.symbolic_shapes import (
     ConstraintViolationError,
     DimDynamic,
@@ -174,37 +173,7 @@ def make_fake_inputs(nn_module, args, kwargs, dynamic_shapes):
         return fake_mode, fake_args, fake_kwargs, equalities_inputs, original_signature
 
 
-def make_constraints(
-    fake_mode: FakeTensorMode,
-    equalities_inputs: EqualityConstraint,
-    dynamic_shapes: Union[Dict[str, Any], Tuple[Any], List[Any]],
-    input_specs: List[InputSpec],
-    original_signature: inspect.Signature,
-    gm: torch.fx.GraphModule,
-):
-    """
-    Given a fake mode, sources pairs corresponding to equal dynamic shape dimensions,
-    and a graph module, produce guards on the fake mode's shape env (raising constraint
-    violations if any), solve (to suggest simplifications or fixes), and return the
-    resulting range constraints and equality constraints.
-    """
-    # TODO(avik): refactor Dynamo to avoid duplication of the following code
-    # between non-strict and strict.
-    # Specifically, here (non-strict) we do the following post-tracing steps:
-    #   - Produce guards.
-    #   - Solve constraints.
-    #   - Install shape metadata in IR.
-    # In strict, these steps are spread across multiple files:
-    #   - guards.py produces guards.
-    #   - eval_frame.py solves constraints
-    #   - _trace.py installs shape metadata in IR.
-
-    inline_constraints = gm.meta.get("inline_constraints", [])
-    range_constraints = {
-        symbol: inline_constraints[symbol] for symbol in inline_constraints
-    }
-    if dynamic_shapes == []:
-        return range_constraints
+def _flatten_dynamic_shapes(dynamic_shapes: Union[Dict[str, Any], Tuple[Any], List[Any]]):
 
     def _is_dynamic_shape_leaf(x):
         if x is None:
@@ -213,65 +182,100 @@ def make_constraints(
             x = list(x.values())
         return all(isinstance(y, (_Dim, int)) or y is None for y in x)
 
-    flat_dynamic_shapes, _ = tree_flatten(
-        dynamic_shapes, is_leaf=_is_dynamic_shape_leaf
-    )
+    if isinstance(dynamic_shapes, (list, tuple)):
+        flat_dynamic_shapes = []
+        for item in dynamic_shapes:
+            flat_item, _ = tree_flatten(
+                dynamic_shapes, is_leaf=_is_dynamic_shape_leaf
+            )
+            flat_dynamic_shapes += flat_item
+    else:
+        flat_dynamic_shapes, _ = tree_flatten(
+            dynamic_shapes, is_leaf=_is_dynamic_shape_leaf
+        )
+    return flat_dynamic_shapes
+
+
+def make_constraints(
+    fake_mode: FakeTensorMode,
+    gm: torch.fx.GraphModule,
+    dynamic_shapes: Union[Dict[str, Any], Tuple[Any], List[Any]],
+    num_lifted_inputs: int,
+    equalities_inputs: Optional[EqualityConstraint] = None,
+    original_signature: Optional[inspect.Signature] = None,
+    skip_produce_guards: Optional[bool] = False,
+):
+    """
+    Given a fake mode, sources pairs corresponding to equal dynamic shape dimensions,
+    and a graph module, produce guards on the fake mode's shape env (raising constraint
+    violations if any), solve (to suggest simplifications or fixes), and return the
+    resulting range constraints and equality constraints.
+    """
 
     shape_env = fake_mode.shape_env
-    assert shape_env.tracked_fakes is not None
-    placeholders = [tf.fake for tf in shape_env.tracked_fakes]
-    sources = [tf.source for tf in shape_env.tracked_fakes]
-    input_contexts = [tf.symbolic_context for tf in shape_env.tracked_fakes]
-    constraint_violation_error = None
-    try:
-        shape_env.produce_guards(
-            placeholders,
-            sources,
-            input_contexts=input_contexts,
-            equalities_inputs=equalities_inputs,
-            ignore_static=False,
-        )
-    except ConstraintViolationError as e:
-        constraint_violation_error = e
-
-    shape_env.frozen = True
-    dim_constraints = shape_env.dim_constraints
-    if dim_constraints is None:
-        # Expected when shape_env.produce_guards throws an early constraint violation error.
-        # There is nothing to solve for in this case.
-        # TODO(avik): Maybe record the constraint violation error instead and replay later?
-        assert constraint_violation_error
-        raise constraint_violation_error
-    dim_constraints.solve()
-    dim_constraints.remove_redundant_dynamic_results()
-    forced_specializations = dim_constraints.forced_specializations()
-    msg = dim_constraints.prettify_results(
-        original_signature, constraint_violation_error, forced_specializations
-    )
-    if constraint_violation_error:
-        constraint_violation_error.args = (constraint_violation_error.args[0] + msg,)
-    elif forced_specializations:
-        constraint_violation_error = ConstraintViolationError(msg)
-    if constraint_violation_error:
-        raise constraint_violation_error
-
-    user_tensor_input_names = {
-        spec.arg.name
-        for spec in input_specs
-        if spec.kind == InputKind.USER_INPUT and isinstance(spec.arg, TensorArgument)
+    inline_constraints = gm.meta.get("inline_constraints", [])
+    range_constraints = {
+        symbol: inline_constraints[symbol] for symbol in inline_constraints
     }
+    if dynamic_shapes == []:
+        return range_constraints
+
+    if not skip_produce_guards:
+
+        assert equalities_inputs is not None
+        assert original_signature is not None
+
+        assert shape_env.tracked_fakes is not None
+        placeholders = [tf.fake for tf in shape_env.tracked_fakes]
+        sources = [tf.source for tf in shape_env.tracked_fakes]
+        input_contexts = [tf.symbolic_context for tf in shape_env.tracked_fakes]
+        constraint_violation_error = None
+        try:
+            shape_env.produce_guards(
+                placeholders,
+                sources,
+                input_contexts=input_contexts,
+                equalities_inputs=equalities_inputs,
+                ignore_static=False,
+            )
+        except ConstraintViolationError as e:
+            constraint_violation_error = e
+
+        shape_env.frozen = True
+        dim_constraints = shape_env.dim_constraints
+        if dim_constraints is None:
+            # Expected when shape_env.produce_guards throws an early constraint violation error.
+            # There is nothing to solve for in this case.
+            # TODO(avik): Maybe record the constraint violation error instead and replay later?
+            assert constraint_violation_error
+            raise constraint_violation_error
+        dim_constraints.solve()
+        dim_constraints.remove_redundant_dynamic_results()
+        forced_specializations = dim_constraints.forced_specializations()
+        msg = dim_constraints.prettify_results(
+            original_signature, constraint_violation_error, forced_specializations
+        )
+        if constraint_violation_error:
+            constraint_violation_error.args = (
+                constraint_violation_error.args[0] + msg,
+            )
+        elif forced_specializations:
+            constraint_violation_error = ConstraintViolationError(msg)
+        if constraint_violation_error:
+            raise constraint_violation_error
+
+    flat_dynamic_shapes = _flatten_dynamic_shapes(dynamic_shapes)
 
     input_dims = defaultdict(list)
     free_symbols = set()
-    input_index = 0
-    for node in gm.graph.nodes:
-        if node.name not in user_tensor_input_names:
+    for input_index, node in enumerate(gm.graph.nodes):
+        if input_index < num_lifted_inputs or node.op != "placeholder":
             continue
         if _is_constant_argument(node.meta["val"]) or isinstance(
             node.meta["val"], CustomObjArgument
         ):
             continue
-        shape_spec = flat_dynamic_shapes[input_index]
+        shape_spec = flat_dynamic_shapes[input_index - num_lifted_inputs]
         for i, d in enumerate(node.meta["val"].shape):
             if isinstance(d, torch.SymInt):
                 # Look up the range constraint for the symbol corresponding to this shape dimension
@@ -290,7 +294,6 @@ def make_constraints(
                     ]
                 input_dims[d.node.expr].append(InputDim(input_name=node.name, dim=i))
                 free_symbols.update(d.node.expr.free_symbols)
-        input_index += 1
 
     for symbol in free_symbols:
         if symbol not in range_constraints:
