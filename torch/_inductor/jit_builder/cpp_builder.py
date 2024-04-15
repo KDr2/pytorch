@@ -129,13 +129,22 @@ def is_gcc() -> bool:
     return _is_gcc(_get_cpp_compiler())
 
 
-def is_clang(cpp_compiler) -> bool:
+def _is_clang(cpp_compiler) -> bool:
+    # Mac OS apple clang maybe named as gcc, need check compiler info.
+    if sys.platform == "darwin":
+        return is_apple_clang()
     return bool(re.search(r"(clang|clang\+\+)", cpp_compiler))
 
 
+def is_clang() -> bool:
+    compiler = _get_cpp_compiler()
+    return _is_clang(compiler)
+
+
 @functools.lru_cache(None)
-def is_apple_clang(cpp_compiler) -> bool:
-    version_string = subprocess.check_output([cpp_compiler, "--version"]).decode("utf8")
+def is_apple_clang() -> bool:
+    cxx = _get_cpp_compiler()
+    version_string = subprocess.check_output([cxx, "--version"]).decode("utf8")
     return "Apple" in version_string.splitlines()[0]
 
 
@@ -271,7 +280,7 @@ def _get_cpp_std_cflag(std_num: str = "c++17") -> List[str]:
 def _get_linux_cpp_cflags(cpp_compiler) -> List[str]:
     if not _IS_WINDOWS:
         cflags = ["Wno-unused-variable", "Wno-unknown-pragmas"]
-        if is_clang(cpp_compiler):
+        if _is_clang(cpp_compiler):
             cflags.append("Werror=ignored-optimization-argument")
         return cflags
     else:
@@ -477,10 +486,12 @@ def _get_torch_related_args(aot_mode: bool):
     if not aot_mode:
         libraries.append("torch_python")
 
+    """
     # Unconditionally import c10 for non-abi-compatible mode to use TORCH_CHECK - See PyTorch #108690
     if not config.aot_inductor.abi_compatible:
         libraries += ["c10"]
         libraries_dirs += [TORCH_LIB_PATH]
+    """
 
     return include_dirs, libraries_dirs, libraries
 
@@ -567,7 +578,7 @@ def _get_openmp_args(cpp_compiler):
             libs.append("omp")
             include_dir_paths.append(build_paths.openmp())
         else:
-            if is_clang(cpp_compiler):
+            if _is_clang(cpp_compiler):
                 # TODO: fix issue, can't find omp.h
                 cflags.append("fopenmp")
                 libs.append("gomp")
@@ -900,7 +911,7 @@ class CppBuilder:
 
             self._sources_args = " ".join(inp_name)
 
-            if is_clang(self._compiler):
+            if _is_clang(self._compiler):
                 self._passthough_parameters_args += " --rtlib=compiler-rt"
                 self._passthough_parameters_args += " -fuse-ld=lld"
                 self._passthough_parameters_args += " -B" + build_paths.glibc_lib()
