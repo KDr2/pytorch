@@ -14,6 +14,7 @@
 #include <ATen/detail/CUDAHooksInterface.h>
 #include <ATen/native/cuda/CuFFTPlanCache.h>
 #include <c10/util/Exception.h>
+#include <c10/util/env.h>
 #include <c10/cuda/CUDACachingAllocator.h>
 #include <c10/cuda/CUDAFunctions.h>
 #include <c10/util/irange.h>
@@ -82,15 +83,7 @@ struct _Initializer {
 // Sets the CUDA_MODULE_LOADING environment variable
 // if it's not set by the user.
 void maybe_set_cuda_module_loading(const std::string &def_value) {
-  auto value = std::getenv("CUDA_MODULE_LOADING");
-  if (!value) {
-#ifdef _WIN32
-    auto env_var = "CUDA_MODULE_LOADING=" + def_value;
-    _putenv(env_var.c_str());
-#else
-    setenv("CUDA_MODULE_LOADING", def_value.c_str(), 1);
-#endif
-  }
+  c10::utils::set_env("CUDA_MODULE_LOADING", def_value.c_str(), false);
 }
 
 // NB: deleter is dynamic, because we need it to live in a separate
