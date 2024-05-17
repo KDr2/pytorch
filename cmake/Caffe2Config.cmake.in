@@ -93,7 +93,7 @@ if(@USE_CUDA@)
       "libraries. Please set the proper CUDA prefixes and / or install "
       "CUDA.")
   endif()
-  if(@CAFFE2_USE_TENSORRT@ AND NOT CAFFE2_USE_TENSORRT)
+  if(NOT CAFFE2_USE_TENSORRT)
     message(FATAL_ERROR
       "Your installed Caffe2 version uses TensorRT but I cannot find the TensorRT "
       "libraries. Please set the proper TensorRT prefixes and / or install "
