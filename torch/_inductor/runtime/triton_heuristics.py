@@ -1026,7 +1026,7 @@ def should_use_remote_autotune_cache(inductor_meta):
     if inductor_meta.get("is_hip"):
         return False
 
-    from triton.runtime.fb_memcache import MEMCACHE_VERSION
+    from triton.fb.fb_memcache import MEMCACHE_VERSION
 
     return MEMCACHE_VERSION >= torch._utils_internal.justknobs_getval_int(
         "pytorch/remote_cache:autotune_memcache_version"
@@ -1070,7 +1070,8 @@ def cached_autotune(
 
                 try:
                     if inductor_meta.get("is_fbcode"):
-                        remote_cache = triton.runtime.fb_memcache.FbMemcacheRemoteAutotuneCacheBackend(
+                        import triton.fb.fb_memcache
+                        remote_cache = triton.fb.fb_memcache.FbMemcacheRemoteAutotuneCacheBackend(
                             key
                         )
                     else:
