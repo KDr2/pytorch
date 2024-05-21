@@ -68,6 +68,11 @@ from .dependencies import (
     extract_read_writes,
     var_builder,
 )
+
+from .utils import is_onednn_graph_supported
+
+if is_onednn_graph_supported():
+    pass
 from .ops_handler import OpCounterCSE
 from .runtime.hints import ReductionHint
 from .runtime.runtime_utils import do_bench
@@ -3941,6 +3946,25 @@ def get_aten_cpp_kernel_name(kernel):
     return f"at::_ops::{opname}::call"
 
 
+class InductorImplicitFallback:
+    """
+    Custom fallback kernels should use this class to avoid modifying various assert statements
+
+    """
+
+    def get_name(self) -> Any:
+        raise NotImplementedError
+
+    def name(self) -> Any:
+        raise NotImplementedError
+
+    def __name__(self):
+        raise NotImplementedError
+
+    def __call__(self, *args, **kwargs):
+        raise NotImplementedError
+
+
 @dataclasses.dataclass
 class ExternKernel(InputsKernel):
     constant_args: Tuple[Any, ...] = ()
@@ -3954,7 +3978,11 @@ class ExternKernel(InputsKernel):
         default_factory=list
     )
     op_overload: Optional[
-        Union[torch._ops.OpOverload, torch._ops.HigherOrderOperator]
+        Union[
+            torch._ops.OpOverload,
+            torch._ops.HigherOrderOperator,
+            InductorImplicitFallback,
+        ]
     ] = None
     arg_properties: Optional[List[Dict[str, Any]]] = None
     kwarg_properties: Optional[Dict[str, Dict[str, Any]]] = None
@@ -5230,6 +5258,7 @@ class FallbackKernel(ExternKernelAlloc):
             (
                 torch._ops.OpOverload,
                 torch._ops.HigherOrderOperator,
+                InductorImplicitFallback,
             ),
         ), f"Fails to create FallbackKernel for {kernel}: {type(kernel)} not supported"
         self.op_overload = kernel
@@ -5242,7 +5271,14 @@ class FallbackKernel(ExternKernelAlloc):
         # args that are mutated AND returned from the op
         self.mutation_names: List[str] = []
 
-        if isinstance(self.op_overload, torch._ops.HigherOrderOperator):
+        if isinstance(
+            self.op_overload,
+            (
+                torch._ops.OpOverload,
+                torch._ops.HigherOrderOperator,
+                InductorImplicitFallback,
+            ),
+        ):
             # We assume here that HOPs with FallbackKernel are functional.
             # This may not always be true! HOPs must individually opt-in to
             # FallbackKernel, so please check this if you opt-in.
@@ -5438,7 +5474,9 @@ class FallbackKernel(ExternKernelAlloc):
         return None
 
     def has_side_effects(self):
-        if isinstance(self.op_overload, torch._ops.HigherOrderOperator):
+        if isinstance(
+            self.op_overload, (torch._ops.HigherOrderOperator, InductorImplicitFallback)
+        ):
             return False
         return get_schema_info(self.op_overload).is_mutable()
 
@@ -5550,6 +5588,8 @@ class FallbackKernel(ExternKernelAlloc):
                 self.python_kernel_name = str(kernel)
         elif isinstance(kernel, torch._ops.HigherOrderOperator):
             self.python_kernel_name = f"torch.ops.higher_order.{kernel.__name__}"
+        elif isinstance(kernel, InductorImplicitFallback):
+            self.python_kernel_name = kernel.__name__  # type: ignore[assignment]
         else:
             # For non-aten OpOverload, i.e. custom ops
             self.python_kernel_name = f"{kernel.__module__.replace('._ops.', '.ops.')}.{kernel.__name__}"  # type: ignore[union-attr]
@@ -5557,7 +5597,9 @@ class FallbackKernel(ExternKernelAlloc):
                 self.use_runtime_dispatch = True
                 self.set_cpp_kernel(kernel)
 
-        if self.use_runtime_dispatch:
+        if self.use_runtime_dispatch and not isinstance(
+            kernel, InductorImplicitFallback
+        ):
             self.codegen_comment(wrapper)
 
             exported_args = None
@@ -5582,7 +5624,12 @@ class FallbackKernel(ExternKernelAlloc):
         else:
             self.codegen_comment(wrapper)
             args = [*self.codegen_args(), *self.codegen_kwargs()]
-            V.graph.wrapper_code.generate_fallback_kernel(self, args)
+            if isinstance(kernel, InductorImplicitFallback):
+                V.graph.wrapper_code.generate_opaque_kernel_alloc(
+                    self.get_name(), kernel.name(), args
+                )
+            else:
+                V.graph.wrapper_code.generate_fallback_kernel(self, args)
             if isinstance(self.layout, Layout):
                 self.codegen_size_asserts(wrapper)
 

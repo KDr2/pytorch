@@ -39,9 +39,11 @@ from .._dynamo.utils import import_submodule
 
 from . import config, inductor_prims, ir, test_operators  # NOQA: F401
 from .decomposition import decompositions, get_decompositions
+
 from .ir import (
     ExpandView,
     IndexingConstant,
+    InductorImplicitFallback,
     is_triton,
     ops_wrapper,
     PermuteView,
@@ -1714,10 +1716,18 @@ def make_fallback(op, layout_constraint=None, warn=True):
         for ol in op.overloads():
             op_overload = getattr(op, ol)
             register_fallback(op_overload)
-    elif isinstance(op, (torch._ops.OpOverload, torch._ops.HigherOrderOperator)):
-        register_fallback(op)
     else:
-        raise RuntimeError(f"Unsupported fallback {op} with type {type(op)}")
+        if isinstance(
+            op,
+            (
+                torch._ops.OpOverload,
+                torch._ops.HigherOrderOperator,
+                InductorImplicitFallback,
+            ),
+        ):
+            register_fallback(op)
+        else:
+            raise RuntimeError(f"Unsupported fallback {op} with type {type(op)}")
 
 
 def philox_rand_offset(shape):
