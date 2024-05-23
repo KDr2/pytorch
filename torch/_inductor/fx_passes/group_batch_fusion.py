@@ -165,6 +165,7 @@ class PostGradBatchLinearFusion(BatchFusion):
     """
 
     def _addmm_node_can_be_fused(self, node: torch.fx.Node) -> bool:
+        # pyre-fixme[7]: Incompatible return type
         return (
             node.kwargs.get("beta", 1.0) == 1.0 and node.kwargs.get("alpha", 1.0) == 1.0  # type: ignore[return-value]
         )
@@ -319,9 +320,9 @@ class GroupLinearFusion(GroupFusion):
         counters["inductor"]["group_linear"] += 1
 
 
-class BatchPointwiseOpsPostGradFusion(BatchPointwiseOpsFusionFactory):
+class BatchPointwiseMathOpsPostGradFusion(BatchPointwiseOpsFusionFactory):
     """
-    Batch pointwise operator (e.g., add, mul) in post grad pass.
+    Batch pointwise math operator (e.g., add, mul) in post grad pass.
     """
 
     def __init__(self, op, **kwargs):
@@ -475,7 +476,7 @@ class BatchLinearLHSFusion(BatchFusion):
 def is_node_meta_valid(node: Optional[torch.fx.Node]):
     if node is None:
         return True
-    if "example_value" not in node.meta:
+    if "example_value" not in node.meta and "val" not in node.meta:
         return False
     return True
 
@@ -810,6 +811,60 @@ class BatchPointwiseOpsPreGradFusion(BatchPointwiseOpsFusionFactory):
         counters["inductor"]["batch_" + self.op.__name__.lower().split(".")[0]] += 1
 
 
+class BatchPointwiseOpsPostGradFusion(BatchPointwiseOpsFusionFactory):
+    """
+    Batch pointwise ops (e.g., sigmoid, relu, tanh) fusion in post grad pass.
+    The introduced stack node may be merged in split cat.
+    """
+
+    def __init__(self, op, **kwargs):
+        super().__init__(op, **kwargs)
+        self.op = op
+
+    def match(self, node: torch.fx.Node):
+        input = get_arg_value(node, 0, "input")
+        if CallFunctionVarArgs(self.op).match(node) and is_node_meta_valid(node):
+            # for relu op, we also use the inplace to construct the key
+            # we batch the ops with same parent to enable followup split cat
+            parent = node.args[0]
+            group_key = (
+                "batch_aten_" + self.op.__name__.lower().split(".")[0],
+                str(input.meta["val"].shape),
+                str(node.kwargs.get("inplace", False)),
+                # pyre-fixme[16]
+                str(parent.target),
+            )
+        else:
+            group_key = None
+        return group_key
+
+    def fuse(self, graph: torch.fx.GraphModule, subset: List[torch.fx.Node]):
+        batch_nodes = []
+        batch_inputs = []
+        batch_inputs_metadata = []
+
+        for node in subset:
+            batch_nodes.append(node)
+            input = get_arg_value(node, 0, "input")
+            batch_inputs.append(input)
+            batch_inputs_metadata.append(input.meta["val"])
+
+        with graph.inserting_before(subset[0]):
+            stack_inputs = decompose_stack(graph, batch_inputs)
+            update_stack_example_value(stack_inputs, batch_inputs_metadata)
+            batch_op = graph.call_function(
+                self.op,
+                args=(stack_inputs,),
+            )
+            for i, node in enumerate(batch_nodes):
+                with graph.inserting_after(batch_op):
+                    getitem = graph.call_function(aten.select, args=(batch_op, 0, i))
+                node.replace_all_uses_with(getitem)
+                getitem.meta.update(node.meta)
+                graph.erase_node(node)
+        counters["inductor"]["batch_aten_" + self.op.__name__.lower().split(".")[0]] += 1
+
+
 @register_fusion("batch_tanh")
 class BatchTanhPreGradFusion(BatchPointwiseOpsPreGradFusion):
     def __init__(self, **kwargs):
@@ -828,26 +883,44 @@ class BatchReLuPreGradFusion(BatchPointwiseOpsPreGradFusion):
         super().__init__(torch.nn.functional.relu, **kwargs)
 
 
+@register_fusion("batch_aten_tanh", pre_grad=False)
+class BatchTanhPostGradFusion(BatchPointwiseOpsPostGradFusion):
+    def __init__(self, **kwargs):
+        super().__init__(aten.tanh.default, **kwargs)
+
+
+@register_fusion("batch_aten_sigmoid", pre_grad=False)
+class BatchSigmoidPostGradFusion(BatchPointwiseOpsPostGradFusion):
+    def __init__(self, **kwargs):
+        super().__init__(aten.sigmoid.default, **kwargs)
+
+
+@register_fusion("batch_aten_relu", pre_grad=False)
+class BatchReLuPostGradFusion(BatchPointwiseOpsPostGradFusion):
+    def __init__(self, **kwargs):
+        super().__init__(aten.relu.default, **kwargs)
+
+
 @register_fusion("batch_aten_add", pre_grad=False)
-class BatchAddPostGradFusion(BatchPointwiseOpsPostGradFusion):
+class BatchAddPostGradFusion(BatchPointwiseMathOpsPostGradFusion):
     def __init__(self, **kwargs):
         super().__init__(aten.add.Tensor, **kwargs)
 
 
 @register_fusion("batch_aten_sub", pre_grad=False)
-class BatchSubPostGradFusion(BatchPointwiseOpsPostGradFusion):
+class BatchSubPostGradFusion(BatchPointwiseMathOpsPostGradFusion):
     def __init__(self, **kwargs):
         super().__init__(aten.sub.Tensor, **kwargs)
 
 
 @register_fusion("batch_aten_div", pre_grad=False)
-class BatchDivPostGradFusion(BatchPointwiseOpsPostGradFusion):
+class BatchDivPostGradFusion(BatchPointwiseMathOpsPostGradFusion):
     def __init__(self, **kwargs):
         super().__init__(aten.div.Tensor, **kwargs)
 
 
 @register_fusion("batch_aten_mul", pre_grad=False)
-class BatchMulPostGradFusion(BatchPointwiseOpsPostGradFusion):
+class BatchMulPostGradFusion(BatchPointwiseMathOpsPostGradFusion):
     def __init__(self, **kwargs):
         super().__init__(aten.mul.Tensor, **kwargs)
 

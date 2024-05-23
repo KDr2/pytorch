@@ -56,6 +56,7 @@ pre_grad_pass_names = [
 
 post_grad_pass_names = [
     "decompose_mm_pass",
+    "unbind_stack_aten_pass",
 ]
 
 for pass_name in pre_grad_pass_names:
@@ -1265,10 +1266,11 @@ def remove_zeros(split_sections: List[int]):
 
 
 def is_sorted_and_consecutive(arr: List[int]) -> bool:
-    # check if the array is sorted
-    if arr == sorted(arr):
+    # check if the array is sorted, we consider both increasing and decreasing order
+    incr_sorted_arr, decr_sorted_arr = sorted(arr), sorted(arr, reverse=True)
+    if arr == incr_sorted_arr or arr == decr_sorted_arr:
         # check if the differences between adjacent elements are all 1
-        return all(x[1] - x[0] == 1 for x in zip(arr, arr[1:]))
+        return incr_sorted_arr[-1] - incr_sorted_arr[0] + 1 == len(arr)
     else:
         return False
 
@@ -1610,3 +1612,54 @@ def merge_stack_tahn_unbind(match: Match, split_sections: List[int], dim: int):
                 split_sections = new_split_sections
 
                 counters["inductor"]["merge_stack_tahn_unbind_pass"] += 1
+
+
+@register_graph_pattern(
+    CallFunction(
+        torch.ops.aten.cat,
+        ListOf(
+            CallFunctionVarArgs(torch.ops.aten.unsqueeze)
+        ),
+        _users=MULTIPLE,
+    ),
+    pass_dict=construct_pattern_matcher_pass("unbind_stack_aten_pass"),
+)
+def merge_unbind_stack_aten(match: Match, *args, **kwargs):
+    node = match.nodes[-1]
+    graph = match.graph
+    # pyre-fixme[6]
+    unsqueeze_nodes = list(node.args[0])
+    cat_dim = get_arg_value(node, 1, "dim")
+    # check the unsqueeze nodes come from the select nodes
+    if not all(
+        get_arg_value(unsqueeze_node, 0, "input").target == torch.ops.aten.select for unsqueeze_node in unsqueeze_nodes
+    ):
+        return
+    select_nodes = [get_arg_value(unsqueeze_node, 0, "input") for unsqueeze_node in unsqueeze_nodes]
+    parent_of_select_node = get_arg_value(select_nodes[0], 0, "input")
+    # check the target of select_nodes are the same
+    if not all(select_node.target == torch.ops.aten.select for select_node in select_nodes):
+        return
+    # check the select nodes come from the same parent node
+    if not all(
+        get_arg_value(select_node, 0, "input") == parent_of_select_node for select_node in select_nodes
+    ):
+        return
+    if len(unsqueeze_nodes) != len(select_nodes):
+        return
+    # check the select nodes have the same dim
+    if not all(
+        get_arg_value(select_node, 1, "dim") == cat_dim for select_node in select_nodes
+    ):
+        return
+    # check the select nodes have consecutive indices starting from 0
+    if (
+        get_arg_value(select_nodes[0], 2, "index") != 0
+        or not is_sorted_and_consecutive([get_arg_value(select_node, 2, "index") for select_node in select_nodes])
+    ):
+        return
+    node.replace_all_uses_with(parent_of_select_node)
+    graph.erase_node(node)
+    for unsqueeze_node in unsqueeze_nodes:
+        graph.erase_node(unsqueeze_node)
+    counters["inductor"]["unbind_stack_aten_pass"] += 1

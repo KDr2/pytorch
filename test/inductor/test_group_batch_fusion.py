@@ -221,6 +221,25 @@ class TestPoitwiseOps(torch.nn.Module):
         return torch.cat(div, dim=1)
 
 
+class TestPoitwiseOpsPostGrad(torch.nn.Module):
+    def __init__(self, device, has_bias=True):
+        super().__init__()
+        self.device = device
+
+    def forward(self, x):
+        inputs = torch.ops.aten.split(x.to(self.device), 500, dim=1)
+        x_split = torch.ops.aten.split(inputs[0].to(self.device), 50, dim=1)
+        y_split = torch.ops.aten.split(inputs[1].to(self.device), 50, dim=1)
+        tanh_1 = [torch.ops.aten.tanh(x_split[i]) for i in range(len(x_split))]
+        tanh_2 = [torch.ops.aten.tanh(y_split[i]) for i in range(len(y_split))]
+        sigmoid_1 = [torch.ops.aten.sigmoid(tanh_1[i]) for i in range(len(tanh_1))]
+        sigmoid_2 = [torch.ops.aten.sigmoid(tanh_2[i]) for i in range(len(tanh_2))]
+        relu_1 = [torch.ops.aten.relu(sigmoid_1[i]) for i in range(len(sigmoid_1))]
+        relu_2 = [torch.ops.aten.relu(sigmoid_2[i]) for i in range(len(sigmoid_2))]
+        add = [torch.ops.aten.add(relu_1[i], relu_2[i]) for i in range(len(relu_1))]
+        return torch.cat(add, dim=1)
+
+
 @requires_cuda
 @torch._inductor.config.patch(
     pre_grad_fusion_options={
@@ -394,6 +413,35 @@ class TestGroupBatchFusion(TestCase):
         self.assertEqual(counters["inductor"]["batch_aten_mul"], 1)
         self.assertEqual(counters["inductor"]["batch_aten_sub"], 1)
         self.assertEqual(counters["inductor"]["batch_aten_div"], 1)
+        ref.sum().backward()
+        res.sum().backward()
+        self.compare_parameters(module, traced, rtol=1e-8, atol=1e-8)
+        self.compare_gradients(module, traced, rtol=1e-8, atol=1e-8)
+        counters.clear()
+
+
+    @requires_cuda
+    @torch._inductor.config.patch(
+        pre_grad_fusion_options={},
+        post_grad_fusion_options={
+            "batch_aten_relu": {},
+            "batch_aten_sigmoid": {},
+            "batch_aten_tanh": {},
+            "unbind_stack_aten_pass": {},
+        },
+    )
+    def test_pointwise_op_fusion_post_grad(self):
+        counters.clear()
+        module = TestPoitwiseOpsPostGrad("cuda")
+        input = [torch.randn(50, 1000, requires_grad=True, device="cuda")]
+        traced = torch.compile(module)
+        ref = module(*input)
+        res = traced(*input)
+        self.compare_pred(module, traced, input)
+        self.assertEqual(counters["inductor"]["batch_aten_tanh"], 1)
+        self.assertEqual(counters["inductor"]["batch_aten_relu"], 1)
+        self.assertEqual(counters["inductor"]["batch_aten_sigmoid"], 1)
+        self.assertEqual(counters["inductor"]["unbind_stack_aten_pass"], 2)
         ref.sum().backward()
         res.sum().backward()
         self.compare_parameters(module, traced, rtol=1e-8, atol=1e-8)
