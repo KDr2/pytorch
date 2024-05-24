@@ -125,10 +125,6 @@ filegroup(
     data = [":generate-code"],
 )
 
-exports_files(
-    srcs = ["aten/src/ATen/cpu/tbb/extra/version_string.ver.in"],
-)
-
 # ATen
 filegroup(
     name = "aten_base_cpp",
@@ -275,7 +271,6 @@ header_template_rule(
         "@AT_BUILD_WITH_LAPACK@": "1",
         "@AT_PARALLEL_OPENMP@": "0",
         "@AT_PARALLEL_NATIVE@": "1",
-        "@AT_PARALLEL_NATIVE_TBB@": "0",
         "@AT_BLAS_F2C@": "0",
         "@AT_BLAS_USE_CBLAS_DOT@": "1",
     },
