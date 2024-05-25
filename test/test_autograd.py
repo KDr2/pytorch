@@ -5942,7 +5942,7 @@ Done""",
         self.assertEqual(jacobian[0], 2 * torch.eye(4, dtype=torch.double))
 
         with self.assertWarnsRegex(
-            UserWarning, "get_numerical_jacobian was part of PyTorch's private API"
+            FutureWarning, "get_numerical_jacobian was part of PyTorch's private API"
         ):
             jacobian = get_numerical_jacobian(fn, (a, b), eps=1e-6)
         self.assertEqual(jacobian[0], 2 * torch.eye(4, dtype=torch.double))
@@ -5962,7 +5962,7 @@ Done""",
 
         outputs = fn(a, b)
         with self.assertWarnsRegex(
-            UserWarning, "get_analytical_jacobian was part of PyTorch's private API"
+            FutureWarning, "get_analytical_jacobian was part of PyTorch's private API"
         ):
             (
                 jacobians,
@@ -5990,7 +5990,7 @@ Done""",
 
         outputs = NonDetFunc.apply(a, 1e-6)
         with self.assertWarnsRegex(
-            UserWarning, "get_analytical_jacobian was part of PyTorch's private API"
+            FutureWarning, "get_analytical_jacobian was part of PyTorch's private API"
         ):
             (
                 jacobians,
