@@ -27,7 +27,7 @@ __all__ = ["profile"]
 @deprecated(
     "`torch.autograd.profiler_legacy.profile` is deprecated and will be removed in a future release. "
     "Please use `torch.profiler` instead.",
-    category=FutureWarning,
+    category=DeprecationWarning,
 )
 class profile:
     """DEPRECATED: use torch.profiler instead."""
