@@ -2014,8 +2014,8 @@ torch.cuda.synchronize()
 
     def test_cuda_autocast_deprecated_warning(self):
         with self.assertWarnsRegex(
-            DeprecationWarning,
-            r"torch.cuda.amp.autocast\(args...\) is deprecated. Please use torch.amp.autocast\('cuda', args...\) instead.",
+            FutureWarning,
+            r"`torch.cuda.amp.autocast\(args...\)` is deprecated. Please use `torch.amp.autocast\('cuda', args...\)` instead.",
         ):
             with torch.cuda.amp.autocast():
                 _ = torch.ones(10)
