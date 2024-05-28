@@ -7,7 +7,7 @@ import logging
 import os
 import textwrap
 from functools import lru_cache
-from typing import Any, Callable, cast, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, cast, Dict, Iterable, List, Optional, Set, Tuple, Type, Union
 
 import sympy
 
@@ -17,6 +17,7 @@ from torch._dynamo.utils import preserve_rng_state
 
 from torch._inductor.runtime.hints import AutotuneHint, DeviceProperties
 from torch._prims_common import is_integer_dtype
+from torch.utils._sympy.functions import CeilDiv, FloorDiv, ModularIndexing
 from torch.utils._triton import has_triton_package
 from ...utils._sympy.symbol import symbol_is_type, SymT
 from ...utils._sympy.value_ranges import ValueRanges
@@ -26,7 +27,7 @@ from ..codecache import code_hash, get_path, PyCodeCache
 from ..ir import IRNode
 from ..metrics import is_metric_table_enabled, log_kernel_metadata
 from ..runtime.hints import ReductionHint, TRITON_MAX_BLOCK
-from ..runtime.runtime_utils import do_bench_gpu, get_max_y_grid, next_power_of_2
+from ..runtime.runtime_utils import do_bench_gpu, get_max_y_grid, is_power_of_2, next_power_of_2
 from ..utils import (
     cache_on_self,
     get_bounds_index_expr,
@@ -96,6 +97,13 @@ def gen_common_triton_imports():
     )
     return imports.getvalue()
 
+class ConstExprMin(sympy.Min):
+    """
+    Variant of sympy.Min that propagates triton constexprs.
+    While the sympy.Min maps to tl.minimum, this maps to an arithmetic macro.
+    https://github.com/triton-lang/triton/issues/3815
+    """
+    pass
 
 @dataclasses.dataclass
 class IndexingOptions:
@@ -214,13 +222,20 @@ class BlockPtrOptions:
         """List of indices to pass to tl.load(boundary_check=...)"""
         check = []
         for i in range(len(self.shape)):
+            # Look up the block prefix. For a string like "XBLOCK", this is "X".
+            # If the shape is a sympy expression, skip this check.
+            try:
+                block_prefix = self.block_shape[i][0]  # type: ignore[arg-type]
+            except TypeError:
+                block_prefix = None
+
             if (
                 self.block_shape[i] != "1"
                 and not V.graph.sizevars.statically_known_equals(self.strides[i], 0)  # type: ignore[arg-type]
-                and not V.graph.sizevars.statically_known_multiple_of(
+                and (block_prefix is None or not V.graph.sizevars.statically_known_multiple_of(
                     self.shape[i],
-                    TRITON_MAX_BLOCK[self.block_shape[i][0]],  # type: ignore[arg-type]
-                )
+                    TRITON_MAX_BLOCK[block_prefix],  # type: ignore[arg-type]
+                ))
                 and not (V.kernel.no_x_dim and self.block_shape[i] == "XBLOCK")
             ):
                 check.append(i)
@@ -292,15 +307,28 @@ class TritonPrinter(PythonPrinter):
         q = self.doprint(expr.args[2])
         return f"tl.where({c}, {p}, {q})"
 
-    def _print_Min(self, expr):
+    def _print_min_helper(self, expr: sympy.Expr, cls: Type[sympy.Min], macro: Callable[[sympy.Expr, sympy.Expr], str]) -> str:
         nargs = len(expr.args)
         if len(expr.args) == 1:
-            return self._print(expr.args[0])
+            return self._print(expr.args[0]), None
 
         mid = len(expr.args) // 2
-        a = self._print(sympy.Min(*expr.args[:mid]))
-        b = self._print(sympy.Min(*expr.args[mid:]))
-        return f"tl.minimum({a}, {b})"
+        a = self._print(cls(*expr.args[:mid]))
+        b = self._print(cls(*expr.args[mid:]))
+
+        return macro(a, b)
+
+    def _print_ConstExprMin(self, expr):
+        def constexpr_min_macro(a: sympy.Expr, b: sympy.Expr) -> str:
+            return f"({a} * ({a} <= {b}) + {b} * ({b} < {a}))"
+
+        return self._print_min_helper(expr, ConstExprMin, constexpr_min_macro)
+
+    def _print_Min(self, expr):
+        def tl_minimum_macro(a: sympy.Expr, b: sympy.Expr) -> str:
+            return f"tl.minimum({a}, {b})"
+
+        return self._print_min_helper(expr, sympy.Min, tl_minimum_macro)
 
     def _print_Max(self, expr):
         nargs = len(expr.args)
@@ -1123,21 +1151,139 @@ class TritonKernel(SIMDKernel):
             )
             range_trees = self.active_range_trees(reorder=True)
             symbols = [t.symbol() for t in range_trees]
-            strides = [sympy.Wild(f"stride_{s}", exclude=symbols) for s in symbols]
-            offset = sympy.Wild("_offset", exclude=symbols)
-            m = index_relative_to_xyr_index.match(sympy_dot(symbols, strides) + offset)
-            # TODO(jansel): it is sometimes possible to do higher dimensional block_ptrs with
-            #               a tl.reshape the correct block.  We will miss these cases today.
-            if m:
-                self.filter_masks(mask_vars)
-                from .triton import BlockPtrOptions
 
-                return BlockPtrOptions.create(
-                    [m[s] for s in strides],
-                    m[offset],
-                    range_trees,
-                    mask_vars,  # type: ignore[arg-type]
+            def match_strided_block() -> Union[BlockPtrOptions, None]:
+                """
+                Matches expressions of the form:
+                    idx = s0 * x0 + ... + sN * xN + offset
+
+                This implies strides (s0, ..., SN).
+                """
+                strides = [sympy.Wild(f"stride_{s}", exclude=symbols) for s in symbols]
+                offset = sympy.Wild("_offset", exclude=symbols)
+                m = index_relative_to_xyr_index.match(sympy_dot(symbols, strides) + offset)
+                # TODO(jansel): it is sometimes possible to do higher dimensional block_ptrs with
+                #               a tl.reshape the correct block.  We will miss these cases today.
+                if m:
+                    self.filter_masks(mask_vars)
+
+                    return BlockPtrOptions.create(
+                        [m[s] for s in strides],
+                        m[offset],
+                        range_trees,
+                        mask_vars,  # type: ignore[arg-type]
+                    )
+
+            def match_mod_div_block() -> Union[BlockPtrOptions, None]:
+                """
+                Matches higher-dimensional blocks coming from FloorDiv and ModularIndexing.
+
+                Example expression to match:
+                   sN * ((xindex//(d1 * ... * d(N-1))))
+                       + s1 * ModularIndexing(xindex, 1, d1)
+                       + ...
+                       + s(N-1) * ModularIndexing(xindex, d(N-2), d(N-1))
+
+                This iterates over a block of shape (d1, ..., dN) and stride (s1, ..., sN).
+                """
+
+                # Get info about iteration ranges
+                range_nodes = [node for node in self.range_tree_nodes.values()]
+                num_dims = len(range_nodes)
+                if num_dims == 0:
+                    return None
+
+                # Check the index variable. We expect a linear index.
+                if len(symbols) != 1:
+                    return None
+                index_var = symbols[0]
+
+                # Pattern match to find the strides and offset.
+                def is_integer(x):
+                    return x.is_Integer
+                dims = [x for x in range_nodes[0].var_ranges.values()]
+                strides = [sympy.Wild(f"stride{idx}", properties=(is_integer,)) for idx in range(num_dims)]
+                offset = sympy.Wild("offset", properties=(is_integer,))
+
+                def numel(x: Iterable[int]) -> int:
+                    return int(torch.tensor(x, dtype=torch.int64).prod())
+
+                # Division term
+                divisor = numel(dims[:-1])
+                match_expr = strides[-1] * FloorDiv(index_var, divisor)
+
+                # Modulo terms
+                for expr_idx in range(1, num_dims):
+                    dim_idx = expr_idx - 1
+                    cur_dim = dims[dim_idx]
+                    prev_dim = dims[dim_idx - 1] if dim_idx > 0 else 1
+                    match_expr += strides[dim_idx] * ModularIndexing(index_var, prev_dim, cur_dim)
+
+                # Offset term
+                #TODO how to test this?
+                match_expr += offset
+
+                match = index_relative_to_xyr_index.match(match_expr)
+                if match is None:
+                    return None
+
+                # Check that iteration ranges are powers of 2.
+                # If dim == 2 ** n, and we know XBLOCK == 2 ** m, with n and m integers,
+                # then either dim is a multiple of XBLOCK, or dim is less than XBLOCK.
+                if not all(is_power_of_2(dim) for dim in dims):
+                    return None
+
+
+                def cumulative_prod(x: Iterable[int]):
+                    return torch.cumprod(torch.tensor(x, dtype=torch.int64), dim=0)
+                dims_tensor = torch.tensor(dims, dtype=torch.int64)
+                slice_numels = [sympy.Integer(x) for x in cumulative_prod([1] + dims[:-1])]
+                assert all(is_power_of_2(x) for x in slice_numels)
+
+                # Compute the N-D block shape from the linear block size.
+                # Use cdiv to round leading dimensions up to 1.
+                # Otherwise, cdiv will not round, as both the numerator and
+                # denominator are powers of 2.
+                if len(range_trees) != 1:
+                    return None
+                prefix = range_trees[0].prefix
+                linear_block_size = sympy.Symbol(f"{prefix.upper()}BLOCK", integer=True, nonzero=True)
+                block_shape = [
+                    ConstExprMin(CeilDiv(linear_block_size, slice_numel), dim)
+                    for slice_numel, dim in zip(slice_numels, dims)
+                ]
+
+                # Compute the block offsets from xoffset and the range tree
+                xoffset = sympy.Symbol("xoffset", integer=True)
+                block_offsets = [
+                    sympy_subs(node.expr, {index_var: xoffset})
+                    for node in self.range_tree_nodes.values()
+                ]
+
+                # Form the block pointer
+                matched_strides=[V.graph.sizevars.lookup_precomputed_size(match[stride]) for stride in reversed(strides)]
+                matched_offset=V.graph.sizevars.lookup_precomputed_size(match[offset])
+                return BlockPtrOptions(
+                    constant_offset=matched_offset,
+                    shape=list(reversed(dims)),
+                    strides=matched_strides,
+                    block_shape=list(reversed(block_shape)),
+                    order=list(range(num_dims)),
+                    offsets=list(reversed(block_offsets)),
+                    mask_vars=mask_vars,
+                    reshape_suffix = [str(linear_block_size)],
                 )
+
+            # Try various pattern matches for block pointers
+            for match_func in (
+                match_strided_block,
+                match_mod_div_block,
+            ):
+                options = match_func()
+                if options:
+                    return options
+
+
 
         expand_str = None
         index_str = self.index_to_str(index)
