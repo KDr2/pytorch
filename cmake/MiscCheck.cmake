@@ -1,4 +1,3 @@
-include(CheckIncludeFile)
 include(CheckCXXSourceCompiles)
 include(CheckCXXCompilerFlag)
 include(CMakePushCheckState)
