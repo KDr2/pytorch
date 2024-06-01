@@ -309,7 +309,7 @@ if(HAVE_SOVERSION)
       VERSION ${TORCH_VERSION} SOVERSION ${TORCH_SOVERSION})
 endif()
 add_dependencies(torch_python torch_python_stubs)
-add_dependencies(torch_python flatbuffers)
+add_dependencies(torch_python FlatBuffers::FlatBuffers)
 
 
 if(USE_PRECOMPILED_HEADERS)

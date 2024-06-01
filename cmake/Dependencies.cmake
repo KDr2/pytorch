@@ -1691,4 +1691,4 @@ if(USE_KINETO)
 endif()
 
 # Include google/FlatBuffers
-include(${CMAKE_CURRENT_LIST_DIR}/FlatBuffers.cmake)
+add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/flatbuffers)
