@@ -1691,4 +1691,7 @@ if(USE_KINETO)
 endif()
 
 # Include google/FlatBuffers
+set(FLATBUFFERS_BUILD_TESTS OFF CACHE BOOL "")
+set(FLATBUFFERS_BUILD_FLATHASH OFF CACHE BOOL "")
+set(FLATBUFFERS_BUILD_FLATLIB OFF CACHE BOOL "")
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/flatbuffers)
