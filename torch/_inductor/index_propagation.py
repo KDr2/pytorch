@@ -27,6 +27,7 @@ from typing_extensions import TypeAlias
 import sympy
 
 import torch
+import torch._logging
 from torch._prims_common import dtype_to_type, is_integer_dtype
 from torch.utils._sympy.functions import FloorDiv, ModularIndexing, Where
 from torch.utils._sympy.value_ranges import bound_sympy, ValueRanges
@@ -35,6 +36,7 @@ from .utils import generate_assert
 from .virtualized import V
 
 
+log = logging.getLogger(__name__)
 _ExprType = Union[sympy.Expr, float, int, bool]
 
 
@@ -333,16 +335,20 @@ class IndexPropagation:
                     return Where(expr < 0, expr + size, expr)
 
             # Sometimes it's easier to prove 0 <= expr than the weaker -size <= expr
-            can_prove_lower = self.statically_true(0 <= expr) or self.statically_true(
-                -size <= expr
-            )
-            can_prove_upper = self.statically_true(expr < size)
-            expr = wrap_expr(expr)
-            if generate_assert(check):
-                self.fallback(
-                    "check_bounds",
-                    (expr, size),
-                    dict(lower=not can_prove_lower, upper=not can_prove_upper),
+            try:
+                can_prove_lower = self.statically_true(0 <= expr) or self.statically_true(
+                    -size <= expr
                 )
-            return expr
+                can_prove_upper = self.statically_true(expr < size)
+                expr = wrap_expr(expr)
+                if generate_assert(check):
+                    self.fallback(
+                        "check_bounds",
+                        (expr, size),
+                        dict(lower=not can_prove_lower, upper=not can_prove_upper),
+                    )
+                return expr
+            except KeyError as e:
+                log.warn(str(e))
+
         return self.fallback("indirect_indexing", (index, size, check), {}).value
