@@ -192,7 +192,7 @@ def ceildiv(
     numer: Union[int, sympy.Expr], denom: Union[int, sympy.Expr]
 ) -> Union[int, sympy.Expr]:
     if isinstance(numer, sympy.Expr) or isinstance(denom, sympy.Expr):
-        return CeilDiv(numer, denom)
+        return CeilDiv(sympy.sympify(numer), sympy.sympify(denom))
     # TODO: There is a bug in a call to this function, to repro:
     # python benchmarks/dynamo/huggingface.py --inductor -d cuda --accuracy
     # --amp --only YituTechConvBert --dynamic-shapes
@@ -390,7 +390,7 @@ P = ParamSpec("P")
 RV = TypeVar("RV", covariant=True)
 
 
-class CachedMethod(Generic[P, RV], Protocol):
+class CachedMethod(Protocol, Generic[P, RV]):
     @staticmethod
     def clear_cache(self) -> None:
         ...
@@ -573,6 +573,10 @@ def sympy_index_symbol_with_prefix(prefix: SymT, idx: int) -> sympy.Symbol:
     # NOTE: shape symbols are positive (> 0), but index variables are only
     # non-negative (>= 0).
     return make_symbol(prefix, idx, integer=True, nonnegative=True)
+
+
+def generate_assert(check):
+    return (check or config.debug_index_asserts) and config.assert_indirect_indexing
 
 
 def sympy_index_symbol(name: str) -> sympy.Symbol:

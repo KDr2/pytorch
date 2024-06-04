@@ -383,10 +383,22 @@ debug_index_asserts = False
 is_nightly_or_source = "dev" in torch.__version__ or "git" in torch.__version__
 developer_warnings = is_fbcode() or is_nightly_or_source
 
+
 # The multiprocessing start method to use for inductor workers in the codecache.
-# TODO: fork is not safe in a multithreaded environment, we should evaluate changing
-# the default to spawn.
-worker_start_method = "fork"
+# "subprocess", "fork", or "spawn"
+def decide_worker_start_method():
+    start_method = os.environ.get(
+        "TORCHINDUCTOR_WORKER_START", "fork" if is_fbcode() else "subprocess"
+    )
+    assert start_method in [
+        "subprocess",
+        "fork",
+        "spawn",
+    ], f"Invalid start method: {start_method}"
+    return start_method
+
+
+worker_start_method = decide_worker_start_method()
 
 # Flags to turn on all_reduce fusion. These 2 flags should be automaticaly turned
 # on by DDP and should not be set by the users.
@@ -410,6 +422,8 @@ _fuse_ddp_communication_passes: List[Union[Callable[..., None], str]] = [
     "fuse_ddp_with_concat_op",
     "schedule_comm_wait",
 ]
+
+_micro_pipeline_tp: bool = False
 
 
 def decide_compile_threads():
@@ -869,6 +883,12 @@ class trace:
     # INDUCTOR_DOT_GRAPH_SHAPE_SVG = "none" would let us generate HTML-like lables
     # to workaround the above failure.
     dot_graph_shape = os.environ.get("INDUCTOR_DOT_GRAPH_SHAPE_SVG", None)
+
+    # If not None, this is the URL that saves the SVG files of the input/output
+    # graph of each pass that changed the graph
+    # The nodes that are being transformed in each pass will be colored in yellow
+    # URL only supports local directory for now
+    log_url_for_graph_xform = os.environ.get("INDUCTOR_LOG_URL_FOR_GRAPH_XFORM", None)
 
     # Store cProfile (see snakeviz to view)
     compile_profile = False
