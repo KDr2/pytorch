@@ -904,7 +904,10 @@ class FxGraphCache:
         shape_env = FxGraphCache._get_shape_env()
         assert shape_env is not None
         symints = FxGraphCache._filter_backed_symints(example_inputs)
-        disk_compiled_graph.guards_expr = shape_env.produce_guards_expression(symints)
+        shape_env.set_input_guards(symints)
+        disk_compiled_graph.guards_expr = shape_env.produce_input_guards_expression(
+            symints
+        )
 
         try:
             content = pickle.dumps(disk_compiled_graph)

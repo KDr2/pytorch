@@ -2463,6 +2463,7 @@ class ShapeEnv:
         )
 
         self.guards: List[ShapeGuard] = []
+        self.input_guards: List[ShapeGuard] = []
         # Maps symbolic ints to their original concrete values
         # Currently populated from tensors
         self.var_to_val: Dict[sympy.Symbol, sympy.Integer] = {}
@@ -3612,6 +3613,7 @@ class ShapeEnv:
         _disable_forced_specializations=False,
         # Indicates if we should produce guards for known static values.
         ignore_static=True,
+        input_guards=False,
     ) -> List[str]:
         """
         Generates a list of guards strings which, when evaluated in a context that
@@ -4072,7 +4074,7 @@ class ShapeEnv:
         # First, issue all guards.
         # This removes all the checks that follow from bounds
         # We could simply emit those and also the bounds 2 <= size when necessary
-        for guard in self.guards:
+        for guard in (self.guards if not input_guards else self.input_guards):
             if self._maybe_evaluate_static(guard.expr, axioms=()) is not None:
                 continue
             issue_guard(guard)
@@ -4203,7 +4205,7 @@ class ShapeEnv:
         self._check_translation_validate()
         return exprs
 
-    def produce_guards_expression(self, placeholders, ignore_static=True):
+    def produce_input_guards_expression(self, placeholders, ignore_static=True):
         """
         Expected to be used with evaluate_guards_expression(). Produces the guards
         for the given placeholders and returns a string expression to be evaluated
@@ -4231,6 +4233,19 @@ class ShapeEnv:
         if code:
             return self.evaluate_guards_expression(code, args)
         return True
+
+    def set_input_guards(self, symints):
+        """
+        Creates input guards list by pruning guards that refer to non input symints.
+        This is safe to do for inductor guarding as dynamo has an invariant to
+        lift all input guards to top level.
+        """
+        symints = {str(s) for s in symints}
+        guards = []
+        for g in self.guards:
+            if all(str(s) in symints for s in g.expr.free_symbols):
+                guards.append(g)
+        self.input_guards = guards
 
     def bind_symbols(self, placeholders, args):
         """
