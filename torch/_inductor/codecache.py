@@ -2004,6 +2004,18 @@ class AotCodeCompiler:
         # guarantee the source code hash contains ISA difference.
         cpp_command = repr(dummy_builder.get_command_line())
 
+        cpp_command_old = repr(
+            cpp_compile_command(
+                "i",
+                "o",
+                vec_isa=picked_vec_isa,
+                cuda=cuda,
+                aot_mode=graph.aot_mode,
+            )
+        )
+
+        _temp_validate_new_and_old_command(cpp_command.split(), cpp_command_old.split())
+
         fbcode_aot_cpu_re = False
         use_absolute_path = False
         if config.is_fbcode():
