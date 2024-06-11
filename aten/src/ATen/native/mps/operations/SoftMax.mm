@@ -120,7 +120,8 @@ TORCH_IMPL_FUNC(softmax_mps_out)
       newCachedGraph->outputTensor_ = outputTensor;
     });
 
-    Placeholder inputPlaceholder = Placeholder(cachedGraph->inputTensor_, input, is_macOS_15_0_or_newer ? nil : input_shape);
+    Placeholder inputPlaceholder =
+        Placeholder(cachedGraph->inputTensor_, input, is_macOS_15_0_or_newer ? nil : input_shape);
     // This must be the Contiguous shape
     Placeholder outputPlaceholder = Placeholder(cachedGraph->outputTensor_, output);
 

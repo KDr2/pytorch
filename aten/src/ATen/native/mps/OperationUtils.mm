@@ -529,7 +529,7 @@ Placeholder::Placeholder(MPSGraphTensor* mpsGraphTensor,
 
   // Tensor is contiguous and has no storage offset.
   // Wrap it directly inside MPSGraphTensorData
-  if ((_tensor.is_contiguous() && !_tensor.storage_offset()) || !useMPSStridedAPI) {
+  if ((_tensor.is_contiguous() && !_tensor.storage_offset()) || !useMPSStridedAPI || !is_macOS_15_0_or_newer) {
     _value = [[[MPSGraphTensorData alloc] initWithMTLBuffer:srcBuf
                                                       shape:mpsShape_ ? mpsShape_ : getMPSShape(_tensor)
                                                    dataType:dataType] autorelease];

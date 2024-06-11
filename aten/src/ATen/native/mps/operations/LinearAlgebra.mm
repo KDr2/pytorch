@@ -162,8 +162,14 @@ static Tensor& mm_out_mps_impl(const Tensor& self, const Tensor& other, Tensor& 
     });
     // MPS TODO:
     // Strided API doesn't play nice with complex data types (at least not in case of matmul).
-    auto selfPlaceholder = self.numel() != 0 ? Placeholder(cachedGraph->inputTensor_, self, nil, true, MPSDataTypeInvalid, !isComplexType(self.scalar_type())) : Placeholder();
-    auto otherPlaceholder = other.numel() != 0 ? Placeholder(cachedGraph->otherTensor_, other, nil, true, MPSDataTypeInvalid, !isComplexType(other.scalar_type())) : Placeholder();
+    auto selfPlaceholder = self.numel() != 0
+        ? Placeholder(
+              cachedGraph->inputTensor_, self, nil, true, MPSDataTypeInvalid, !isComplexType(self.scalar_type()))
+        : Placeholder();
+    auto otherPlaceholder = other.numel() != 0
+        ? Placeholder(
+              cachedGraph->otherTensor_, other, nil, true, MPSDataTypeInvalid, !isComplexType(other.scalar_type()))
+        : Placeholder();
     auto outputPlaceholder = Placeholder(cachedGraph->outputTensor_, output);
 
     auto feeds = self.numel() != 0 ? dictionaryFromPlaceholders(selfPlaceholder, otherPlaceholder) : nil;

@@ -551,14 +551,18 @@ static void nllnd_loss_forward_impl(Tensor& output,
       newCachedGraph->outputTensor_ = mpsGraphReducedTensor;
     });
 
-    Placeholder selfPlaceholder = Placeholder(cachedGraph->inputTensor_, input);
-    Placeholder targetPlaceholder = Placeholder(cachedGraph->targetTensor_, target);
+    Placeholder selfPlaceholder = Placeholder(cachedGraph->inputTensor_, input, nil, true, MPSDataTypeInvalid, false);
+    Placeholder targetPlaceholder =
+        Placeholder(cachedGraph->targetTensor_, target, nil, true, MPSDataTypeInvalid, false);
     Placeholder weightPlaceholder = Placeholder();
     if (isWeightsArrayValid)
-      weightPlaceholder = Placeholder(cachedGraph->weightTensor_, weight);
-    Placeholder batchSizePlaceholder = Placeholder(cachedGraph->batchSizeTensor_, batchSizeTensor);
-    Placeholder outputPlaceholder = Placeholder(cachedGraph->outputTensor_, output);
-    Placeholder totalWeightsPlaceholder = Placeholder(cachedGraph->totalWeightTensor_, total_weight);
+      weightPlaceholder = Placeholder(cachedGraph->weightTensor_, weight, nil, true, MPSDataTypeInvalid, false);
+    Placeholder batchSizePlaceholder =
+        Placeholder(cachedGraph->batchSizeTensor_, batchSizeTensor, nil, true, MPSDataTypeInvalid, false);
+    Placeholder outputPlaceholder =
+        Placeholder(cachedGraph->outputTensor_, output, nil, true, MPSDataTypeInvalid, false);
+    Placeholder totalWeightsPlaceholder =
+        Placeholder(cachedGraph->totalWeightTensor_, total_weight, nil, true, MPSDataTypeInvalid, false);
 
     // Create dictionary of inputs and outputs
     NSMutableDictionary<MPSGraphTensor*, MPSGraphTensorData*>* feeds =

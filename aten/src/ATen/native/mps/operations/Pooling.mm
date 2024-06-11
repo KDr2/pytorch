@@ -196,14 +196,25 @@ static void pool2d_template(const Tensor& input,
     // MPS TODO: Using strided API causes invalid indices to be generated if they original format is NHWC
     //           Output is still correct, but indices are not matching. Disable it for now and use the old
     //           gather path to solve the strides.
-    Placeholder inputPlaceholder =
-        Placeholder(cachedGraph->inputTensor, input, inputShape, memory_format != MemoryFormat::ChannelsLast, MPSDataTypeInvalid, /*useMPSStridedAPI=*/false);
-    Placeholder gradOutputPlaceholder = !is_backward_pass
-        ? Placeholder()
-        : Placeholder(
-              cachedGraph->gradOutputTensor, grad_output, gradOutputShape, memory_format != MemoryFormat::ChannelsLast, MPSDataTypeInvalid, /*useMPSStridedAPI=*/false);
-    Placeholder indicesPlaceholder = has_indices ? Placeholder(cachedGraph->indicesTensor, indices, nullptr, true, MPSDataTypeInvalid, /*useMPSStridedAPI=*/false) : Placeholder();
-    Placeholder outputPlaceholder = Placeholder(cachedGraph->outputTensor, output, nullptr, false, MPSDataTypeInvalid, false);
+    Placeholder inputPlaceholder = Placeholder(cachedGraph->inputTensor,
+                                               input,
+                                               inputShape,
+                                               memory_format != MemoryFormat::ChannelsLast,
+                                               MPSDataTypeInvalid,
+                                               /*useMPSStridedAPI=*/false);
+    Placeholder gradOutputPlaceholder = !is_backward_pass ? Placeholder()
+                                                          : Placeholder(cachedGraph->gradOutputTensor,
+                                                                        grad_output,
+                                                                        gradOutputShape,
+                                                                        memory_format != MemoryFormat::ChannelsLast,
+                                                                        MPSDataTypeInvalid,
+                                                                        /*useMPSStridedAPI=*/false);
+    Placeholder indicesPlaceholder = has_indices
+        ? Placeholder(
+              cachedGraph->indicesTensor, indices, nullptr, true, MPSDataTypeInvalid, /*useMPSStridedAPI=*/false)
+        : Placeholder();
+    Placeholder outputPlaceholder =
+        Placeholder(cachedGraph->outputTensor, output, nullptr, false, MPSDataTypeInvalid, false);
     NSMutableDictionary* feeds = [[NSMutableDictionary new] autorelease];
     NSMutableDictionary* results = [[NSMutableDictionary new] autorelease];
 
