@@ -15,6 +15,7 @@
 #else
 #include <ATen/ops/scalar_tensor.h>
 #endif
+
 namespace at::native::mps {
 
 void dispatch_sync_with_rethrow(dispatch_queue_t queue, void (^block)()) {
