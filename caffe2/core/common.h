@@ -28,8 +28,6 @@
 
 #include <c10/macros/Macros.h>
 
-#include "c10/util/string_utils.h"
-
 namespace caffe2 {
 
 // Note(Yangqing): NVCC does not play well with unordered_map on some platforms,
