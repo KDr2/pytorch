@@ -1302,15 +1302,7 @@ class VecISA:
 #include <ATen/cpu/vec/vec.h>
 #endif
 
-#if defined(__GNUC__)
-#define __at_align__ __attribute__((aligned(64)))
-#elif defined(_WIN32)
-#define __at_align__ __declspec(align(64))
-#else
-#define __at_align__
-#endif
-
-__at_align__ float in_out_ptr0[16] = {0.0};
+std::alignas float in_out_ptr0[16] = {0.0};
 
 extern "C" void __avx_chk_kernel() {
     auto tmp0 = at::vec::Vectorized<float>(1);
