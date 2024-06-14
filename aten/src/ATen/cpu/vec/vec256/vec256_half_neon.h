@@ -765,7 +765,7 @@ inline Vectorized<c10::Half> Vectorized<c10::Half>::le(
 template <>
 inline void convert(const float16_t* src, int16_t* dst, int64_t n) {
   int64_t i;
-#ifndef __CUR_MSVC_CL
+#ifndef __msvc_cl__
 #pragma unroll
 #endif
   for (i = 0; i <= (n - Vectorized<c10::Half>::size());
@@ -773,7 +773,7 @@ inline void convert(const float16_t* src, int16_t* dst, int64_t n) {
     vst1q_s16(dst + i, vcvtq_s16_f16(vld1q_f16(src + i)));
     vst1q_s16(dst + i + 8, vcvtq_s16_f16(vld1q_f16(src + i + 8)));
   }
-#ifndef __CUR_MSVC_CL
+#ifndef __msvc_cl__
 #pragma unroll
 #endif
   for (; i < n; i++) {
@@ -784,7 +784,7 @@ inline void convert(const float16_t* src, int16_t* dst, int64_t n) {
 template <>
 inline void convert(const int16_t* src, float16_t* dst, int64_t n) {
   int64_t i;
-#ifndef __CUR_MSVC_CL
+#ifndef __msvc_cl__
 #pragma unroll
 #endif
   for (i = 0; i <= (n - Vectorized<c10::Half>::size());
@@ -792,7 +792,7 @@ inline void convert(const int16_t* src, float16_t* dst, int64_t n) {
     vst1q_f16(dst + i, vcvtq_f16_s16(vld1q_s16(src + i)));
     vst1q_f16(dst + i + 8, vcvtq_f16_s16(vld1q_s16(src + i + 8)));
   }
-#ifndef __CUR_MSVC_CL
+#ifndef __msvc_cl__
 #pragma unroll
 #endif
   for (; i < n; i++) {
