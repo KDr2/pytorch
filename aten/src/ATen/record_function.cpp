@@ -10,7 +10,7 @@
 
 namespace at {
 
-extern const std::string kParamCommsCallName = "record_param_comms";
+static constexpr char kParamCommsCallName[] = "record_param_comms";
 
 namespace {
 
