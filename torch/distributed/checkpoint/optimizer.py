@@ -105,7 +105,9 @@ def _alloc_tensor(
         layout=props.layout,
         requires_grad=props.requires_grad,
         pin_memory=props.pin_memory,
-        device=cast(torch.device, _get_device_module(device_type).current_device()),
+        device=torch.device(
+            device_type, _get_device_module(device_type).current_device()
+        ),
     )
 
 
