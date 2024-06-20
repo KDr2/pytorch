@@ -8,23 +8,16 @@
 
 namespace at {
 
-// Returns "Tensor['N', 'C', 'H', 'W']" for a tensor with names ('N', 'C', 'H', 'W').
-static std::string toDimnameRepr(const Tensor& tensor) {
-  std::ostringstream os;
-  os << "Tensor" << tensor.names();
-  return os.str();
-}
-
 int64_t dimname_to_position(const Tensor& tensor, Dimname dim) {
   TORCH_CHECK(dim.type() != NameType::WILDCARD,
       "Please look up dimensions by name, got: name = None.");
   TORCH_CHECK(tensor.has_names(),
-      "Name ", dim, " not found in ", toDimnameRepr(tensor), ".");
+      "Name ", dim, " not found in Tensor", tensor.names(), ".");
   const auto names = tensor.names();
 
   const auto it = std::find(names.begin(), names.end(), dim);
   TORCH_CHECK(it != names.end(),
-      "Name ", dim, " not found in ", toDimnameRepr(tensor), ".");
+      "Name ", dim, " not found in Tensor", tensor.names(), ".");
 
   return std::distance(names.begin(), it);
 }
