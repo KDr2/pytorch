@@ -1,13 +1,8 @@
 #pragma once
 
 #include <torch/csrc/jit/serialization/unpickler.h>
+#include <torch/serialize/inline_container.h>
 #include <memory>
-
-namespace caffe2 {
-namespace serialize {
-class PyTorchStreamReader;
-} // namespace serialize
-} // namespace caffe2
 
 namespace torch {
 namespace jit {
@@ -19,13 +14,13 @@ TORCH_API IValue readArchiveAndTensors(
     std::optional<TypeResolver> type_resolver,
     std::optional<ObjLoader> obj_loader,
     std::optional<at::Device> device,
-    caffe2::serialize::PyTorchStreamReader& stream_reader,
+    torch::serialize::PyTorchStreamReader& stream_reader,
     c10::TypePtr (*type_parser)(const std::string&) =
         Unpickler::defaultTypeParser,
     std::shared_ptr<DeserializationStorageContext> storage_context = nullptr);
 
 bool check_zip_file(
-    std::shared_ptr<caffe2::serialize::ReadAdapterInterface> rai);
+    std::shared_ptr<torch::serialize::ReadAdapterInterface> rai);
 
 } // namespace jit
 } // namespace torch

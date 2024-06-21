@@ -1,17 +1,11 @@
 #pragma once
 
 #include <ATen/core/ivalue.h>
-#include <caffe2/serialize/inline_container.h>
 #include <torch/csrc/jit/api/module.h>
 #include <torch/csrc/jit/ir/ir.h>
+#include <torch/serialize/inline_container.h>
 
 #include <istream>
-
-namespace caffe2 {
-namespace serialize {
-class ReadAdapterInterface;
-} // namespace serialize
-} // namespace caffe2
 
 namespace torch {
 namespace jit {
@@ -32,7 +26,7 @@ TORCH_API Module import_ir_module(
 
 TORCH_API Module import_ir_module(
     std::shared_ptr<CompilationUnit> cu,
-    std::unique_ptr<caffe2::serialize::ReadAdapterInterface> rai,
+    std::unique_ptr<torch::serialize::ReadAdapterInterface> rai,
     std::optional<c10::Device> device = c10::nullopt,
     bool load_debug_files = true);
 
@@ -47,7 +41,7 @@ TORCH_API Module import_ir_module(
 // For reading unified serialization format from torch.Package
 TORCH_API Module import_ir_module(
     std::shared_ptr<CompilationUnit> cu,
-    std::shared_ptr<caffe2::serialize::PyTorchStreamReader> reader,
+    std::shared_ptr<torch::serialize::PyTorchStreamReader> reader,
     std::shared_ptr<torch::jit::DeserializationStorageContext> storage_context,
     std::optional<at::Device> device,
     std::string ts_id /* torchscript identifier inside package */);
@@ -62,14 +56,14 @@ TORCH_API Module import_ir_module(
 
 TORCH_API Module import_ir_module(
     std::shared_ptr<CompilationUnit> cu,
-    std::unique_ptr<caffe2::serialize::ReadAdapterInterface> rai,
+    std::unique_ptr<torch::serialize::ReadAdapterInterface> rai,
     std::optional<c10::Device> device,
     ExtraFilesMap& extra_files,
     bool load_debug_files = true);
 
 TORCH_API Module import_ir_module(
     std::shared_ptr<CompilationUnit> cu,
-    std::shared_ptr<caffe2::serialize::ReadAdapterInterface> rai,
+    std::shared_ptr<torch::serialize::ReadAdapterInterface> rai,
     std::optional<c10::Device> device,
     ExtraFilesMap& extra_files,
     bool load_debug_files = true);
@@ -111,12 +105,12 @@ TORCH_API Module load(
 /// serialized `Module`, exported either via `ScriptModule.save()` in
 /// Python or `torch::jit::ExportModule` in C++.
 TORCH_API Module load(
-    std::shared_ptr<caffe2::serialize::ReadAdapterInterface> rai,
+    std::shared_ptr<torch::serialize::ReadAdapterInterface> rai,
     std::optional<c10::Device> device = c10::nullopt,
     bool load_debug_files = true);
 
 TORCH_API Module load(
-    std::shared_ptr<caffe2::serialize::ReadAdapterInterface> rai,
+    std::shared_ptr<torch::serialize::ReadAdapterInterface> rai,
     std::optional<c10::Device> device,
     ExtraFilesMap& extra_files,
     bool load_debug_files = true);
