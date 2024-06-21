@@ -1243,7 +1243,6 @@ def define_buck_targets(
         exported_deps = [
             ":aten_cpu",
             ":caffe2_headers",
-            ":caffe2_serialize",
             ":torch_common",
             ":torch_headers",
             ":torch_mobile_headers",
@@ -1371,7 +1370,6 @@ def define_buck_targets(
         exported_deps = [
             ":aten_cpu",
             ":caffe2_headers",
-            ":caffe2_serialize",
             ":torch_common",
             ":torch_headers",
             ":torch_mobile_headers",
@@ -1433,6 +1431,7 @@ def define_buck_targets(
         exported_deps = [
             ":torch",
             ":torch_mobile_deserialize_common",  # for torch/csrc/api/src/serialize/input-archive.cpp
+            "//third_party:miniz",
         ],
     )
 
@@ -1650,7 +1649,6 @@ def define_buck_targets(
         ],
         visibility = ["PUBLIC"],
         deps = [
-            ":caffe2_serialize",
             ":generated-autograd-headers",
             ":torch_mobile_headers",
             ":torch_mobile_observer",
