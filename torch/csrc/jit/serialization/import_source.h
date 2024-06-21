@@ -44,7 +44,7 @@ struct SourceImporterImpl : public Resolver,
  private:
   void importFunction(const std::string& qualifier, const Def& def);
   void importNamedType(const std::string& qualifier, const ClassDef& class_def);
-  std::optional<Assign> attributeAssignmentSpecialHandlingHack(
+  static std::optional<Assign> attributeAssignmentSpecialHandlingHack(
       const QualifiedName& qualified_classname,
       const Assign& assign);
   void importClass(
@@ -58,9 +58,9 @@ struct SourceImporterImpl : public Resolver,
       const QualifiedName& qualified_name,
       const ClassDef& named_tuple_def);
 
-  void parsePossibleVersionNumber(Lexer& L);
+  static void parsePossibleVersionNumber(Lexer& L);
 
-  void parseImports(Lexer& L);
+  static void parseImports(Lexer& L);
 
   std::shared_ptr<CompilationUnit> cu_;
   std::unordered_map<std::string, std::shared_ptr<SugaredValue>> env_;

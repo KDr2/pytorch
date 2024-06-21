@@ -1,3 +1,27 @@
+#include "jit/frontend/sugared_value.h"
+#include <cstddef>
+#include <string>
+#include <memory>
+#include "jit/frontend/source_range.h"
+#include "jit/api/function_impl.h"
+#include "c10/macros/Export.h"
+#include <cstdint>
+#include <cstdlib>
+#include "jit/ir/ir.h"
+#include "ATen/core/jit_type.h"
+#include "c10/util/intrusive_ptr.h"
+#include "ATen/core/interned_strings.h"
+#include "jit/api/module.h"
+#include "jit/frontend/lexer.h"
+#include "jit/frontend/tree_views.h"
+#include <limits>
+#include "c10/util/complex.h"
+#include <optional>
+#include "c10/util/Optional.h"
+#include <map>
+#include "c10/util/Exception.h"
+#include "ATen/core/enum_type.h"
+#include <sstream>
 #include <torch/csrc/jit/serialization/import_source.h>
 
 #include <ATen/core/ivalue_inl.h>
@@ -8,22 +32,26 @@
 #include <torch/custom_class.h>
 
 #include <regex>
+#include <utility>
+#include <vector>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace torch::jit {
 
 struct OpsValue : public SugaredValue {
-  OpsValue(size_t version) : version_(version) {}
+  explicit OpsValue(size_t version) : version_(version) {}
   std::string kind() const override {
     return "ops";
   }
   std::shared_ptr<SugaredValue> attr(
-      const SourceRange& loc,
-      GraphFunction& m,
+      const SourceRange&  /*loc*/,
+      GraphFunction&  /*m*/,
       const std::string& field) override {
     return std::make_shared<BuiltinModule>(field, version_);
   }
   size_t version_;
-};
+} __attribute__((packed));
 
 // Represents nested namespaces, like `foo.bar.Baz`.
 // Right now these namespaces can only contain other namespaces or NamedTypes
@@ -50,7 +78,7 @@ struct TORCH_API ClassNamespaceValue : public SugaredValue {
  private:
   c10::QualifiedName basename_;
   std::shared_ptr<SourceImporterImpl> si_;
-};
+} __attribute__((packed)) __attribute__((aligned(128)));
 
 // This value maps attributes CONSTANTS.c0 CONSTANTS.c1 to entries
 // in the 'constants' vector. This table is will be stored in a container format
@@ -67,24 +95,24 @@ struct ConstantTableValue : public SugaredValue {
       GraphFunction& m,
       const std::string& field) override {
     const char* field_s = field.c_str();
-    // NOLINTNEXTLINE(cppcoreguidelines-init-variables)
-    char* end;
-    int64_t offset = strtoll(field_s + 1, &end, 10);
-    if (field.size() < 2 || *end != 0)
-      throw ErrorReport(loc) << "invalid constant specifier: " << field;
-    if (offset < 0 || size_t(offset) >= constants_->size()) {
-      throw ErrorReport(loc) << "constant index " << offset
-                             << " is out of bounds (constant table has "
-                             << constants_->size() << " entries)";
+    char* end = nullptr;
+    int64_t const offset = strtoll(field_s + 1, &end, 10);
+    if (field.size() < 2 || *end != 0) {
+      throw(ErrorReport(loc) << "invalid constant specifier: " << field);
+}
+    if (offset < 0 || static_cast<size_t>(offset) >= constants_->size()) {
+      throw(
+          ErrorReport(loc) << "constant index " << offset
+                           << " is out of bounds (constant table has "
+                           << constants_->size() << " entries)");
     }
     auto ivalue = constants_->at(offset);
-    // NOLINTNEXTLINE(cppcoreguidelines-init-variables)
-    Value* value;
+    Value* value = nullptr;
 
     // see [Constant Object Weak CompilationUnit Reference]
     if (ivalue.isObject() && !ivalue.toObject()->is_weak_compilation_ref()) {
       auto obj = ivalue.toObject();
-      if (!non_holding_object_cache.count(obj)) {
+      if (!non_holding_object_cache.contains(obj)) {
         non_holding_object_cache[obj] = obj->copy_to_weak_compilation_ref();
       }
       value = m.graph()->insertConstant(non_holding_object_cache[obj], loc);
@@ -104,7 +132,7 @@ struct ConstantTableValue : public SugaredValue {
       c10::intrusive_ptr<at::ivalue::Object>>
       non_holding_object_cache;
   const std::vector<at::IValue>* constants_;
-};
+} __attribute__((packed)) __attribute__((aligned(64)));
 
 SourceImporterImpl::SourceImporterImpl(
     std::shared_ptr<CompilationUnit> cu,
@@ -135,7 +163,7 @@ TypePtr SourceImporterImpl::findNamedType(const QualifiedName& name) {
   parseSourceIfNeeded(name.prefix());
   auto it = to_be_defined_.find(name);
   if (it != to_be_defined_.end() && it->second->kind() == TK_CLASS_DEF) {
-    ClassDef cd(std::move(it->second));
+    ClassDef const cd(std::move(it->second));
     to_be_defined_.erase(it);
     importNamedType(name.prefix(), cd);
   }
@@ -146,7 +174,7 @@ Function* SourceImporterImpl::findFunction(const QualifiedName& name) {
   parseSourceIfNeeded(name.prefix());
   auto it = to_be_defined_.find(name);
   if (it != to_be_defined_.end() && it->second->kind() == TK_DEF) {
-    Def d(it->second);
+    Def const d(it->second);
     to_be_defined_.erase(it);
     importFunction(name.prefix(), d);
   }
@@ -155,11 +183,11 @@ Function* SourceImporterImpl::findFunction(const QualifiedName& name) {
 
 void SourceImporterImpl::parseSourceIfNeeded(const std::string& qualifier) {
   // qualifier may be blank, for instance checking if __torch__ is a class.
-  if (qualifier.empty() || loaded_sources_.count(qualifier)) {
+  if (qualifier.empty() || loaded_sources_.contains(qualifier)) {
     return;
   }
   loaded_sources_.insert(qualifier);
-  std::shared_ptr<Source> src = source_loader_(qualifier);
+  std::shared_ptr<Source> const src = source_loader_(qualifier);
 
   // The importer, when looking for classes/functions doesn't know if 'foo'
   // contains definitions or if it is a prefix of 'foo.bar', we only figure it
@@ -189,8 +217,9 @@ void SourceImporterImpl::parseSourceIfNeeded(const std::string& qualifier) {
             parsed_treeref;
       } break;
       default:
-        throw ErrorReport(L.cur().range)
-            << "Unexpected token in code import: " << kindToString(kind);
+        throw(
+            ErrorReport(L.cur().range)
+            << "Unexpected token in code import: " << kindToString(kind));
     }
   }
 }
@@ -257,15 +286,15 @@ std::shared_ptr<SugaredValue> SourceImporterImpl::resolveValue(
 
 TypePtr SourceImporterImpl::resolveType(
     const std::string& name,
-    const SourceRange& loc) {
+    const SourceRange&  /*loc*/) {
   return findNamedType(QualifiedName(name));
 }
 
 void SourceImporterImpl::importFunction(
     const std::string& qualifier,
     const Def& def) {
-  std::vector<Def> definitions{def};
-  std::vector<ResolverPtr> resolvers{shared_from_this()};
+  std::vector<Def> const definitions{def};
+  std::vector<ResolverPtr> const resolvers{shared_from_this()};
   cu_->define(
       qualifier,
       /*properties=*/{},
@@ -299,8 +328,9 @@ void SourceImporterImpl::importNamedType(
   } else if (superclass_name == "Enum") {
     importEnum(qualified_name, class_def);
   } else {
-    throw ErrorReport(class_def.range())
-        << "Torchscript does not support class inheritance.";
+    throw(
+        ErrorReport(class_def.range())
+        << "Torchscript does not support class inheritance.");
   }
 }
 
@@ -312,7 +342,7 @@ std::optional<Assign> SourceImporterImpl::
     std::string attr_name;
     std::string expected_type;
     std::string replacement_type;
-  };
+  } __attribute__((aligned(128)));
 
   // module demangled qualname -> ReplacementDescr
   static std::unordered_map<std::string, AttrTypeReplacementDescr> replacements{
@@ -366,10 +396,10 @@ std::optional<Assign> SourceImporterImpl::
         "Tensor",
         "__torch__.torch.classes.quantized.LinearPackedParamsBase"}}};
   // @lint-ignore-every CLANGTIDY facebook-hte-StdRegexIsAwful
-  static std::regex mangle_re("\\.___torch_mangle_\\d+");
+  static std::regex const mangle_re("\\.___torch_mangle_\\d+");
   auto demangled_classname =
       std::regex_replace(qualified_classname.qualifiedName(), mangle_re, "");
-  if (replacements.count(demangled_classname)) {
+  if (replacements.contains(demangled_classname)) {
     auto lhs = Var(assign.lhs());
     if (!assign.type().present() || assign.type().get().kind() != TK_VAR) {
       return c10::nullopt;
@@ -404,10 +434,10 @@ void SourceImporterImpl::importClass(
   // now just rely on those classes being present in the binary
   // and emit code for them based on the ClassType in memory.
   //
-  // TODO: remove this once we no longer have old TorchBind code
+  // TODO(cyy): remove this once we no longer have old TorchBind code
   // in production models
   {
-    static QualifiedName torch_classes_qualname("__torch__.torch.classes");
+    static QualifiedName const torch_classes_qualname("__torch__.torch.classes");
     if (torch_classes_qualname.isPrefixOf(qualified_classname)) {
       return;
     }
@@ -481,7 +511,7 @@ void SourceImporterImpl::importClass(
               const auto pre_hook_list =
                   ListLiteral(assign.rhs().get()).inputs();
               for (const auto& pre_hook : pre_hook_list) {
-                std::string pre_hook_name = StringLiteral(pre_hook).text();
+                std::string const pre_hook_name = StringLiteral(pre_hook).text();
                 pre_hook_names.insert(pre_hook_name);
                 pre_hooks_order.emplace_back(pre_hook_name);
               }
@@ -492,7 +522,7 @@ void SourceImporterImpl::importClass(
               check_assign_values(name);
               const auto hook_list = ListLiteral(assign.rhs().get()).inputs();
               for (const auto& hook : hook_list) {
-                std::string hook_name = StringLiteral(hook).text();
+                std::string const hook_name = StringLiteral(hook).text();
                 hook_names.insert(hook_name);
                 hooks_order.emplace_back(hook_name);
               }
@@ -562,8 +592,8 @@ void SourceImporterImpl::importClass(
         const auto type = assign.type().present()
             ? type_parser.parseTypeFromExpr(assign.type().get())
             : type_parser.parseTypeFromExpr(assign.rhs().get());
-        const bool is_parameter = parameter_names.count(name);
-        const bool is_buffer = buffer_names.count(name);
+        const bool is_parameter = parameter_names.contains(name);
+        const bool is_buffer = buffer_names.contains(name);
         class_type->addAttribute(name, type, is_parameter, is_buffer);
       } break;
       case TK_SUBSCRIPT: {
@@ -572,8 +602,8 @@ void SourceImporterImpl::importClass(
         const auto type = assign.type().present()
             ? type_parser.parseTypeFromExpr(assign.type().get())
             : type_parser.parseTypeFromExpr(assign.rhs().get());
-        const bool is_parameter = parameter_names.count(name);
-        const bool is_buffer = buffer_names.count(name);
+        const bool is_parameter = parameter_names.contains(name);
+        const bool is_buffer = buffer_names.contains(name);
         class_type->addAttribute(name, type, is_parameter, is_buffer);
       }
     }
@@ -630,21 +660,23 @@ void SourceImporterImpl::importEnum(
   std::vector<at::EnumNameValue> names_values;
 
   TypePtr value_type = nullptr;
-  auto set_or_check_type = [&value_type](
-                               const TypePtr& t, const SourceRange& loc) {
-    if (!value_type) {
-      value_type = t;
-    } else if (value_type != t) {
-      throw ErrorReport(loc)
-          << "Enum class with varying value types are not supported.";
-    }
-  };
+  auto set_or_check_type =
+      [&value_type](const TypePtr& t, const SourceRange& loc) {
+        if (!value_type) {
+          value_type = t;
+        } else if (value_type != t) {
+          throw(
+              ErrorReport(loc)
+              << "Enum class with varying value types are not supported.");
+        }
+      };
 
   for (const auto& statement : enum_def.body()) {
     if (statement.kind() != TK_ASSIGN) {
-      throw ErrorReport(statement.range())
+      throw(
+          ErrorReport(statement.range())
           << "Unexpected statement in Enum class body: "
-             "only enum attribute definitions are currently supported.";
+             "only enum attribute definitions are currently supported.");
     }
 
     const auto assign = Assign(statement);
@@ -669,17 +701,19 @@ void SourceImporterImpl::importEnum(
         break;
       }
       default:
-        throw ErrorReport(rhs.range())
+        throw(
+            ErrorReport(rhs.range())
             << "Unsupported enum value type: " << rhs.kind()
-            << ". Only Integers, Floats and Strings are supported.";
+            << ". Only Integers, Floats and Strings are supported.");
     }
 
     names_values.emplace_back(name, ivalue);
   }
 
   if (!value_type) {
-    throw ErrorReport(enum_def.range())
-        << "No enum values defined for " << qualified_name.qualifiedName();
+    throw(
+        ErrorReport(enum_def.range())
+        << "No enum values defined for " << qualified_name.qualifiedName());
   }
 
   auto enum_type = EnumType::create(
@@ -696,9 +730,10 @@ void SourceImporterImpl::importNamedTuple(
   std::vector<IValue> field_defaults;
   for (const auto& statement : named_tuple_def.body()) {
     if (statement.kind() != TK_ASSIGN) {
-      throw ErrorReport(statement.range())
+      throw(
+          ErrorReport(statement.range())
           << "Unexpected statement in NamedTuple body: "
-             "only attribute annotations are currently supported.";
+             "only attribute annotations are currently supported.");
     }
     const auto assign = Assign(statement);
 
@@ -735,7 +770,7 @@ void SourceImporterImpl::parsePossibleVersionNumber(Lexer& L) {
     auto range = L.cur().range;
     L.next();
     L.expect('=');
-    std::string version_text = L.expect(TK_NUMBER).text();
+    std::string const version_text = L.expect(TK_NUMBER).text();
     L.expect(TK_NEWLINE);
   }
 }
@@ -759,15 +794,15 @@ void SourceImporterImpl::parseImports(Lexer& L) {
 }
 
 std::shared_ptr<SugaredValue> ClassNamespaceValue::attr(
-    const SourceRange& loc,
-    GraphFunction& m,
+    const SourceRange&  /*loc*/,
+    GraphFunction&  /*m*/,
     const std::string& name) {
   auto fullName = c10::QualifiedName(basename_, name);
   // Could be a ClassType or NamedTuple constructor
   if (auto serializable_type = si_->findNamedType(fullName)) {
     if (auto classType = serializable_type->cast<ClassType>()) {
       return std::make_shared<ClassValue>(classType);
-    } else if (auto tupleType = serializable_type->cast<TupleType>()) {
+    } if (auto tupleType = serializable_type->cast<TupleType>()) {
       return std::make_shared<NamedTupleConstructor>(tupleType);
     } else if (auto enumType = serializable_type->cast<EnumType>()) {
       return std::make_shared<SugaredEnumClass>(enumType);
@@ -775,7 +810,7 @@ std::shared_ptr<SugaredValue> ClassNamespaceValue::attr(
   }
 
   // Or it could be a free function
-  if (auto fn = si_->findFunction(fullName)) {
+  if (auto *fn = si_->findFunction(fullName)) {
     return std::make_shared<FunctionValue>(fn);
   }
 
