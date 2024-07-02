@@ -6,7 +6,7 @@ from pathlib import Path
 import torch
 import torch._dynamo as torchdynamo
 
-from torch._export.db.case import ExportCase, normalize_inputs
+from torch._export.db.case import ExportCase
 from torch._export.db.examples import all_examples
 from torch.export import export
 
@@ -42,7 +42,6 @@ def generate_example_rst(example_case: ExportCase):
     }, f"more than one @export_rewrite_case decorator in {source_code}"
 
     # Generate contents of the .rst file
-    # TODO(zhxchen17) Update template when we switch to example_args and example_kwargs.
     title = f"{example_case.name}"
     doc_contents = f"""{title}
 {'^' * (len(title))}
@@ -59,6 +58,8 @@ Original source code:
 
     {splitted_source_code[0]}
 
+    torch.export.export(model, example_args, example_kwargs, dynamic_shapes=dynamic_shapes)
+
 Result:
 
 .. code-block::
@@ -67,11 +68,10 @@ Result:
 
     # Get resulting graph from dynamo trace
     try:
-        inputs = normalize_inputs(example_case.example_inputs)
         exported_program = export(
             model,
-            inputs.args,
-            inputs.kwargs,
+            example_case.example_args,
+            example_case.example_kwargs,
             dynamic_shapes=example_case.dynamic_shapes,
         )
         graph_output = str(exported_program)
