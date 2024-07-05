@@ -6,7 +6,7 @@
 #include <iostream>
 #include <sstream>
 
-namespace at { namespace native {
+namespace at::native {
 
 namespace {
 
@@ -108,7 +108,7 @@ std::string cudnnTypeToString(cudnnDataType_t dtype) {
 
 std::ostream& operator<<(std::ostream & out, const TensorDescriptor& d) {
   out << "TensorDescriptor " << static_cast<void*>(d.desc()) << "\n";
-  int nbDims;
+  int nbDims = 0;
   int dimA[CUDNN_DIM_MAX];
   int strideA[CUDNN_DIM_MAX];
   cudnnDataType_t dtype;
@@ -187,7 +187,7 @@ std::string cudnnMemoryFormatToString(cudnnTensorFormat_t tformat) {
 
 std::ostream& operator<<(std::ostream & out, const FilterDescriptor& d) {
   out << "FilterDescriptor " << static_cast<void*>(d.desc()) << "\n";
-  int nbDims;
+  int nbDims = 0;
   int dimA[CUDNN_DIM_MAX];
   cudnnDataType_t dtype;
   cudnnTensorFormat_t tformat;
@@ -206,4 +206,4 @@ std::ostream& operator<<(std::ostream & out, const FilterDescriptor& d) {
 
 void FilterDescriptor::print() { std::cout << *this; }
 
-}}
+}
