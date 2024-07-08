@@ -415,7 +415,7 @@ struct GraphFuser {
     return group;
   }
 
-  at::optional<Node*> tryFuse(Node* consumer, Value* producer) {
+  std::optional<Node*> tryFuse(Node* consumer, Value* producer) {
     // this handles cases where producer can be moved _into_ the fusion group of
     // consumer.
     // TODO: extend to fusion of consumer into _producer's_ fusion blob

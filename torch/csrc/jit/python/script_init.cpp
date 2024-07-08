@@ -280,7 +280,7 @@ void checkMutableFunctionDefault(
 FunctionSchema getSchemaWithNameAndDefaults(
     const SourceRange& range,
     const FunctionSchema& schema,
-    const at::optional<std::string>& new_name,
+    const std::optional<std::string>& new_name,
     const FunctionDefaults& default_args) {
   std::vector<Argument> new_args;
   for (auto& arg : schema.arguments()) {

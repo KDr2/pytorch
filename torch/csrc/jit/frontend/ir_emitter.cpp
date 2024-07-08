@@ -4790,7 +4790,7 @@ struct to_ir {
     }
 
     if (sliceable->type()->cast<TupleType>()) {
-      std::vector<at::optional<NamedValue>> tuple_args;
+      std::vector<std::optional<NamedValue>> tuple_args;
       // since we are only dealing with tuple slicing, we try to keep
       // tuple args separate for now
       tuple_args.reserve(3);
@@ -5170,7 +5170,7 @@ struct to_ir {
   Value* emitTupleSlice(
       const SourceRange& loc,
       const NamedValue& tuple_val,
-      const std::vector<at::optional<NamedValue>>& tuple_args) {
+      const std::vector<std::optional<NamedValue>>& tuple_args) {
     auto tuple_type = tuple_val.value(*graph)->type()->expect<TupleType>();
     int64_t tuple_len = tuple_type->elements().size();
     auto beg_val = tuple_args[0];
@@ -5224,7 +5224,7 @@ struct to_ir {
         auto s_tuple_val =
             sv->asTupleValue(val_range, method)->asValue(val_range, method);
         const SliceExpr& slice = SliceExpr(subscript_exprs[0]);
-        std::vector<at::optional<NamedValue>> tuple_args;
+        std::vector<std::optional<NamedValue>> tuple_args;
         tuple_args.reserve(3);
         if (slice.start().present()) {
           auto begin = NamedValue(
