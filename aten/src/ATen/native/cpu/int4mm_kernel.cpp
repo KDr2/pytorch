@@ -611,74 +611,82 @@ void weight_to_int4pack_kernel(
   auto weight_packed_data = reinterpret_cast<uint8_t*>(weight_packed.data_ptr());
   const auto weight_data = weight.data_ptr<int32_t>();
 
-  // 64 for avx512 and 32 for avx2/non-vectorized
-  constexpr int BLOCK_N = vec::Vectorized<float>::size() * 4;
-  const int NB =  (N + BLOCK_N - 1) / BLOCK_N;
+  for (int n = 0; n < weight.numel() / 2; n++) {
+    int32_t val0 = weight_data[n * 2 + 0];
+    int32_t val1 = weight_data[n * 2 + 1];
 
-  // parallel on NB blocks
-  at::parallel_for(0, NB, 0, [&](int begin, int end) {
-    for (const auto i : c10::irange(begin, end)) {
-      int nb_size = std::min(BLOCK_N, N - i * BLOCK_N);
+    uint8_t packed = (((uint8_t)(val1) << 4)) | ((uint8_t)(val0));
+    weight_packed_data[n] = packed;
+  }
 
-      const int32_t* src = weight_data + i * BLOCK_N * K;
-      uint8_t* dst = weight_packed_data + i * K * BLOCK_N / 2;
-      for (const auto k : c10::irange(K)) {
-#if defined(CPU_CAPABILITY_AVX512) && !defined(_MSC_VER)
-        if (nb_size == BLOCK_N) {
-          for (const auto d : c10::irange(16)) {
-            int32_t val0 = src[(d +  0) * K + k];
-            int32_t val1 = src[(d + 16) * K + k];
-            int32_t val2 = src[(d + 32) * K + k];
-            int32_t val3 = src[(d + 48) * K + k];
+//   // 64 for avx512 and 32 for avx2/non-vectorized
+//   constexpr int BLOCK_N = vec::Vectorized<float>::size() * 4;
+//   const int NB =  (N + BLOCK_N - 1) / BLOCK_N;
 
-            uint8_t packed02 = (((uint8_t)(val2) << 4)) | ((uint8_t)(val0));
-            uint8_t packed13 = (((uint8_t)(val3) << 4)) | ((uint8_t)(val1));
+//   // parallel on NB blocks
+//   at::parallel_for(0, NB, 0, [&](int begin, int end) {
+//     for (const auto i : c10::irange(begin, end)) {
+//       int nb_size = std::min(BLOCK_N, N - i * BLOCK_N);
 
-            dst[k * 32 + d] = packed02;
-            dst[k * 32 + 16 + d] = packed13;
-          }
-        } else {
-          // for nb_size 16, 32, 48
-          for (int n = 0; n < nb_size; n += 2) {
-            int32_t val0 = src[n * K + k];
-            int32_t val1 = src[n * K + K + k];
+//       const int32_t* src = weight_data + i * BLOCK_N * K;
+//       uint8_t* dst = weight_packed_data + i * K * BLOCK_N / 2;
+//       for (const auto k : c10::irange(K)) {
+// #if defined(CPU_CAPABILITY_AVX512) && !defined(_MSC_VER)
+//         if (nb_size == BLOCK_N) {
+//           for (const auto d : c10::irange(16)) {
+//             int32_t val0 = src[(d +  0) * K + k];
+//             int32_t val1 = src[(d + 16) * K + k];
+//             int32_t val2 = src[(d + 32) * K + k];
+//             int32_t val3 = src[(d + 48) * K + k];
 
-            uint8_t packed = (((uint8_t)(val1) << 4)) | ((uint8_t)(val0));
-            dst[k * nb_size / 2 + n / 2] = packed;
-          }
-        }
-#elif defined(CPU_CAPABILITY_AVX2) && !defined(_MSC_VER)
-        if (nb_size == BLOCK_N) {
-          // for nb_size 32
-          for (const auto d : c10::irange(16)) {
-            int32_t val0 = src[(d + 0) * K + k];
-            int32_t val1 = src[(d + 16) * K + k];
+//             uint8_t packed02 = (((uint8_t)(val2) << 4)) | ((uint8_t)(val0));
+//             uint8_t packed13 = (((uint8_t)(val3) << 4)) | ((uint8_t)(val1));
 
-            uint8_t packed01 = (((uint8_t)(val1) << 4)) | ((uint8_t)(val0));
-            dst[k * 16 + d] = packed01;
-          }
-        } else {
-          // for nb_size 16
-          for (int n = 0; n < nb_size; n += 2) {
-            int32_t val0 = src[n * K + k];
-            int32_t val1 = src[n * K + K + k];
+//             dst[k * 32 + d] = packed02;
+//             dst[k * 32 + 16 + d] = packed13;
+//           }
+//         } else {
+//           // for nb_size 16, 32, 48
+//           for (int n = 0; n < nb_size; n += 2) {
+//             int32_t val0 = src[n * K + k];
+//             int32_t val1 = src[n * K + K + k];
 
-            uint8_t packed = (((uint8_t)(val1) << 4)) | ((uint8_t)(val0));
-            dst[k * nb_size / 2 + n / 2] = packed;
-          }
-        }
-#else
-        for (int n = 0; n < nb_size; n += 2) {
-          int32_t val0 = src[n * K + k];
-          int32_t val1 = src[n * K + K + k];
+//             uint8_t packed = (((uint8_t)(val1) << 4)) | ((uint8_t)(val0));
+//             dst[k * nb_size / 2 + n / 2] = packed;
+//           }
+//         }
+// #elif defined(CPU_CAPABILITY_AVX2) && !defined(_MSC_VER)
+//         if (nb_size == BLOCK_N) {
+//           // for nb_size 32
+//           for (const auto d : c10::irange(16)) {
+//             int32_t val0 = src[(d + 0) * K + k];
+//             int32_t val1 = src[(d + 16) * K + k];
 
-          uint8_t packed = (((uint8_t)(val1) << 4)) | ((uint8_t)(val0));
-          dst[k * nb_size / 2 + n / 2] = packed;
-        }
-#endif
-      }
-    }
-  });
+//             uint8_t packed01 = (((uint8_t)(val1) << 4)) | ((uint8_t)(val0));
+//             dst[k * 16 + d] = packed01;
+//           }
+//         } else {
+//           // for nb_size 16
+//           for (int n = 0; n < nb_size; n += 2) {
+//             int32_t val0 = src[n * K + k];
+//             int32_t val1 = src[n * K + K + k];
+
+//             uint8_t packed = (((uint8_t)(val1) << 4)) | ((uint8_t)(val0));
+//             dst[k * nb_size / 2 + n / 2] = packed;
+//           }
+//         }
+// #else
+//         for (int n = 0; n < nb_size; n += 2) {
+//           int32_t val0 = src[n * K + k];
+//           int32_t val1 = src[n * K + K + k];
+
+//           uint8_t packed = (((uint8_t)(val1) << 4)) | ((uint8_t)(val0));
+//           dst[k * nb_size / 2 + n / 2] = packed;
+//         }
+// #endif
+//       }
+//     }
+//   });
 }
 
 template<typename T>
