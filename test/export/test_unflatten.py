@@ -832,6 +832,7 @@ class TestUnflatten(TestCase):
             strict=False,
             preserve_module_call_signature=("m1",),
         )
+        breakpoint()
         unflat = unflatten(ep)
         unflat(*inputs)
 
