@@ -265,6 +265,8 @@ def filter_unused_input(ts_graph: torch._C.Graph, inp_list: List[torch._C.Value]
         for block in node.blocks():
             _dfs_mark_used_input(block)
 
+    _dfs_mark_used_input(ts_graph)
+    
     return used_inp_list
 
 
@@ -472,19 +474,10 @@ class TS2FXGraphConverter:
         self.name_to_constant[name] = value
 
     def convert_prim_CallMethod(self, node: torch._C.Node):
-        inp_list = [inp for inp in node.inputs()]  # noqa: C416
-        inp_value_list = [self.get_fx_value(inp) for inp in inp_list]
-
-        def call_method(inst, name, *args, **kwargs):
-            return getattr(inst, name)(*args, **kwargs)
-
-        fx_node = self.fx_graph.call_function(
-            call_method,
-            (
-                inp_value_list[0],
-                node.s("name"),
-                tuple(inp_value_list[1:]),
-            ),
+        inp_list = [self.get_fx_value(inp) for inp in node.inputs()]  # noqa: C416
+        fx_node = self.fx_graph.call_method(
+            node.s("name"),
+            tuple(inp_list),
         )
         self.name_to_node[node.output().debugName()] = fx_node
 
@@ -1018,7 +1011,7 @@ DEBUG: (TORCH_LOGS="+export" <cmd>), additionaly
         ep = self.retrace_as_exported_program(
             gm,
             graph_converter.name_to_tensor_constants,
-            graph_converter.name_to_buffer_map,
+            graph_converter.name_to_constant,
         )
         return ep
 
