@@ -266,7 +266,7 @@ def filter_unused_input(ts_graph: torch._C.Graph, inp_list: List[torch._C.Value]
             _dfs_mark_used_input(block)
 
     _dfs_mark_used_input(ts_graph)
-    
+
     return used_inp_list
 
 
@@ -388,7 +388,7 @@ class TS2FXGraphConverter:
     def convert_graph_inputs(self):
         inp_list = list(self.ts_graph.inputs())
         if self.is_top_level_graph():
-            inp_list = filter_unused_input(self.ts_graph, inp_list)
+            inp_list = filter_unused_input(self.ts_graph, inp_list)  # type: ignore[arg-type]
 
         for graph_input in inp_list:
             name = graph_input.debugName()
