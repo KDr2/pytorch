@@ -370,24 +370,7 @@ class TS2FXGraphConverter:
         return gm
 
     def convert_graph_inputs(self):
-        # TorchScript can create multiple aliased inputs and some of them are not
-        # referenced in the graph. For those inputs, we cannot easily tell whether
-        # they are actually inputs, buffers, or constants. We here do a simple
-        # check on the name to see if they are aliased (i.e., if there exists another
-        # argument with simplified name or it is already the most simplified name).
-        all_input_name = set(
-            [inp.debugName() for inp in self.ts_graph.inputs()]
-        )  # noqa: C403
-        no_alias_input_list = []
-        for inp in self.ts_graph.inputs():
-            simplified_debug_name = inp.debugName().split(".")[0]
-            if (
-                simplified_debug_name not in all_input_name
-                or inp.debugName() == simplified_debug_name
-            ):
-                no_alias_input_list.append(inp)
-
-        for graph_input in no_alias_input_list:
+        for graph_input in self.ts_graph.inputs():
             name = graph_input.debugName()
 
             if name in self.name_to_param_map:
@@ -430,6 +413,9 @@ class TS2FXGraphConverter:
                 fx_node = get_node_as_placeholder_or_get_attr(
                     self.fx_graph, name, self.is_top_level_graph()
                 )
+            elif isinstance(graph_input.type(), torch.ClassType):
+                # Directly skip inputs that are ScriptObject and not used in the graph.
+                continue
             else:
                 normalized_name = normalize_name(name, prefix="input")
                 self.input_specs.append(
