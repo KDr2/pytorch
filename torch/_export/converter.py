@@ -450,6 +450,20 @@ class TS2FXGraphConverter:
 
         self.constant_map[name] = value
 
+    def convert_prim_CallMethod(self, node:torch._C.Node):
+        inp_list = [inp for inp in node.inputs()]
+        inp_value_list = [self.get_fx_value(inp) for inp in inp_list]
+
+        def call_method(inst, name, *args, **kwargs):
+            return getattr(inst, name)(*args, **kwargs)
+
+        fx_node = self.fx_graph.call_function(call_method, (
+            inp_value_list[0],
+            node.s("name"),
+            tuple(inp_value_list[1:]),
+        ))
+        self.name_to_node[node.output().debugName()] = fx_node
+
     def convert_prim_device(self, node: torch._C.Node):
         input_type = node.input().type()
         if input_type.isSubtypeOf(torch._C.TensorType.get()):
@@ -465,9 +479,12 @@ class TS2FXGraphConverter:
         output_name = node.output().debugName()
         self.name_to_attribute_fqn[output_name] = attr_fqn
 
+        def is_script_object(fqn):
+            return fqn in self.name_to_buffer_map and isinstance(self.name_to_buffer_map[fqn], torch.ScriptObject)
+
         attr_value = node.output()
         if self.is_top_level_graph():
-            if attr_value.type().annotation_str == "Tensor":
+            if attr_value.type().annotation_str == "Tensor" or is_script_object(attr_fqn):
                 # We insert a get_attr node due to two reasons.
                 # First, ts graph does not lift tensor constants as input nodes. So
                 # tensor constants may be ignored by in convert_graph_inputs().
@@ -485,7 +502,7 @@ class TS2FXGraphConverter:
         else:
             # Special support for if blocks which do not allow SetAttr TorchScript
             # node and get_attr FX Graph Node.
-            if attr_value.type().annotation_str == "Tensor":
+            if attr_value.type().annotation_str == "Tensor" or is_script_object(attr_fqn):
                 self.name_to_node[output_name] = self.name_to_node[attr_fqn]
 
     def convert_prim_SetAttr(self, node: torch._C.Node):
@@ -928,7 +945,7 @@ TS2EPConverter logging starts from here.
 INFO: (TORCH_LOGS="export" <cmd>)
     * Log TorchScript IR.
 
-DEBUG: (TORCH_LOGS="+export" <cmd>), additionaly
+DEBUG: (TORCH_LOGS="+export" <cmd>), additionally
     * Log conversion IR by IR in a format of [<conversion handler name>] converts [<IR>].
         """
         )
@@ -936,6 +953,7 @@ DEBUG: (TORCH_LOGS="+export" <cmd>), additionaly
         self.ts_model = ts_model
         self.ts_graph, self.params, _, _ = _create_jit_graph(ts_model, sample_args)
         log.info(f"TorchScript graph\n\n{self.ts_graph}\n")  # noqa: G004
+        print(self.ts_graph)
 
         self.sample_args = sample_args
         self.sample_kwargs = sample_kwargs
@@ -964,8 +982,11 @@ DEBUG: (TORCH_LOGS="+export" <cmd>), additionaly
             self.name_to_non_tensor_attributes,
         )
         gm = graph_converter.convert()
+        gm.print_readable()
         ep = self.retrace_as_exported_program(
-            gm, graph_converter.name_to_tensor_constants
+            gm, 
+            graph_converter.name_to_tensor_constants,
+            graph_converter.name_to_buffer_map,
         )
         return ep
 
@@ -990,7 +1011,10 @@ DEBUG: (TORCH_LOGS="+export" <cmd>), additionaly
             print("Success!")
 
     def retrace_as_exported_program(
-        self, gm: torch.fx.GraphModule, tensor_constants: Dict[str, torch.Tensor]
+        self, 
+        gm: torch.fx.GraphModule, 
+        name_to_tensor_constants: Dict[str, torch.Tensor],
+        name_to_buffer_map: Dict[str, Union[torch.Tensor, torch.ScriptObject]],
     ):
         # TODO: adjust input orders to match GraphSignature convention
         ep = torch.export._trace._export(
@@ -1004,13 +1028,16 @@ DEBUG: (TORCH_LOGS="+export" <cmd>), additionaly
         # Because during conversion, we set tensor constants as GetAttr,
         # retracing cannot recognize them as tensor constants but instead
         # treat them as buffers. We need to set them again here.
-        ep._constants = tensor_constants
-        for k in tensor_constants:
+        ep._constants = name_to_tensor_constants
+        for k in name_to_tensor_constants:
             ep.state_dict.pop(k, None)
         for spec in ep.graph_signature.input_specs:
             # Mark as constant tensors for erroneously traced buffers.
-            if spec.kind == InputKind.BUFFER and spec.target in tensor_constants:
+            if spec.kind == InputKind.BUFFER and spec.target in name_to_tensor_constants:
                 spec.kind = InputKind.CONSTANT_TENSOR
+            # CustomObject should appear in constants.
+            if spec.kind == InputKind.CUSTOM_OBJ and spec.target in self.name_to_buffer_map:
+                ep._constants[spec.target] = self.name_to_buffer_map[spec.target]
         ep.verifier().check(ep)
 
         return ep
@@ -1053,11 +1080,11 @@ DEBUG: (TORCH_LOGS="+export" <cmd>), additionaly
                     value = get_attr(attr_fqn)
                     output_name = node.output().debugName()
                     name_to_attribute_fqn[output_name] = attr_fqn
-                    if isinstance(value, torch.Tensor):
+                    if isinstance(value, (torch.Tensor, torch.ScriptObject)):
                         if attr_fqn not in self.name_to_buffer_map:
                             # Lift tensor constants to be a buffer
                             warnings.warn(
-                                f"ts converter lifted tensor constant {attr_fqn} to be a buffer"
+                                f"TSConverter lifted tensor constant / jit.ScriptObject {attr_fqn} to be a buffer"
                             )
                             self.name_to_buffer_map[attr_fqn] = value
                     else:
