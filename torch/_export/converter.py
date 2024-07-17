@@ -253,6 +253,21 @@ def get_op_overload(node: torch._C.Node):
     return op_overload
 
 
+def filter_unused_input(ts_graph: torch._C.Graph, inp_list: List[torch._C.Value]):
+    unfiltered_inputs = set(inp_list)
+    used_inp_list = []
+
+    def _dfs_mark_used_input(entry):
+        for node in entry.nodes():
+            for inp in node.inputs():
+                if inp in unfiltered_inputs:
+                    used_inp_list.append(inp)
+        for block in node.blocks():
+            _dfs_mark_used_input(block)
+
+    return used_inp_list
+
+
 class TS2FXGraphConverter:
     def __init__(
         self,
@@ -369,7 +384,11 @@ class TS2FXGraphConverter:
         return gm
 
     def convert_graph_inputs(self):
-        for graph_input in self.ts_graph.inputs():
+        inp_list = list(self.ts_graph.inputs())
+        if self.is_top_level_graph():
+            inp_list = filter_unused_input(self.ts_graph, inp_list)
+
+        for graph_input in inp_list:
             name = graph_input.debugName()
 
             if name in self.name_to_param_map:
