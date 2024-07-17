@@ -11,6 +11,7 @@ import torch.export._trace
 from torch.export.exported_program import ExportedProgram
 from torch.export.graph_signature import (
     ConstantArgument,
+    CustomObjArgument,
     InputKind,
     InputSpec,
     OutputKind,
@@ -61,7 +62,7 @@ def ir_name_to_func_name(name: str) -> str:
     return "convert_" + "_".join(name_list)
 
 
-def get_node_for_param_and_buffer(fx_graph, name, is_top_level_graph):
+def get_node_as_placeholder_or_get_attr(fx_graph, name, is_top_level_graph):
     if is_top_level_graph:
         return fx_graph.get_attr(name)
     return fx_graph.placeholder(name)
@@ -253,23 +254,6 @@ def get_op_overload(node: torch._C.Node):
     return op_overload
 
 
-def filter_unused_input(ts_graph: torch._C.Graph, inp_list: List[torch._C.Value]):
-    unfiltered_inputs = set(inp_list)
-    used_inp_list = []
-
-    def _dfs_mark_used_input(entry):
-        for node in entry.nodes():
-            for inp in node.inputs():
-                if inp in unfiltered_inputs:
-                    used_inp_list.append(inp)
-        for block in node.blocks():
-            _dfs_mark_used_input(block)
-
-    _dfs_mark_used_input(ts_graph)
-
-    return used_inp_list
-
-
 class TS2FXGraphConverter:
     def __init__(
         self,
@@ -386,11 +370,24 @@ class TS2FXGraphConverter:
         return gm
 
     def convert_graph_inputs(self):
-        inp_list = list(self.ts_graph.inputs())
-        if self.is_top_level_graph():
-            inp_list = filter_unused_input(self.ts_graph, inp_list)  # type: ignore[arg-type]
+        # TorchScript can create multiple aliased inputs and some of them are not
+        # referenced in the graph. For those inputs, we cannot easily tell whether
+        # they are actually inputs, buffers, or constants. We here do a simple
+        # check on the name to see if they are aliased (i.e., if there exists another
+        # argument with simplified name or it is already the most simplified name).
+        all_input_name = set(
+            [inp.debugName() for inp in self.ts_graph.inputs()]
+        )  # noqa: C403
+        no_alias_input_list = []
+        for inp in self.ts_graph.inputs():
+            simplified_debug_name = inp.debugName().split(".")[0]
+            if (
+                simplified_debug_name not in all_input_name
+                or inp.debugName() == simplified_debug_name
+            ):
+                no_alias_input_list.append(inp)
 
-        for graph_input in inp_list:
+        for graph_input in no_alias_input_list:
             name = graph_input.debugName()
 
             if name in self.name_to_param_map:
@@ -402,7 +399,7 @@ class TS2FXGraphConverter:
                         target=name,
                     )
                 )
-                fx_node = get_node_for_param_and_buffer(
+                fx_node = get_node_as_placeholder_or_get_attr(
                     self.fx_graph, name, self.is_top_level_graph()
                 )
             elif name in self.name_to_buffer_map:
@@ -415,7 +412,22 @@ class TS2FXGraphConverter:
                         persistent=True,
                     )
                 )
-                fx_node = get_node_for_param_and_buffer(
+                fx_node = get_node_as_placeholder_or_get_attr(
+                    self.fx_graph, name, self.is_top_level_graph()
+                )
+            elif name in self.name_to_constant:
+                normalized_name = normalize_name(name)
+                self.input_specs.append(
+                    InputSpec(
+                        InputKind.CUSTOM_OBJ,
+                        arg=CustomObjArgument(
+                            name=normalized_name, class_fqn=normalized_name
+                        ),
+                        target=name,
+                        persistent=False,
+                    )
+                )
+                fx_node = get_node_as_placeholder_or_get_attr(
                     self.fx_graph, name, self.is_top_level_graph()
                 )
             else:
