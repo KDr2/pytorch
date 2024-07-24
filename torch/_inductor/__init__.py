@@ -85,7 +85,7 @@ def aot_compile(
         (args, kwargs or {})
     )
     flat_example_inputs = tuple(
-        x[1] for x in flat_args_with_path if isinstance(x[1], torch.Tensor)
+        x[1] if isinstance(x[1], torch.Tensor) else None for x in flat_args_with_path
     )
 
     if in_spec is not None and received_spec != in_spec:
