@@ -62,6 +62,7 @@ from .codegen.common import (
     get_wrapper_codegen_for_device,
     init_backend_registration,
 )
+from .codegen.debug_utils import DebugPrinter
 from .exc import (
     CppWrapperCodeGenError,
     LoweringException,
@@ -247,7 +248,7 @@ def mark_nodes_dislike_padding(g: Graph) -> None:
                     prior.meta["dislike_padding"] = True
 
 
-class GraphLowering(torch.fx.Interpreter):
+class GraphLowering(torch.fx.Interpreter):  # pyre-ignore[13]
     graph_outputs: List[ir.IRNode]
 
     def symbolic_sizes_strides(
@@ -272,13 +273,13 @@ class GraphLowering(torch.fx.Interpreter):
             # create_symbolic_sizes_strides_storage_offset but we hope we can
             # just delete this entirely
             source = ConstantSource(
-                f"__inductor_unknown_tensor_{len(self._shape_env.var_to_val)}"
+                f"__inductor_unknown_tensor_{len(self._shape_env.var_to_val)}" # pyre-ignore[16]
             )
             (
                 size,
                 stride,
                 _,
-            ) = self._shape_env.create_symbolic_sizes_strides_storage_offset(
+            ) = self._shape_env.create_symbolic_sizes_strides_storage_offset( # pyre-ignore[16]
                 ex,
                 source,
             )
@@ -441,6 +442,10 @@ class GraphLowering(torch.fx.Interpreter):
         self.effectful_ops: Dict[_EffectType, ir.Buffer] = {}
         self.aligned_inputs: Set[str] = set()
         self.no_fuse_buffer_names: Set[str] = set()
+
+        # Below fields are related to printing debug intermediate tensor values info for debugging
+        self.debug_printer = DebugPrinter()
+        self.all_codegen_kernel_names: List[str] = []
 
     def has_feature(
         self, device: Union[torch._inductor.ir.IRNode, device], feature: BackendFeature
@@ -1713,6 +1718,11 @@ class GraphLowering(torch.fx.Interpreter):
 
         self.wrapper_code.push_codegened_graph(self)
         self.scheduler.codegen()
+
+        # print out the codegened kernel_names in the second pass
+        if self.cpp_wrapper:
+            log.debug("Finished codegen for all nodes. The list of kernel names available: %s", V.graph.all_codegen_kernel_names)
+
         result = self.wrapper_code.generate(self.is_inference)
         self.wrapper_code.pop_codegened_graph()
         return result

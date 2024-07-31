@@ -26,6 +26,7 @@ from .cpp_utils import (
     DTYPE_TO_CPP,
     LAYOUT_TO_ATEN,
 )
+from .debug_utils import DebugPrinter
 from .wrapper import EnterSubgraphLine, ExitSubgraphLine, WrapperCodeGen
 
 
@@ -1206,6 +1207,7 @@ class CppWrapperCpu(WrapperCodeGen):
         self.allow_stack_allocation = False
 
         wrapped_args = []
+        args_to_print = []
         for x in args:
             pieces = x.split(", ")
             for piece in pieces:
@@ -1218,13 +1220,25 @@ class CppWrapperCpu(WrapperCodeGen):
                 if isinstance(piece, str) and piece.startswith(
                     ("buf", "arg", "wrap_with_raii_handle_if_needed")
                 ):
+                    # TODO: The current way to find a 'tensor' type arg is hacky also as mentioned above. Find a more 
+                    # reliable way to detect tensor kernel args for extern kernel calls
+                    if piece.startswith(("buf", "arg")):
+                        args_to_print.append(piece)
                     piece = f"convert_arrayref_tensor_to_tensor({piece})"
                 wrapped_args.append(piece)
+
+        	
+        enable_debug_printer = config.aot_inductor.debug_intermediate_value_printer
+        if enable_debug_printer:
+            V.graph.debug_printer.codegen_intermediate_tensor_value_printer(args_to_print, kernel)
 
         shim_fn = self.get_c_shim_func_name(kernel)
         self.writeline(
             f"AOTI_TORCH_ERROR_CODE_CHECK({shim_fn}({', '.join(wrapped_args)}));"
         )
+
+        if enable_debug_printer:
+            V.graph.debug_printer.codegen_intermediate_tensor_value_printer(args_to_print, kernel, before_launch=False)
 
     def generate_c_shim_extern_kernel_alloc(self, extern_kernel, args):
         # registered output buffer name
@@ -1294,9 +1308,13 @@ class CppWrapperCpu(WrapperCodeGen):
         else:
             args.insert(0, out)
 
+        if kernel not in V.graph.all_codegen_kernel_names:
+            V.graph.all_codegen_kernel_names.append(kernel)
+
         if config.abi_compatible:
             self.generate_c_shim_extern_kernel_call(kernel, args)
         else:
+            # TODO: add debug printing info for non-abi compatible mode extern kernel cal
             self.writeline(self.wrap_kernel_call(kernel, args))
 
     def generate_scatter_fallback(
