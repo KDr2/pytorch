@@ -2142,7 +2142,6 @@ def forward(self, p_linear_weight, p_linear_bias, b_buffer, x):
 
     @testing.expectedFailureTrainingIRToRunDecompNonStrict  # run_decompositions() triggers same error as Dynamo below
     @testing.expectedFailureTrainingIRToRunDecomp
-    @testing.expectedFailureSerDer  # sympify on deserialization doesn't preserve sympy functions: T197567691
     def test_solver_unsupported_sympy_function(self):
         # repro of https://github.com/pytorch/pytorch/issues/131897
 

@@ -1488,7 +1488,10 @@ class GraphModuleDeserializer(metaclass=Final):
             if val.expr_str in self.symbol_name_to_symbol:
                 sym = self.symbol_name_to_symbol[val.expr_str]
             else:
-                sym = sympy.sympify(val.expr_str, locals=self.symbol_name_to_symbol)
+                sym = sympy.sympify(
+                    val.expr_str,
+                    locals={**self.sympy_functions, **self.symbol_name_to_symbol},
+                )
                 # NOTE(avik): Assumptions on symbols are not explicitly serialized.
                 # This seems dangerous: it might cause unknown differences in shape env behavior
                 # on deserialization? Probably deserves a follow-up.
@@ -1850,6 +1853,11 @@ class GraphModuleDeserializer(metaclass=Final):
                 allow_non_fake_inputs=True,
                 shape_env=self.shape_env,
             )
+            self.sympy_functions = {
+                "ToFloat": torch.utils._sympy.functions.ToFloat,
+                "TruncToInt": torch.utils._sympy.functions.TruncToInt,
+                # add more sympy functions here
+            }
             self.symbol_name_to_symbol: Dict[str, sympy.Symbol] = {}
             self.constants = deserialize_torch_artifact(constants)
             self.signature = self.deserialize_signature(serialized_graph_module.signature)
