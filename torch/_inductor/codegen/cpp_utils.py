@@ -3,6 +3,7 @@ import contextlib
 import copy
 import functools
 import math
+import sys
 from collections import namedtuple
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from unittest.mock import patch
@@ -24,6 +25,13 @@ from .common import (
     KernelArgs,
     OptimizationContext,
 )
+
+
+_IS_WINDOWS = sys.platform == "win32"
+
+
+def get_export_declaration():
+    return "__declspec(dllexport)" if _IS_WINDOWS else ""
 
 
 DTYPE_TO_CPP = {
