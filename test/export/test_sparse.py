@@ -16,6 +16,8 @@ from torch.testing._internal.common_utils import (
     TestCase,
 )
 
+from torch._dynamo.config import is_fbcode
+
 
 # Various data types (preserved over operations).
 DTYPES = [
@@ -78,7 +80,7 @@ class SparseActivationCSR(torch.nn.Module):
 # The test driver.
 #
 
-
+@unittest.skipIf(is_fbcode(), "See torch._dynamo.config")
 class TestSparseProp(TestCase):
     def setUp(self):
         TestCase.setUp(self)
