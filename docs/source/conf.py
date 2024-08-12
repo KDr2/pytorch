@@ -424,6 +424,7 @@ coverage_ignore_functions = [
     "reset_max_memory_cached",
     "reset_peak_memory_stats",
     "set_per_process_memory_fraction",
+    "use_mem_pool",
     # torch.cuda.nccl
     "all_gather",
     "all_reduce",
