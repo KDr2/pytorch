@@ -64,8 +64,8 @@ def _register_out_of_tree_handlers() -> None:
     discovered_handler_generators = entry_points(group="torchrun.handlers")
 
     for handler_generator in discovered_handler_generators:
-        get_handler = discovered_handler_generators[handler_generator.name].load()
         try:
+            get_handler = discovered_handler_generators[handler_generator.name].load()
             handler_registry.register(handler_generator.name, get_handler())
         except Exception:
             log.warning(
