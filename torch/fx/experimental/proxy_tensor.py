@@ -896,12 +896,11 @@ def proxy_call(
         if isinstance(args[0], List):
             # e.g., c10d::allreduce_ returns a list of tensors as the first element
             # in the output.
-            for i, a in enumerate(args[0]):
-                a.proxy = proxy_out[0][i]
+            for i, a in enumerate(args[0]):  # type: ignore[attr-defined]
+                set_proxy_slot(a, proxy_mode.tracer, proxy_out[0][i])
         else:
             assert isinstance(args[0], Tensor), type(args[0])
-            # Adding an undefined attribute to Tensor?
-            args[0].proxy = proxy_out  # type: ignore[attr-defined]
+            set_proxy_slot(args[0], proxy_mode.tracer, proxy_out)  # type: ignore[attr-defined]
 
     with _enable_thunkify(proxy_mode.tracer):
         out = func(*args, **kwargs)
