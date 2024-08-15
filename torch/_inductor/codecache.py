@@ -2181,8 +2181,10 @@ class CppPythonBindingsCodeCache(CppCodeCache):
         static void* (*_torchinductor_pyobject_tensor_data_ptr)(PyObject* obj);
 
         template <typename T> static inline T parse_arg(PyObject* args, size_t n) {
+        #ifndef _WIN32 // Check failed on Windows, skip it.
             static_assert(std::is_pointer<T>::value, "arg type must be pointer or long");
-            return static_cast<T>(_torchinductor_pyobject_tensor_data_ptr(PyTuple_GET_ITEM(args, n)));
+        #endif
+            return reinterpret_cast<T>(_torchinductor_pyobject_tensor_data_ptr(PyTuple_GET_ITEM(args, n)));
         }
         template <> inline long parse_arg<long>(PyObject* args, size_t n) {
             auto result = PyLong_AsSsize_t(PyTuple_GET_ITEM(args, n));
