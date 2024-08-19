@@ -10336,7 +10336,7 @@ ShapeEnv not equal: field values don't match:
             msg="Encountered an unexpected fallback to 'aten pow' in dynamo compiled code",
         )
 
-    def test_graph_break_compilation_metrics(self):
+    def test_graph_break_compilation_metrics_inner(self):
         def fn(x):
             x.cos()
             torch._dynamo.graph_break()
