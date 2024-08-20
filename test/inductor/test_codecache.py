@@ -800,9 +800,6 @@ class TestAutotuneCache(TestCase):
     @config.patch({"max_autotune": True})
     @parametrize("fbcode", (False,) + (True,) * config.is_fbcode())
     def test_autotune_cache(self, fbcode: bool):
-        if not fbcode:
-            self.skipTest("Redis for autotune is currently broken")
-
         class Model(torch.nn.Module):
             def forward(self, x, y, a, b):
                 return x + y, a + b

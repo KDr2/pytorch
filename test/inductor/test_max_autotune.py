@@ -723,9 +723,6 @@ class TestMaxAutotuneRemoteCache(TestCase):
     def test_max_autotune_remote_caching(self, dynamic: bool):
         from unittest.mock import patch
 
-        if not config.is_fbcode():
-            self.skipTest("Redis for autotune is currently broken")
-
         def mm(a, b):
             a = torch.sin(a)
             return a @ b
