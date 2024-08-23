@@ -11417,7 +11417,7 @@ foreach_reduce_op_db: List[ForeachFuncInfo] = [
                 "TestForeach",
                 "test_foreach_reduce_large_input",
                 device_type="cuda",
-                dtypes=integral_types_and(torch.bool) + complex_types(),
+                dtypes=integral_types_and(torch.bool),
             ),
         ),
     ),
