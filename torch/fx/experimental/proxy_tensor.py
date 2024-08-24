@@ -78,6 +78,7 @@ from .sym_node import SymNode
 
 if TYPE_CHECKING:
     import types
+    from collections.abc import MutableMapping
 
     import sympy
 
@@ -201,9 +202,11 @@ def set_proxy_slot(
     if isinstance(obj, Tensor):
         # We DO want to clobber proxies whenever we run an inplace operation
         # on a tensor, and it affects the metadata on the proxy.
+        assert isinstance(proxy, _ProxyTensor)
         tracer.tensor_tracker[obj] = proxy
     elif isinstance(obj, (_AnyScriptObject)):
         # We DO want to clobber proxies, with a similar rationale as for tensors.
+        assert isinstance(proxy, Proxy)
         tracer.script_object_tracker[obj] = proxy
     else:
         # NB: Never clobber pre-existing proxy.  Although the proxies
@@ -991,11 +994,13 @@ class PythonKeyTracer(Tracer):
 
     def __init__(self) -> None:
         super().__init__(autowrap_modules=())  # type: ignore[arg-type]
-        self.tensor_tracker = WeakTensorKeyDictionary()
+        self.tensor_tracker: MutableMapping[
+            Tensor, _ProxyTensor
+        ] = WeakTensorKeyDictionary()
         self.symnode_tracker = _SymNodeDict()
-        self.script_object_tracker = WeakIdKeyDictionary(
-            dict=None, ref_type=_WeakHashRef
-        )
+        self.script_object_tracker: MutableMapping[
+            _AnyScriptObjectType, Proxy
+        ] = WeakIdKeyDictionary(dict=None, ref_type=_WeakHashRef)
         self.sympy_expr_tracker: Dict[sympy.Symbol, object] = dict()
 
         # Stores the torch function that was called during tracing
@@ -1363,9 +1368,9 @@ class ProxyTorchDispatchMode(TorchDispatchMode):
 
 
 class _GraphAppendingTracerEx(fx.proxy.GraphAppendingTracer):
-    script_object_tracker: WeakKeyDictionary
+    script_object_tracker: MutableMapping[_AnyScriptObjectType, Proxy]
     symnode_tracker: WeakKeyDictionary
-    tensor_tracker: WeakTensorKeyDictionary
+    tensor_tracker: MutableMapping[Tensor, _ProxyTensor]
     sympy_expr_tracker: Dict[sympy.Symbol, object]
     torch_fn_metadata: Optional[OpOverload]
     torch_fn_counts: Dict[OpOverload, int]
