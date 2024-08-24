@@ -3,9 +3,10 @@ import enum
 import functools
 import pprint
 import re
+import sys
 import unittest
 import warnings
-import sys
+
 import functorch.experimental.control_flow as control_flow
 import torch
 import torch._dynamo.config as config
@@ -35,6 +36,7 @@ from torch.testing._internal.logging_utils import LoggingTestCase, make_logging_
 requires_cuda = unittest.skipUnless(HAS_CUDA, "requires cuda")
 
 _IS_WINDOWS = sys.platform == "win32"
+
 
 def check_dynamic_shape_capture():
     # This also mirrors config from `test/dynamo/test_dynamic_shapes.py:make_dynamic_cls`
