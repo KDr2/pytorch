@@ -3673,9 +3673,7 @@ class GraphModule(torch.nn.Module):
 
         actual = normalize_gm(wrapped_gm.print_readable(print_output=False))
         if torch._dynamo.config.inline_inbuilt_nn_modules:
-            self.assertExpectedInline(
-                actual,
-                """\
+            expected = """\
 class GraphModule(torch.nn.Module):
     def forward(self, L_params_l1_weight_: "f32[1, 1]", L_params_l1_bias_: "f32[1]", L_buffers_buffer_: "f32[1]", L_inputs_: "f32[1, 1]"):
         l_params_l1_weight_ = L_params_l1_weight_
@@ -3684,9 +3682,15 @@ class GraphModule(torch.nn.Module):
         l_inputs_ = L_inputs_
 
         linear: "f32[1, 1]" = torch._C._nn.linear(l_inputs_, l_params_l1_weight_, l_params_l1_bias_);  l_inputs_ = l_params_l1_weight_ = l_params_l1_bias_ = None
+
         add: "f32[1, 1]" = linear + l_buffers_buffer_;  linear = l_buffers_buffer_ = None
         return (add,)
-""",
+"""
+            # print(actual)
+            # print(expected)
+            self.assertExpectedInline(
+                actual,
+                expected,
             )
         else:
             self.assertExpectedInline(
