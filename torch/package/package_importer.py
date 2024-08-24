@@ -58,6 +58,16 @@ IMPLICIT_IMPORT_ALLOWLIST: Iterable[str] = [
     "builtins",
 ]
 
+# Compatibility name mapping to facilitate upgrade of external modules.
+# The primary motivation is to enable Numpy upgrade that many modules
+# implicitly depend on. The latest release of Numpy removed `numpy.str`,
+# `numpy.bool` that many pickled modules depend on.
+EXTERN_IMPORT_COMPAT_NAME_MAPPING: Dict[str, Dict[str, Any]] = {
+    "numpy": {
+        "str": str,
+        "bool": bool,
+    },
+}
 
 class PackageImporter(Importer):
     """Importers allow you to load code written to packages by :class:`PackageExporter`.
@@ -410,6 +420,11 @@ class PackageImporter(Importer):
             cur = cur.children[atom]
             if isinstance(cur, _ExternNode):
                 module = self.modules[name] = importlib.import_module(name)
+
+                if compat_mapping := EXTERN_IMPORT_COMPAT_NAME_MAPPING.get(name):
+                    for old_name, new_name in compat_mapping.items():
+                        module.__dict__.setdefault(old_name, new_name)
+
                 return module
         return self._make_module(name, cur.source_file, isinstance(cur, _PackageNode), parent)  # type: ignore[attr-defined]
 
