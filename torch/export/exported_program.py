@@ -176,6 +176,13 @@ def _override_composite_implicit_decomp(ops_to_preserve, decomp_table):
         # TODO (tmanlaibaatar) make this utility function and share it with functional_tensor
         # decomp part. (https://github.com/pytorch/pytorch/issues/129431)
         def assert_valid_to_preserve(op_overload):
+            if op_overload == torch.ops.aten.to.dtype_layout:
+                # This op is not functional, so technically it is not valid to preserve.
+                # However if we do not preserve it, it can get optimized away as part of
+                # its normal decomposition. So we preserve it here, and later replace it
+                # with aten._to_copy in FunctionalTensorMode.__torch_dispatch__.
+                return True
+
             if op_overload in FunctionalTensor.maybe_aliasing_or_mutating_ops:
                 raise RuntimeError(
                     f"We can't detect {op_overload} as a functional op statically, so we can't preserve it"
@@ -413,7 +420,11 @@ def _decompose_and_get_gm_with_new_signature_constants(
                                     entry
                                 ]
 
-        with fake_mode:
+        with fake_mode, _override_composite_implicit_decomp(
+            # preserve understanding it is not functional, replace with aten._to_copy later
+            (torch.ops.aten.to.dtype_layout,),
+            {},
+        ):
             fake_args_unwrapped = pytree.tree_unflatten(fake_args, mod._in_spec)
             aten_export_artifact = _export_to_aten_ir(
                 mod,

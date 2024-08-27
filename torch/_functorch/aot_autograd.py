@@ -626,6 +626,7 @@ def _create_aot_dispatcher_function(
                         keep_input_mutations=aot_config.keep_inference_input_mutations,
                         is_train=needs_autograd,
                         pre_dispatch=aot_config.pre_dispatch,
+                        is_export=aot_config.is_export,
                     )(*_dup_fake_script_obj(fake_flat_args))
 
                 req_subclass_dispatch = requires_subclass_dispatch(
@@ -668,6 +669,7 @@ def _create_aot_dispatcher_function(
                             keep_input_mutations=aot_config.keep_inference_input_mutations,
                             is_train=False,
                             pre_dispatch=aot_config.pre_dispatch,
+                            is_export=aot_config.is_export,
                             static_input_indices=aot_config.static_input_indices,
                         )(*fake_flat_args)
                     else:
