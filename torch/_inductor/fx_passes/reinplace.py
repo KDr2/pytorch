@@ -591,7 +591,11 @@ def reinplace_inplaceable_ops_core(graph: torch.fx.Graph) -> None:
             if isinstance(kernel, JITFunction):
                 kernel_name = kernel.fn.__name__
             elif isinstance(kernel, Autotuner):
-                kernel_name = kernel.base_fn.__name__
+                # Autotuner has different implementations for AMD and NV
+                if torch.version.hip is None:
+                    kernel_name = kernel.base_fn.__name__
+                else:
+                    kernel_name = kernel.fn.__name__
             else:
                 raise AssertionError("Unknown triton kernel type")
 
