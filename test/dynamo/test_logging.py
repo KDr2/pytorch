@@ -15,6 +15,7 @@ from torch.testing._internal.common_utils import (
     find_free_port,
     munge_exc,
     skipIfTorchDynamo,
+    skipIfWindows,
 )
 from torch.testing._internal.inductor_utils import HAS_CUDA
 from torch.testing._internal.logging_utils import (
@@ -665,6 +666,9 @@ print("arf")
             len([r for r in records if "return a + 1" in r.getMessage()]), 0
         )
 
+    @skipIfWindows(
+        msg="PermissionError: [Errno 13] Permission denied: 'C:\\Users\\Xuhan\\AppData\\Local\\Temp\\tmpllgub5sz'"
+    )
     def test_logs_out(self):
         import tempfile
 
