@@ -97,6 +97,8 @@ cached_backends: Dict[int, CompilerFn] = {}
 
 unset = Unset.token
 
+disable_warn: bool = False
+
 
 def _maybe_set_eval_frame(callback: DynamoCallback):
     # A wrapper on set_eval_frame that is guarded by a Justknob.
@@ -104,9 +106,12 @@ def _maybe_set_eval_frame(callback: DynamoCallback):
     from torch._C._dynamo.eval_frame import set_eval_frame
 
     if not justknobs_check("pytorch/compiler:enable_compiler_set_eval_frame"):
-        log.warning(
-            "Dynamo disabled by Justknob: enable_compiler_set_eval_frame, skipping set_eval_frame"
-        )
+        global disable_warn
+        if not disable_warn:
+            disable_warn = True
+            log.warning(
+                "Dynamo disabled by Justknob: enable_compiler_set_eval_frame, skipping set_eval_frame"
+            )
         return callback
     else:
         return set_eval_frame(callback)
