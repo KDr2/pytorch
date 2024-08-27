@@ -14,6 +14,7 @@ from torch.fx.experimental.optimization import (
 )
 from torch.fx.passes.graph_transform_observer import GraphTransformObserver
 from torch.fx.passes.shape_prop import ShapeProp
+from torch.fx.passes.fake_tensor_prop import FakeTensorProp
 from torch.nn import functional as F
 from torch.nn.utils.fusion import fuse_conv_bn_eval, fuse_conv_bn_weights
 
@@ -168,6 +169,8 @@ def pre_grad_passes(gm: torch.fx.GraphModule, example_inputs=None):
                 example_inputs,
                 "[Pre grad(predispatch IR)] Apply group_batch_fusion",
             )
+            # update node.meta after group batch fusion
+            FakeTensorProp(module=gm, mode=detect_fake_mode(example_inputs)).propagate(*example_inputs)
             pass_execution_and_save(
                 normalize_node_kwargs_pass,
                 gm,
