@@ -96,6 +96,7 @@ class TORCH_API ParamCommsDebugInfo : public c10::DebugInfoBase {
 
 #define RECORD_PARAM_COMMS(                                                    \
     seq,                                                                       \
+    isP2P,                                                                     \
     pgName,                                                                    \
     rank,                                                                      \
     collName,                                                                  \
@@ -122,6 +123,7 @@ class TORCH_API ParamCommsDebugInfo : public c10::DebugInfoBase {
   c10::DebugInfoGuard g(c10::DebugInfoKind::PARAM_COMMS_INFO, paramCommsInfo); \
   std::initializer_list<const c10::IValue> paramList = {                       \
       c10::IValue(seq),                                                        \
+      c10::IValue(isP2P),                                                      \
       pgName,                                                                  \
       rank,                                                                    \
       collName,                                                                \
