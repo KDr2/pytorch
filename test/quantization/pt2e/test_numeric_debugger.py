@@ -7,6 +7,7 @@ from typing import Dict
 
 import torch
 from torch._export import capture_pre_autograd_graph
+from torch.export import export_for_training
 from torch.ao.quantization import (
     compare_results,
     CUSTOM_KEY,
@@ -116,22 +117,18 @@ class TestNumericDebugger(TestCase):
 
         self.assertEqual(debug_handle_map, debug_handle_map_ref)
 
-    @unittest.skip("All nodes' meta are preserved but get_attr nodes' meta are wrong.")
     def test_re_export_preserve_handle(self):
         m = TestHelperModules.Conv2dThenConv1d()
         example_inputs = m.example_inputs()
-        m = capture_pre_autograd_graph(m, example_inputs)
+        m = export_for_training(m, example_inputs)
         generate_numeric_debug_handle(m)
 
         debug_handle_map_ref = _extract_debug_handles(m)
-        m_export = capture_pre_autograd_graph(m, example_inputs)
+        m_export = export_for_training(m.module(), example_inputs)
         debug_handle_map = _extract_debug_handles(m_export)
 
         self.assertEqual(debug_handle_map, debug_handle_map_ref)
 
-    @unittest.skip(
-        "All nodes' meta are preserved but the first arg for the first node seems to be dropped"
-    )
     def test_run_decompositions_preserve_handle(self):
         m = TestHelperModules.Conv2dThenConv1d()
         example_inputs = m.example_inputs()
