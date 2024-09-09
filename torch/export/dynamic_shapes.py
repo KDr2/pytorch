@@ -848,7 +848,7 @@ def _transform_shapes_for_default_dynamic(
     def transform_shapes(path, tensor, shape):
         def _marked_dynamic(tensor, i):
             # TODO(pianpwk): deprecate mark_dynamic() usage for export
-            return i in getattr(tensor, "_dynamo_dynamic_indices", set())
+            return False
 
         out: Union[None, List[Any], Dict[int, Any]] = None
         if isinstance(shape, dict):
