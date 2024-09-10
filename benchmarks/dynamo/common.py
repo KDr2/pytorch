@@ -1345,6 +1345,7 @@ class AOTInductorModelCache:
     def load(cls, model, example_inputs, device):
         import torch._inductor
         import torch.export._trace
+        from torch.export.dynamic_shapes import Dim, _tree_map_with_path
 
         key = weakref.ref(model)
         if key not in cls.cache:
@@ -1355,6 +1356,16 @@ class AOTInductorModelCache:
                 # see https://github.com/pytorch/pytorch/issues/113029
                 example_outputs = copy.deepcopy(model)(*example_args, **example_kwargs)
 
+            def _produce_dynamic_shapes(path, x):
+                # mark_dynamic() is ignored for export.
+                # use this to produce dynamic_shapes spec instead.
+                if not isinstance(x, torch.Tensor):
+                    return None
+                return {
+                    i: Dim.AUTO
+                    for i in getattr(x, "_dynamo_dynamic_indices", {})
+                }
+
             if pytree._is_namedtuple_instance(example_outputs):
                 typ = type(example_outputs)
                 pytree._register_namedtuple(
@@ -1364,10 +1375,14 @@ class AOTInductorModelCache:
             else:
                 _register_dataclass_output_as_pytree(example_outputs)
 
+            combined_args = tuple(example_args) + tuple(example_kwargs.values())
+            dynamic_shapes = _tree_map_with_path(_produce_dynamic_shapes, combined_args)
+
             gm = torch.export._trace._export(
                 model,
                 example_args,
                 example_kwargs,
+                dynamic_shapes=dynamic_shapes,
                 pre_dispatch=True,
                 strict=False,
             ).module()
