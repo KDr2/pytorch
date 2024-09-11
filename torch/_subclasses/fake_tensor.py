@@ -1898,25 +1898,41 @@ class FakeTensorMode(TorchDispatchMode):
 
         def maybe_propagate_real_tensors(fake_out: T) -> T:
             import sympy
+
             log.debug("maybe_propagate_real_tensors %s", func)
 
             def go(t: object, real_t: Tensor) -> None:
                 if isinstance(t, FakeTensor):
                     # NB: unconditionally overwrite
-                    log.debug("maybe_propagate_real_tensors %s -> %s", id(t), id(real_t))
+                    log.debug(
+                        "maybe_propagate_real_tensors %s -> %s", id(t), id(real_t)
+                    )
                     t.real_tensor = real_t
                     for s, real_s in zip(t.size(), real_t.size()):
-                        go(s, real_s)
+                        go(s, real_s)  # type: ignore[arg-type]
                     for s, real_s in zip(t.stride(), real_t.stride()):
-                        go(s, real_s)
-                    go(t.storage_offset(), real_t.storage_offset())
+                        go(s, real_s)  # type: ignore[arg-type]
+                    go(t.storage_offset(), real_t.storage_offset())  # type: ignore[arg-type]
                 elif isinstance(t, py_sym_types) and free_unbacked_symbols(t):
                     if isinstance(t.node.expr, sympy.Symbol):
                         assert self.shape_env is not None
                         self.shape_env.set_unbacked_var_to_val(t.node.expr, real_t)
 
             if real_out is not nil:
-                tree_map_(go, fake_out, real_out)
+                if (
+                    not isinstance(fake_out, Tensor)
+                    and not isinstance(real_out, Tensor)
+                    and type(fake_out) != type(real_out)
+                ):
+                    # This can happen when decompositions have different return types,
+                    # e.g. namedtuple vs. tuple vs. list
+                    tree_map_(
+                        go,
+                        tuple(pytree.tree_flatten(fake_out)),
+                        tuple(pytree.tree_flatten(real_out)),
+                    )
+                else:
+                    tree_map_(go, fake_out, real_out)
 
                 # If a data-dependent op is used in a decomposition, we
                 # may need to get the unbacked settings "early"
@@ -1948,7 +1964,9 @@ class FakeTensorMode(TorchDispatchMode):
                 )
             ):
                 with self:
-                    return maybe_propagate_real_tensors(decomposition_table[func](*args, **kwargs))
+                    return maybe_propagate_real_tensors(
+                        decomposition_table[func](*args, **kwargs)
+                    )
 
             with self:
                 # Decomposes CompositeImplicitAutograd ops
