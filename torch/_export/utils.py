@@ -139,7 +139,10 @@ def _collect_param_buffer_metadata(mod: torch.fx.GraphModule) -> Dict[str, Any]:
             for arg in node._input_nodes:
                 if arg.op == "get_attr":
                     for entry in torch.fx.proxy._COPY_META_FIELDS:
-                        if entry in meta:
+                        # skip the fields that were collected previously to prevent over-writing
+                        if (entry in meta) and (
+                            entry not in params_buffers_to_node_meta[arg.target]
+                        ):
                             params_buffers_to_node_meta[arg.target][entry] = meta[entry]
 
     return params_buffers_to_node_meta
