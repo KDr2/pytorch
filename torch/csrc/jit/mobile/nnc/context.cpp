@@ -133,14 +133,18 @@ Function::Function(const c10::IValue& value) {
   parameters_ = dict.at("parameters").toList();
 
   // input_specs_
+  C10_DIAGNOSTIC_PUSH_AND_IGNORED_IF_DEFINED("-Wdangling-reference")
   for (const auto& input_value :
        dict.at("input_specs").toTupleRef().elements()) {
+    C10_DIAGNOSTIC_POP()
     input_specs_.emplace_back(input_value);
   }
 
   // output_specs_
+  C10_DIAGNOSTIC_PUSH_AND_IGNORED_IF_DEFINED("-Wdangling-reference")
   for (const auto& output_value :
        dict.at("output_specs").toTupleRef().elements()) {
+    C10_DIAGNOSTIC_POP()
     output_specs_.emplace_back(output_value);
   }
 
@@ -148,8 +152,10 @@ Function::Function(const c10::IValue& value) {
   memory_plan_ = MemoryPlan(dict.at("memory_plan"));
 
   // symbolic shape positions
+  C10_DIAGNOSTIC_PUSH_AND_IGNORED_IF_DEFINED("-Wdangling-reference")
   for (const auto& sym_shape_pos :
        dict.at("sym_shape_pos").toTupleRef().elements()) {
+    C10_DIAGNOSTIC_POP()
     auto sym_shape_elements = sym_shape_pos.toTupleRef().elements();
     sym_shape_positions_.emplace_back(
         sym_shape_elements[0].toInt(), sym_shape_elements[1].toInt());
