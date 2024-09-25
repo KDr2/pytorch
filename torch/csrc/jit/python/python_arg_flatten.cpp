@@ -127,7 +127,7 @@ py::object cast_dict(std::vector<py::object> objs) {
     py::tuple obj = py::reinterpret_borrow<py::tuple>(objs[i]);
     sequence[obj[0]] = obj[1];
   }
-  return std::move(sequence);
+  return sequence;
 }
 
 py::object unflatten_rec(
