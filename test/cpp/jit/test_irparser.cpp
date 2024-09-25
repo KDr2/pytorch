@@ -352,8 +352,10 @@ graph():
   AT_ASSERT(n->kindOf(attr::value) == AttributeKind::ival);
   const auto& genericList = n->ival(attr::value).toList();
   std::vector<int> int_vals;
+  C10_DIAGNOSTIC_PUSH_AND_IGNORED_IF_DEFINED("-Wdangling-reference")
   // NOLINTNEXTLINE(performance-implicit-conversion-in-loop)
   for (const IValue& ival : genericList) {
+    C10_DIAGNOSTIC_POP()
     int_vals.push_back(ival.toInt());
   }
   AT_ASSERT(int_vals.size() == 3);
