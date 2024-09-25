@@ -141,7 +141,7 @@ void makeStreamsWaitOnOthers(
     const std::vector<c10::Stream>& consumers,
     const std::vector<c10::Stream>& producers) {
   for (const c10::Stream& producer : producers) {
-    const c10::Stream& consumer =
+    const c10::Stream consumer =
         getStreamForDevice(consumers, producer.device());
     c10::Event event(producer.device_type());
     event.record(producer);
