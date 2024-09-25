@@ -68,7 +68,9 @@ static std::list<std::pair<at::RecordFunctionHandle, int>> flattenOpIdList(
   std::list<std::pair<at::RecordFunctionHandle, int>> input_op_id_list;
   auto state_ptr = NVTXThreadLocalState::getTLS();
   TORCH_INTERNAL_ASSERT(state_ptr, "Expected profiler state set");
+  C10_DIAGNOSTIC_PUSH_AND_IGNORED_IF_DEFINED("-Wdangling-reference")
   for (const c10::IValue& input : list) {
+    C10_DIAGNOSTIC_POP()
     if (input.isTensor()) {
       const at::Tensor& tensor = input.toTensor();
       auto producer_op_pair = state_ptr->getOpIdFromInput(tensor);
