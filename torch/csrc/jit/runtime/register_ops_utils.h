@@ -328,8 +328,10 @@ template <typename T>
 void listContains(Stack& stack) {
   auto key = pop(stack).to<T>();
   auto list = pop(stack).to<c10::List<T>>();
+  C10_DIAGNOSTIC_PUSH_AND_IGNORED_IF_DEFINED("-Wdangling-reference")
   // NOLINTNEXTLINE(performance-implicit-conversion-in-loop)
   for (const T& item : list) {
+    C10_DIAGNOSTIC_POP()
     if (item == key) {
       push(stack, true);
       return;
