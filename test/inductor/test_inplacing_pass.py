@@ -33,6 +33,9 @@ device = GPU_TYPE
 def num_reinplacing_failures():
     return counters["inductor"]["possibly_missed_reinplacing_opportunities"]
 
+def miss_inplaced_bytes():
+    return counters["inductor"]["possibly_missed_reinplacing_bytes"]
+
 
 @torch.library.custom_op("_reinplacing::sin", mutates_args={"result"})
 def sin(x: torch.Tensor, result: torch.Tensor) -> None:
@@ -151,6 +154,7 @@ class TestReinplacingPassCorrectness(InductorTestCase):
         # we're artificially creating this example to test the counter.
         # IF THIS NUMBER GOES TO ZERO, PLEASE FIND ANOTHER EXAMPLE
         self.assertEqual(num_reinplacing_failures(), 1)
+        self.assertEqual(miss_inplaced_bytes(), 12)
 
     def test_counters_functionalize_v2(self):
         counters.clear()
@@ -378,6 +382,7 @@ class TestReinplacingPassCorrectness(InductorTestCase):
 
             # We can inplace the base y. no clones emitted.
             self.assertEqual(num_reinplacing_failures(), 0)
+            self.assertEqual(miss_inplaced_bytes(), 0)
             self.assertEqual(post_grad_graphs.count("aten.clone"), 0)
 
     def test_lists_old_functionalize(self):
@@ -404,6 +409,7 @@ class TestReinplacingPassCorrectness(InductorTestCase):
 
             # Can't reinplace on views yet (1 for the "entire list" failing to reinplace)
             self.assertEqual(num_reinplacing_failures(), 1)
+            self.assertEqual(miss_inplaced_bytes(), 8)
 
             # Both list inputs failed to reinplace. So we should have emitted clones for them.
             self.assertEqual(post_grad_graphs.count("aten.clone"), 2)
