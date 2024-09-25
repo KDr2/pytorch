@@ -250,8 +250,10 @@ TEST(ListTestIValueBasedList, whenIteratingWithForeach_thenFindsElements) {
   List<string> list({"3", "5"});
   bool found_first = false;
   bool found_second = false;
+  C10_DIAGNOSTIC_PUSH_AND_IGNORED_IF_DEFINED("-Wdangling-reference")
   // NOLINTNEXTLINE(performance-implicit-conversion-in-loop)
   for (const string& elem : list) {
+    C10_DIAGNOSTIC_POP()
     if (elem == "3") {
       EXPECT_FALSE(found_first);
       found_first = true;
