@@ -283,7 +283,7 @@ void SourceImporterImpl::importNamedType(
   if (!class_def.superclass().present()) {
     return importClass(qualified_name, class_def, /*is_module=*/false);
   }
-  const auto& superclass_name = Var(class_def.superclass().get()).name().name();
+  const auto superclass_name = Var(class_def.superclass().get()).name().name();
   if (superclass_name == "Module") {
     importClass(qualified_name, class_def, /*is_module=*/true);
   } else if (superclass_name == "NamedTuple") {
