@@ -26,7 +26,9 @@ IValue deepCopy(const IValue& self) {
     auto source = self.toList();
     auto newList = c10::impl::GenericList(source.elementType());
     newList.reserve(source.size());
+    C10_DIAGNOSTIC_PUSH_AND_IGNORED_IF_DEFINED("-Wdangling-reference")
     for (const IValue& value : source) {
+      C10_DIAGNOSTIC_POP()
       newList.push_back(deepCopy(value));
     }
     return newList;
