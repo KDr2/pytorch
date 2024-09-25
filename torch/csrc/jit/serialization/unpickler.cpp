@@ -142,7 +142,9 @@ void restoreAccurateTypeTags(const IValue& root, const TypePtr& type_tag) {
         auto elem_type = w.type->containedType(0);
         auto lst = w.value.toList();
         lst.unsafeSetElementType(elem_type);
+        C10_DIAGNOSTIC_PUSH_AND_IGNORED_IF_DEFINED("-Wdangling-reference")
         for (const IValue& item : lst) {
+          C10_DIAGNOSTIC_POP()
           Work elem = {elem_type, item};
           to_process.emplace_back(std::move(elem));
         }
