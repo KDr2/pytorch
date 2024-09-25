@@ -163,7 +163,9 @@ std::string stacksToStr(
 static std::vector<std::vector<int64_t>> flattenList(
     const c10::List<c10::IValue>& list) {
   std::vector<std::vector<int64_t>> tensor_dims;
+  C10_DIAGNOSTIC_PUSH_AND_IGNORED_IF_DEFINED("-Wdangling-reference")
   for (const c10::IValue& input : list) {
+    C10_DIAGNOSTIC_POP()
     if (input.isTensor()) {
       const at::Tensor& tensor = input.toTensor();
       if (tensor.defined()) {
