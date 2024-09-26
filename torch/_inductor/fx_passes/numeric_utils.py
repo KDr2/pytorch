@@ -129,6 +129,14 @@ def compare_gradients(model_base, model_control, precision):
     )
 
 
+def compare_buffers(model_base, model_control, precision):
+    return compare_dict_tensors(
+        dict(model_base.named_buffers()),
+        dict(model_control.named_buffers()),
+        precision,
+    )
+
+
 def run_model(
     model_base, model_control, model_input, num_iterations=10, precision=1e-4
 ):
@@ -145,6 +153,9 @@ def run_model(
 
         res = compare_forward_output(pred_base, pred_control, precision)
         logger.info("compare loss/predict. Numerical result : %s", res)
+
+        res = compare_buffers(model_base, model_control, precision)
+        logger.info("compare buffers. Numerical result : %s", res)
         # tensor may not have a grad_fn
         try:
             _ = pred_base[0].sum().backward(retain_graph=True)

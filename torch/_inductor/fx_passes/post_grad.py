@@ -1,5 +1,6 @@
 # mypy: allow-untyped-decorators
 # mypy: allow-untyped-defs
+import copy
 import functools
 import itertools
 import logging
@@ -70,7 +71,7 @@ pass_patterns = [
 ]
 
 
-def post_grad_passes(gm: torch.fx.GraphModule, is_inference: bool):
+def post_grad_passes(gm: torch.fx.GraphModule, is_inference: bool, example_inputs=None, fake_mode=None):
     """
     Passes that run on after grad.  This is called once on the forwards
     graph and once on the backwards graph.
@@ -97,6 +98,10 @@ def post_grad_passes(gm: torch.fx.GraphModule, is_inference: bool):
 
     if config.pattern_matcher:
         lazy_init()
+        if hasattr(
+            config, "fx_passes_numeric_check"
+        ) and config.fx_passes_numeric_check.get("post_grad", False):
+            gm_before_fx_passes = copy.deepcopy(gm)
         optimus_scuba_log["before_recompile_post_grad"] = upload_graph(gm.graph)
         group_batch_fusion_passes(gm.graph, pre_grad=False)
         remove_noop_ops(gm.graph)
@@ -150,6 +155,23 @@ def post_grad_passes(gm: torch.fx.GraphModule, is_inference: bool):
     gm.recompile()
     optimus_scuba_log["after_recompile_post_grad"] = upload_graph(gm.graph)
     gm.graph.lint()
+    if (
+        config.pattern_matcher
+        and hasattr(config, "fx_passes_numeric_check")
+        and config.fx_passes_numeric_check.get("post_grad", False)
+        and example_inputs is not None
+    ):
+        from .numeric_utils import numeric_check_if_enabled
+
+        gm_after_fx_passes = copy.deepcopy(gm)
+        with fake_mode:
+            numeric_check_if_enabled(
+                gm_before_fx_passes,  # type: ignore[possibly-undefined]
+                gm_after_fx_passes,
+                example_inputs,
+                config.fx_passes_numeric_check.get("num_iterations", 1),
+                config.fx_passes_numeric_check.get("precision", 1e-4),
+            )
 
 
 @init_once_fakemode

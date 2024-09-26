@@ -129,7 +129,7 @@ def pre_grad_passes(gm: torch.fx.GraphModule, example_inputs=None):
         if hasattr(
             config, "fx_passes_numeric_check"
         ) and config.fx_passes_numeric_check.get("pre_grad", False):
-            gm_before_fx_passes = gm.__copy__()
+            gm_before_fx_passes = copy.deepcopy(gm)
         # explicitly run with predispatch atenIR based passes
         if config.is_predispatch:
 
@@ -286,7 +286,7 @@ def pre_grad_passes(gm: torch.fx.GraphModule, example_inputs=None):
     ):
         from .numeric_utils import numeric_check_if_enabled
 
-        gm_after_fx_passes = gm.__copy__()
+        gm_after_fx_passes = copy.deepcopy(gm)
         numeric_check_if_enabled(
             gm_before_fx_passes,  # type: ignore[possibly-undefined]
             gm_after_fx_passes,
