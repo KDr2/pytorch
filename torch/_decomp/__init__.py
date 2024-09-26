@@ -14,7 +14,6 @@ from typing import (
     TypeVar,
     Union,
 )
-from typing_extensions import ParamSpec
 
 import torch
 import torch.library
@@ -22,6 +21,7 @@ from torch._ops import HigherOrderOperator, OperatorBase, OpOverload, OpOverload
 from torch._prims_common import CustomOutParamAnnotation
 from torch._subclasses.functional_tensor import FunctionalTensor
 from torch.utils import _pytree as pytree
+from typing_extensions import ParamSpec
 
 
 __all__ = [
@@ -40,9 +40,9 @@ _P = ParamSpec("_P")
 
 # TODO: relax key type here; torch registrations should be possible to; but
 # right now this type is accurate
-global_decomposition_table: Dict[
-    str, Dict[torch._ops.OperatorBase, Callable]
-] = defaultdict(dict)
+global_decomposition_table: Dict[str, Dict[torch._ops.OperatorBase, Callable]] = (
+    defaultdict(dict)
+)
 
 decomposition_table = global_decomposition_table["post_autograd"]
 pre_autograd_decomposition_table = global_decomposition_table["pre_autograd"]
@@ -275,6 +275,9 @@ def _check_valid_to_preserve(op_overload):
     if op_overload in FunctionalTensor.metadata_fns:
         return False
 
+    if not hasattr(op_overload, "_schema"):
+        return False
+
     alias_info = len(
         [i for i in op_overload._schema.arguments if i.alias_info is not None]
     )
@@ -297,6 +300,10 @@ def _is_cia_op(op: "OpOverload") -> bool:
         )
         or torch._C.DispatchKey.CompositeImplicitAutograd in op.py_kernels
     )
+
+
+def _is_preservable_cia_op(op: "OperatorBase") -> bool:
+    return _check_valid_to_preserve(op) and _is_cia_op(op)
 
 
 @lru_cache(maxsize=1)
@@ -339,7 +346,7 @@ def _collect_all_valid_cia_ops() -> Set["OperatorBase"]:
         op_packet = getattr(torch.ops.aten, op)
         for overload in op_packet.overloads():
             op_overload = getattr(op_packet, overload)
-            if _check_valid_to_preserve(op_overload) and _is_cia_op(op_overload):
+            if _is_preservable_cia_op(op_overload):
                 cia_ops.add(op_overload)
     return cia_ops
 
