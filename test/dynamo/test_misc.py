@@ -11356,6 +11356,117 @@ fn
         self.assertEqual(expected, actual)
         self.assertGreater(po.call_count, 0)
 
+    def test_graph_output_count(self):
+        test_case_self = self
+
+        class AssertNumOutputBackend:
+            """
+            A backend that checks the number of output for compiled graph, and
+            return the graph as is.
+            """
+
+            def __init__(self, expected_num_output: int):
+                self.expected_num_output = expected_num_output
+
+            def __call__(self, gm: torch.fx.GraphModule, example_inputs):
+                outputs = gm(*example_inputs)
+                test_case_self.assertEqual(self.expected_num_output, len(outputs))
+                return gm
+
+        @torch.compile(backend=AssertNumOutputBackend(2))
+        def test_returning_nested_func_with_captured_tensor():
+            x = torch.rand(1)
+
+            def func():
+                return x + x
+
+            # Returning `func` forces dynamo to output `x` in the compiled graph, so
+            # that we can store it as `func`'s closure.
+            return func, func()
+
+        @torch.compile(backend=AssertNumOutputBackend(1))
+        def test_running_nested_func_with_captured_tensor():
+            x = torch.rand(1)
+
+            def func():
+                return x + x
+
+            # `x` is no longer needed after running the compiled graph, so we shouldn't
+            # return it.
+            return func()
+
+        @torch.compile(backend=AssertNumOutputBackend(2))
+        def test_returning_func_with_captured_func_and_tensor():
+            x = torch.rand(1)
+
+            def nested():
+                return x + x
+
+            def func():
+                return nested()
+
+            # Returning `func` forces dynamo to output `x` in the compiled graph, so
+            # that we can store it as `func`'s closure.
+            return func, func()
+
+        @torch.compile(backend=AssertNumOutputBackend(1))
+        def test_running_func_with_captured_func_and_tensor():
+            x = torch.rand(1)
+
+            def nested():
+                return x + x
+
+            def func():
+                return nested()
+
+            # `x` is no longer needed after running the compiled graph, so we shouldn't
+            # return it.
+            return func()
+
+        def test_escaping_closure_var_with_backward_hook():
+            @torch.compile(backend=AssertNumOutputBackend(2))
+            def fn(x):
+                temp = x * x
+                captured_var = temp + 1
+
+                # This is where `inner` escapes the lifetime of `fn`, so dynamo must
+                # generate proper bytecode to update `captured_var`.
+                x.register_hook(lambda _: captured_var)
+
+                return temp
+
+            ones = torch.ones(4, requires_grad=True)
+            fn(ones).sum().backward()
+
+        def test_escaping_closure_var_with_nonlocal_var():
+            nonlocal_fn = None
+
+            @torch.compile(backend=AssertNumOutputBackend(2))
+            def fn(x):
+                temp = x * x
+                captured_var = x + 1
+
+                def inner():
+                    return captured_var
+
+                # This is where `inner` escapes the lifetime of `fn`, so dynamo must
+                # generate proper bytecode to update `captured_var`.
+                nonlocal nonlocal_fn
+                nonlocal_fn = inner
+
+                return temp
+
+            ones = torch.ones(4, requires_grad=True)
+            fn(ones)
+            nonlocal_fn()
+
+        test_returning_nested_func_with_captured_tensor()
+        test_running_nested_func_with_captured_tensor()
+        test_returning_func_with_captured_func_and_tensor()
+        test_running_func_with_captured_func_and_tensor()
+        test_escaping_closure_var_with_backward_hook()
+        test_escaping_closure_var_with_nonlocal_var()
+
 
 class TestTracer(JitTestCase):
     def test_jit_save(self):
