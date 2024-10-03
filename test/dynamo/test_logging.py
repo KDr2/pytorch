@@ -746,6 +746,41 @@ fn(torch.randn(5))
                     empty_line_normalizer(stderr.decode("utf-8")),
                 )
 
+    @make_settings_test("torch._dynamo.eval_frame")
+    def test_log_traced_frames(self, records):
+        # Test program
+        @torch.compile()
+        def foo():
+            x = torch.ones([10])
+
+            def bar():
+                y = x + x
+                torch._dynamo.graph_break()
+                z = y * x
+                return z
+
+            return bar(), bar
+
+        foo()
+
+        # `_log_traced_frames` is registered as an atexit callback, so we invoke
+        # it explicitly for testing.
+        torch._dynamo.eval_frame._log_traced_frames()
+
+        # Prepare expected strings.
+        record = self.getRecord(records, "TorchDynamo attempted to trace")
+        lines = record.getMessage().split("\n")
+        filename = os.path.basename(__file__)
+
+        # Check
+        self.assertEqual(len(lines), 4)
+        self.assertEqual(
+            lines[0], "TorchDynamo attempted to trace the following frames: ["
+        )
+        self.assertTrue(re.match(f"  \\* foo .*{filename}:.*", lines[1]))
+        self.assertTrue(re.match(f"  \\* bar .*{filename}:.*", lines[2]))
+        self.assertEqual(lines[3], "]")
+
 
 # single record tests
 exclusions = {
