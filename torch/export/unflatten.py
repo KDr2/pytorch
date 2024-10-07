@@ -767,7 +767,7 @@ class _ModuleFrame:
         self.module_call_graph = module_call_graph
         self.verbose = False
 
-        self.fqn = self.module_stack[-1]
+        self.fqn, _num_calls = self.module_stack[-1]
         if module is not None:
             self.module = module
         else:
@@ -1097,7 +1097,7 @@ class _ModuleFrame:
                 node_module_stack = self.module_stack
             else:
                 node_module_stack = [
-                    path for path, ty in node.meta["nn_module_stack"].values()
+                    (path, n) for path, ty, n in node.meta["nn_module_stack"].values()
                 ]
 
             if node_module_stack[: len(self.module_stack)] != self.module_stack:
@@ -1159,7 +1159,7 @@ def _outline_submodules(orig_graph: torch.fx.Graph, root_module: UnflattenedModu
         seen_nodes,
         seen_modules,
         None,
-        [""],
+        [("", 0)],
         "",
         {
             entry.fqn: entry.signature
