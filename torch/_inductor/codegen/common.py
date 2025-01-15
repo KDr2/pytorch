@@ -13,6 +13,7 @@ import re
 from enum import auto, Enum
 from itertools import chain
 from typing import Any, Callable, ClassVar, NamedTuple, Optional, TYPE_CHECKING, Union
+from typing_extensions import TypeAlias
 
 import sympy
 
@@ -195,6 +196,9 @@ class SizeArg:
     @property
     def alias_of(self) -> Optional[str]:
         return None
+
+
+_SchedulingFactory: TypeAlias = Callable[..., "BaseScheduling"]
 
 
 @dataclasses.dataclass
