@@ -189,6 +189,7 @@ def while_loop(cond_fn, body_fn, carried_inputs):
 
 @while_loop_op.py_impl(DispatchKey.CompositeExplicitAutograd)
 def while_loop_dense(cond_fn, body_fn, carried_inputs, additional_inputs):
+    print("while_loop_dense")
     carried_vals = carried_inputs
 
     def _validate_cond_output(pred):
@@ -223,7 +224,8 @@ def while_loop_dense(cond_fn, body_fn, carried_inputs, additional_inputs):
 
 # WAR for https://github.com/pytorch/pytorch/issues/140322
 @while_loop_op.py_impl(CUDAGraphCaptureControlFlowOpDispatchMode)
-def cond_op_cudagraph(mode, cond_fn, body_fn, carried_inputs, additional_inputs):
+def while_loop_cudagraph(mode, cond_fn, body_fn, carried_inputs, additional_inputs):
+    print("while_loop_cudagraph")
     assert torch.cuda.is_available() and torch.cuda.is_current_stream_capturing()
     # Re-enter this mode because addition torch.cond() and
     # torch.while_loop() calls may be nested inside cond_fn or body_fn
@@ -234,6 +236,7 @@ def cond_op_cudagraph(mode, cond_fn, body_fn, carried_inputs, additional_inputs)
 # WAR for https://github.com/pytorch/pytorch/issues/140322
 @while_loop_op.py_impl(ControlFlowOpWarmupDispatchMode)
 def while_loop_warmup(mode, cond_fn, body_fn, carried_inputs, additional_inputs):
+    print("while_loop_warmup")
     if torch.cuda.is_current_stream_capturing():
         # This is a call to torch.while_loop() nested within either
         # torch.while_loop() or another torch.cond() function.

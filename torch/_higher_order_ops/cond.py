@@ -385,6 +385,7 @@ def cond_op_dense(pred, true_fn, false_fn, operands):
 # WAR for https://github.com/pytorch/pytorch/issues/140322
 @cond_op.py_impl(CUDAGraphCaptureControlFlowOpDispatchMode)
 def cond_op_cudagraph(mode, pred, true_fn, false_fn, operands):
+    print("cond_op_cudagraph")
     assert torch.cuda.is_available() and torch.cuda.is_current_stream_capturing()
     # Re-enter this mode because addition torch.cond() and
     # torch.while_loop() calls may be nested inside true_fn or
@@ -396,6 +397,7 @@ def cond_op_cudagraph(mode, pred, true_fn, false_fn, operands):
 # WAR for https://github.com/pytorch/pytorch/issues/140322
 @cond_op.py_impl(ControlFlowOpWarmupDispatchMode)
 def cond_op_warmup(mode, pred, true_fn, false_fn, operands):
+    print("cond_op_warmup")
     if torch.cuda.is_current_stream_capturing():
         # This is a call to torch.cond() nested within either
         # torch.while_loop() or another torch.cond() function.

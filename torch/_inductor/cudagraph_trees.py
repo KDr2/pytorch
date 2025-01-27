@@ -639,6 +639,7 @@ class CUDAWarmupNode:
         ), disable_conv_cache_emptying(), clear_cublas_manager(), _use_cuda_memory_pool_manager(
             self.device_index, self.cuda_graphs_pool, self.stream
         ), ControlFlowOpWarmupDispatchMode(), get_history_recording():
+            print("GALVEZ:eager")
             out = self.wrapped_function.model(new_inputs)
 
         # We need to know which outputs are allocated within the cudagraph pool
@@ -1214,7 +1215,22 @@ class CUDAGraphNode:
             pool=self.cuda_graphs_pool,
             capture_error_mode="thread_local",
         ), CUDAGraphCaptureControlFlowOpDispatchMode(), get_history_recording():
+            def profile_calls(frame, event, arg):
+                if event == 'call':  # Triggered when a function is called
+                    func_name = frame.f_code.co_name
+                    filename = frame.f_code.co_filename  # File where the function is defined
+                    func_line_no = frame.f_code.co_firstlineno  # Line number where the function is defined
+                    print(f"Function '{func_name}' defined in {filename} at line {func_line_no} is called.")
+                return profile_calls
+
+            sys.setprofile(profile_calls)
+
+            # import ipdb; ipdb.set_trace()
+            
+
             static_outputs = model(inputs)
+            sys.setprofile(None)
+        print("GALVEZ:stream capture done")
 
         # running model should reclaim memory
         assert len(inputs) == 0

@@ -101,6 +101,9 @@ class Interpreter:
         self.garbage_collect_values = garbage_collect_values
         self.extra_traceback = True
 
+        print("GALVEZ:, graph=", self.graph, "\nmodule=", self.module, "\nsubmodules=", self.submodules)
+        import traceback; traceback.print_stack()
+
         if self.garbage_collect_values:
             # Run through reverse nodes and record the first instance of a use
             # of a given node. This represents the *last* use of the node in the
@@ -227,6 +230,7 @@ class Interpreter:
         Returns:
             Any: The result of executing ``n``
         """
+        # print("GALVEZ:, n.op=", n.op, self.module, self.submodules, self.graph)
         with self._set_current_node(n):
             args, kwargs = self.fetch_args_kwargs_from_env(n)
             assert isinstance(args, tuple)
