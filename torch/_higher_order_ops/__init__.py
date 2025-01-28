@@ -1,3 +1,4 @@
+from torch._higher_order_ops.aoti_call_delegate import aoti_call_delegate
 from torch._higher_order_ops.cond import cond
 from torch._higher_order_ops.flex_attention import (
     flex_attention,
@@ -22,4 +23,5 @@ __all__ = [
     "PrimHOPBase",
     "foreach_map",
     "_foreach_map",
+    "aoti_call_delegate",
 ]
