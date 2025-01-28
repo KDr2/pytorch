@@ -67,6 +67,7 @@ def all_gather_copy_in_meta(
 @torch.library.impl(lib, "all_gather_copy_in", "CUDA")
 @torch.library.impl(lib, "all_gather_copy_in", "XPU")
 @torch.library.impl(lib, "all_gather_copy_in", "CPU")
+@torch.library.impl(lib, "all_gather_copy_in", "MTIA")
 def all_gather_copy_in_cuda(
     all_gather_inputs: list[torch.Tensor],
     inp_split_sizes: list[int],
@@ -97,6 +98,7 @@ lib.define(
 @torch.library.impl(lib, "split_with_sizes_copy", "CUDA")
 @torch.library.impl(lib, "split_with_sizes_copy", "XPU")
 @torch.library.impl(lib, "split_with_sizes_copy", "CPU")
+@torch.library.impl(lib, "split_with_sizes_copy", "MTIA")
 def split_with_sizes_copy(
     all_gather_output: torch.Tensor,
     all_gather_input_split_sizes: list[int],
@@ -117,6 +119,7 @@ lib.define(
 @torch.library.impl(lib, "chunk_cat", "CUDA")
 @torch.library.impl(lib, "chunk_cat", "XPU")
 @torch.library.impl(lib, "chunk_cat", "CPU")
+@torch.library.impl(lib, "chunk_cat", "MTIA")
 def chunk_cat(
     tensors: list[torch.Tensor],
     dim: int,
@@ -528,7 +531,10 @@ def _get_gradient_divide_factors(
 ) -> Union[tuple[None, None], tuple[float, float]]:
     # For fp32/bf16, we do not need to worry about overflow/underflow, so we
     # use NCCL's built-in division to avoid separate div kernels
-    if reduce_dtype in (torch.float32, torch.bfloat16):
+    if (
+        reduce_dtype in (torch.float32, torch.bfloat16)
+        and not torch.get_device_module() == torch.mtia
+    ):
         return None, None
     data_parallel_size = reduce_scatter_group.size()
     if all_reduce_group is not None:
