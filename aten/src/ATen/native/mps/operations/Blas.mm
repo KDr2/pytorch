@@ -10,6 +10,7 @@
 #include <ATen/ops/addmv_native.h>
 #include <ATen/ops/dot_native.h>
 #include <ATen/ops/mm.h>
+#include <ATen/ops/mul.h>
 #endif
 
 #ifdef __OBJC__
@@ -51,13 +52,15 @@ inline void dot_check(const Tensor& self, const Tensor& other) {
 } // namespace mps
 
 Tensor dot_mps(const Tensor& self, const Tensor& other) {
-  TORCH_CHECK(is_macos_13_or_newer(MacOSVersion::MACOS_VER_14_0_PLUS) || self.scalar_type() != ScalarType::Long,
-              "MPS: dot op doesn't support int64 input on MacOS13")
-
   using namespace mps;
   using CachedGraph = MPSBinaryCachedGraph;
 
   dot_check(self, other);
+
+  // (@nikitaved): MacOS13 does not support dot for int64, so we dispatch to mul + sum instead.
+  if (!is_macos_13_or_newer(MacOSVersion::MACOS_VER_14_0_PLUS) && self.scalar_type() == ScalarType::Long) {
+    return at::mul(self, other).sum();
+  }
 
   auto output = at::empty({}, self.scalar_type(), std::nullopt, kMPS, std::nullopt, std::nullopt);
 
