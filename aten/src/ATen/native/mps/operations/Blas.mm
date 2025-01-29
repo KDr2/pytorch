@@ -51,7 +51,7 @@ inline void dot_check(const Tensor& self, const Tensor& other) {
 } // namespace mps
 
 Tensor dot_mps(const Tensor& self, const Tensor& other) {
-  TORCH_CHECK(self.scalar_type() != ScalarType::Long, "MPS: dot op doesn't support int64 input")
+  TORCH_CHECK_TYPE(self.scalar_type() != ScalarType::Long, "MPS: dot op doesn't support int64 input")
 
   using namespace mps;
   using CachedGraph = MPSBinaryCachedGraph;
