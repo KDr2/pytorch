@@ -14,7 +14,6 @@ from collections import Counter
 from typing import (
     Any,
     Callable,
-    Iterator,
     no_type_check,
     Optional,
     TYPE_CHECKING,
@@ -73,6 +72,7 @@ from .simd_kernel_features import (
 
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from collections.abc import Iterable, Sequence
 
 

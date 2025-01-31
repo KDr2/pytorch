@@ -18,10 +18,10 @@ from typing import (
     get_origin,
     Literal,
     Optional,
-    Sequence,
     TypeVar,
     Union,
 )
+from collections.abc import Sequence
 
 import torch
 from torch._inductor.custom_graph_pass import CustomGraphPass

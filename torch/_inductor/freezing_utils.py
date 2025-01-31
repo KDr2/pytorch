@@ -1,6 +1,7 @@
 import contextlib
 import threading
-from typing import Any, Generator
+from typing import Any
+from collections.abc import Generator
 
 import torch
 
