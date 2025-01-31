@@ -12,6 +12,7 @@ import pickle
 import pstats
 import shutil
 import subprocess
+import traceback
 from collections.abc import Iterator
 from typing import Any, Callable, IO, Optional, Union
 from unittest.mock import patch
@@ -309,8 +310,17 @@ def enable_aot_logging() -> Iterator[None]:
         stack.close()
 
 
+# Used for provenance tracking
+# They are not stored in DebugContext because they are not set in
+# _inductor_triton_kernel_to_post_grad_node_info's Debug Context
+_inductor_post_to_pre_grad_nodes: dict[str, Any] = {}
+_pre_grad_graph_id: Optional[int] = None
+
+
 class DebugContext:
     _counter = itertools.count()
+
+    # Used for provenance tracking
     _inductor_triton_kernel_to_post_grad_node_info: dict[str, list[str]] = {}
 
     @staticmethod
@@ -551,12 +561,22 @@ class DebugFormatter:
 
     def log_inductor_triton_kernel_to_post_grad_node_info(
         self, filename: str = "inductor_triton_kernel_to_post_grad_nodes.json"
-    ) -> dict[str, list[str]]:
+    ) -> tuple[dict[str, list[str]], dict[str, Any]]:
+        debug_info = {}
         with self.fopen(filename, "w") as fd:
             log.info("Writing provenance tracing debugging info to %s", fd.name)
             debug_info = DebugContext._inductor_triton_kernel_to_post_grad_node_info
             json.dump(debug_info, fd)
-        return debug_info
+        node_mapping = {}
+        if _pre_grad_graph_id:
+            with self.fopen(
+                "inductor_provenance_tracking_node_mappings.json", "w"
+            ) as fd:
+                node_mapping = create_node_mapping(
+                    _pre_grad_graph_id, _inductor_post_to_pre_grad_nodes, debug_info
+                )
+                json.dump(node_mapping, fd)
+        return debug_info, node_mapping
 
     def log_autotuning_results(
         self,
@@ -654,6 +674,75 @@ class TensorMetadataHolder:
 
 
 save_args_cnt = itertools.count()
+
+
+def create_node_mapping(
+    pre_grad_graph_id: int,
+    post_to_pre_grad_nodes_json: dict[str, Any],
+    triton_kernel_to_post_grad_json: dict[str, Any],
+) -> dict[str, Any]:
+    """Create bidirectional mappings between:
+
+    - pre_grad graph nodes and post_grad graph code nodes, and vice versa
+    - triton kernel name and post_grad graph code nodes, and vice versa
+    """
+    try:
+        log.info("Creating node mappings for provenance tracking")
+        pre_to_post: dict[str, Any] = collections.defaultdict(OrderedSet)
+        post_to_pre: dict[str, Any] = collections.defaultdict(OrderedSet)
+
+        post_to_cpp_code: dict[str, Any] = collections.defaultdict(OrderedSet)
+        cpp_code_to_post: dict[str, Any] = collections.defaultdict(OrderedSet)
+
+        for outer_key, node_array in triton_kernel_to_post_grad_json.items():
+            for curr_node in node_array:
+                post_to_cpp_code[curr_node].add(outer_key)
+                cpp_code_to_post[outer_key].add(curr_node)
+
+        for outer_key, node_array in post_to_pre_grad_nodes_json.items():
+            for node in node_array:
+                # Check the current node first
+                if node.get("graph_id") == pre_grad_graph_id:
+                    pre_to_post[node["name"]].add(outer_key)
+                    post_to_pre[outer_key].add(node["name"])
+
+                # Check nested from_node array recursively
+                stack = [(n, outer_key) for n in node.get("from_node", [])]
+                while stack:
+                    current_node, parent_key = stack.pop()
+                    if current_node.get("graph_id") == pre_grad_graph_id:
+                        pre_to_post[current_node["name"]].add(parent_key)
+                        post_to_pre[parent_key].add(current_node["name"])
+                    stack.extend(
+                        (n, parent_key) for n in current_node.get("from_node", [])
+                    )
+
+        def convert_sets_to_lists(d: dict[str, Any]) -> None:
+            for key in d:
+                d[key] = list(d[key])
+            d = dict(d)
+
+        # convert to list because set is not JSON serializable
+        convert_sets_to_lists(pre_to_post)
+        convert_sets_to_lists(post_to_pre)
+        convert_sets_to_lists(post_to_cpp_code)
+        convert_sets_to_lists(cpp_code_to_post)
+        return {
+            "preToPost": pre_to_post,
+            "postToPre": post_to_pre,
+            "cppCodeToPost": cpp_code_to_post,
+            "postToCppCode": post_to_cpp_code,
+        }
+
+    except Exception as e:
+        log.error("Unexpected error in create_node_mapping: %s", str(e))
+        log.error("post_to_pre_grad_nodes_json:  %s", post_to_pre_grad_nodes_json)
+        log.error(
+            "triton_kernel_to_post_grad_json:  %s", triton_kernel_to_post_grad_json
+        )
+        log.error("pre_grad_graph_id:  %s", pre_grad_graph_id)
+        log.error(traceback.format_exc())
+        raise
 
 
 def save_args_for_compile_fx_inner(*args: Any, **kwargs: Any) -> None:
