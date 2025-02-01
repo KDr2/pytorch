@@ -373,7 +373,9 @@ def _recursive_joint_graph_passes(gm: GraphModule) -> None:
         joint_graph_passes(gm)
 
 
-def _recursive_post_grad_passes(gm: GraphModule, is_inference: bool = False) -> None:
+def _recursive_post_grad_passes(
+    gm: GraphModule, is_inference: bool = False, example_inputs: Sequence[InputType] = (), fake_mode=None
+) -> None:
     with dynamo_timed(
         "_recursive_post_grad_passes",
         log_pt2_compile_event=True,
@@ -381,8 +383,8 @@ def _recursive_post_grad_passes(gm: GraphModule, is_inference: bool = False) -> 
     ):
         for subgraph_name in _get_subgraph_names(gm):
             subgraph = getattr(gm, subgraph_name)
-            _recursive_post_grad_passes(subgraph, is_inference)
-        post_grad_passes(gm, is_inference)
+            _recursive_post_grad_passes(subgraph, is_inference, (), fake_mode)
+        post_grad_passes(gm, is_inference, example_inputs, fake_mode)
 
 
 def split_const_gm(
@@ -968,7 +970,12 @@ class _InProcessFxCompile(FxCompile):
                 # has some issues with memory in training
                 cuda_context = get_cuda_device_context(gm)
                 with cuda_context:
-                    _recursive_post_grad_passes(gm, is_inference=is_inference)
+                    _recursive_post_grad_passes(
+                        gm,
+                        is_inference=is_inference,
+                        example_inputs=example_inputs,
+                        fake_mode=fake_mode
+                    )
                 V.debug.fx_graph_transformed(gm, example_inputs)
                 post_grad_graphs_log.debug(
                     "%s",
