@@ -60,7 +60,37 @@ try:
         if not _version.hip:
             import pynvml  # type: ignore[import]
         else:
-            import amdsmi  # type: ignore[import]
+            import ctypes
+
+            _original_CDLL = ctypes.CDLL  # type: ignore[misc,assignment]
+
+            # In ROCm there are 2 copies of libamd_smi.so:
+            # - One at lib/libamd_smi.so
+            # - One at share/amd_smi/amdsmi/libamd_smi.so
+            #
+            # The amdsmi python module hardcodes loading the second one in share.
+            # This creates an ODR violation if the copy of libamd_smi.so from lib
+            # has been loaded previously.
+            #
+            # In order to avoid this violation we hook CDLL and try using the
+            # already loaded version of amdsmi, or any version in the processes
+            # rpath/LD_LIBRARY_PATH first, so that we only load a single copy
+            # of the .so.
+            def _hooked_CDLL(name, *args, **kwargs):
+                from pathlib import Path
+
+                if Path(name).name == "libamd_smi.so":
+                    try:
+                        return _original_CDLL("libamd_smi.so", *args, **kwargs)
+                    except OSError:
+                        pass
+                return _original_CDLL(name, *args, **kwargs)
+
+            try:
+                ctypes.CDLL = _hooked_CDLL
+                import amdsmi  # type: ignore[import]
+            finally:
+                ctypes.CDLL = _original_CDLL  # type: ignore[misc]
 
         _HAS_PYNVML = True
     except ModuleNotFoundError:
