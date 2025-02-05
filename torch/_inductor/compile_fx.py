@@ -513,7 +513,7 @@ def fake_tensor_prop(
     """
     # Ensure that decomps that support symbolic shapes are used
     with enable_python_dispatcher():
-        fake_mode = detect_fake_mode(example_inputs)
+        fake_mode = detect_fake_mode(example_inputs, gm)
         if not fake_mode:
             fake_mode = torch._subclasses.FakeTensorMode(allow_non_fake_inputs=True)
             FakeTensorProp(gm, mode=fake_mode).propagate(*example_inputs)
@@ -930,8 +930,7 @@ class _InProcessFxCompile(FxCompile):
             # TODO: Should we actually dump this?  It should be redundant with the aot
             # structured logs...
             # trace_structured("inductor_input_graph", payload_fn=lambda: gm.print_readable(print_output=False))
-
-            shape_env = shape_env_from_inputs(example_inputs)
+            shape_env = shape_env_from_inputs(example_inputs, gm)
 
             # Convert view to reshape in the graph. This is necessary primarily for
             # layout optimization. Do it unconditionally for uniformity.
@@ -2116,9 +2115,13 @@ def compile_fx(
 
         bw_compiler = SerializableAOTDispatchCompiler(OutputCode, bw_compiler)
 
-        fake_mode = detect_fake_mode(
-            example_inputs_
-        ) or torch._subclasses.FakeTensorMode(allow_non_fake_inputs=True)
+        if isinstance(model_, GraphModule):
+            fake_mode = detect_fake_mode(example_inputs_, model_)
+        else:
+            fake_mode = detect_fake_mode(
+                example_inputs_
+            ) or torch._subclasses.FakeTensorMode(allow_non_fake_inputs=True)
+
         tracing_context = (
             torch._guards.TracingContext.try_get()
             or torch._guards.TracingContext(fake_mode)

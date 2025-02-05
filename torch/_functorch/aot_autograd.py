@@ -1540,18 +1540,12 @@ def _aot_export_function(
     fake_mode = None
     if dynamic_shapes is None:
         # Try to infer `dynamic_shapes from inputs and graph nodes
-        fake_mode = detect_fake_mode(flat_args)
-        if (
-            fake_mode is None
-            and hasattr(func, "_orig_mod")
-            and isinstance(func._orig_mod, torch.fx.GraphModule)
+        if hasattr(func, "_orig_mod") and isinstance(
+            func._orig_mod, torch.fx.GraphModule
         ):
-            vals = [
-                node.meta["val"]
-                for node in func._orig_mod.graph.nodes
-                if "val" in node.meta
-            ]
-            fake_mode = detect_fake_mode(vals)
+            fake_mode = detect_fake_mode(flat_args, func._orig_mod)
+        else:
+            fake_mode = detect_fake_mode(flat_args)
         dynamic_shapes = fake_mode is not None and fake_mode.shape_env is not None
 
     # The export use case doesn't care about several bits of AOTConfig

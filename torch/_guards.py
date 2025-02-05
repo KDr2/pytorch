@@ -1017,7 +1017,9 @@ class ChainedSource(Source):
         return self.base.is_ephemeral()
 
 
-def detect_fake_mode(inputs: Any = None):
+def detect_fake_mode(
+    inputs: Any = None, gm: Optional[torch.fx.GraphModule] = None
+) -> Optional[torch._subclasses.fake_tensor.FakeTensorMode]:
     """
     Attempts to "detect" what the current fake mode is.  If there is one ambiently
     available from TracingContext, we preferentially use that.  Otherwise, we
@@ -1027,8 +1029,25 @@ def detect_fake_mode(inputs: Any = None):
         - Currently active fake mode on stack
         - Fake mode associated with passed in tensors (inputs does not
           have to be flattened)
+        - Fake mode associated with the nodes in the
+          passed in GraphModule. We check node.meta['val'] and node.meta["example_value"]
+          for potential fake modes associated with fake tensors.
+          Fake modes from `input` and `gm` (if both exist) should be the same.
     """
     from torch._subclasses.fake_tensor import FakeTensor, FakeTensorMode
+
+    if gm and not inputs:
+        assert isinstance(gm, torch.fx.GraphModule)
+        fake_tensors = [
+            value
+            for node in gm.graph.nodes
+            for key in ("val", "example_value")
+            if isinstance(
+                value := node.meta.get(key, None),
+                torch._subclasses.fake_tensor.FakeTensor,
+            )
+        ]
+        return detect_fake_mode(inputs + fake_tensors)
 
     fake_modes = []
 
