@@ -62,7 +62,11 @@ class TestSelectCat(torch.nn.Module):
         cat = torch.ops.aten.cat.default(
             [select, select_1, select_2, select_3, select_4, select_5], 1
         )
-        return cat
+        cat1 = torch.ops.aten.cat.default(
+            [select, select_1, select_2, select_3, select_4], 1
+        )
+        cat2 = torch.ops.aten.cat.default([select, select_2, select_4], 1)
+        return cat, cat1, cat2
 
 
 class TestSplitCatAten(TestCase):
@@ -136,7 +140,7 @@ class TestSplitCatAten(TestCase):
         ref = module(*inputs)
         res = traced(*inputs)
         self.compare_pred(module, traced, inputs)
-        self.assertEqual(counters["inductor"]["normalization_aten_pass"], 1)
+        self.assertEqual(counters["inductor"]["normalization_aten_pass"], 3)
         self.assertEqual(counters["inductor"]["select_cat_aten_pass"], 1)
         self.assertEqual(ref, res, rtol=1e-8, atol=1e-8)
         self.compare_parameters(module, traced, rtol=1e-8, atol=1e-8)
