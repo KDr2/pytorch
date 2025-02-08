@@ -1,4 +1,24 @@
 # mypy: allow-untyped-decorators
+
+"""
+This module implements TorchDynamo's core frame conversion functionality, transforming Python
+frames into FX graphs. It handles:
+
+- Frame analysis and bytecode transformation
+- Guard creation and management for dynamic behaviors
+- Cache management for recompilation
+- Error handling and fallback mechanisms
+
+Key classes:
+- ConvertFrame: Main entry point for frame conversion with error handling
+- ConvertFrameAssert: Implements core frame to graph conversion logic
+- Tracker: Tracks input/output code objects during conversion
+- CatchErrorsWrapper: Provides error handling and suppression logic
+
+The conversion process preserves program semantics while enabling optimizations
+through torch.compile() and related systems.
+"""
+
 from __future__ import annotations
 
 import collections
@@ -1177,7 +1197,7 @@ class ConvertFrame:
             torch._C._dynamo.eval_frame.CacheLimitHitFlag,
         ]
     ]:
-        print('in call')
+        print("in call")
         counters["frames"]["total"] += 1
         try:
             result = self._inner_convert(
@@ -1198,7 +1218,7 @@ class ConvertFrame:
             # to me (ezyang, Aug 2023) so I kept it, but maybe at some point
             # someone wanted these to also get suppressed.  If so, you'll
             # need to make these exceptions not get wrapped
-            print('in except')
+            print("in except")
 
             # We intentionally don't want to suppress error here.
             if isinstance(e, UncapturedHigherOrderOpError):
@@ -1233,7 +1253,7 @@ class ConvertFrame:
                             user_stack_trace,
                             exc_info=True,
                         )
-            print('at log')
+            print("at log")
             CompileEventLogger.increment_toplevel("num_graph_breaks")
 
             if not config.suppress_errors and not soft_fail:

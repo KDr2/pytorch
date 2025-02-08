@@ -119,7 +119,9 @@ class TestUtils(TestCase):
         # We should fallback to normal mode and increment the graph break counter thrice
         with mock.patch("torch._dynamo.utils.log_compilation_event") as log_event:
             try:
-                torch.compile(dynamo_error_fn, backend="inductor")(torch.ones(1000, 1000, requires_grad=True))
+                torch.compile(dynamo_error_fn, backend="inductor")(
+                    torch.ones(1000, 1000, requires_grad=True)
+                )
             except Exception:
                 pass
             compilation_events = [arg[0][0] for arg in log_event.call_args_list]

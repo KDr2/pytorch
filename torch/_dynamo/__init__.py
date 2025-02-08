@@ -1,3 +1,16 @@
+"""
+TorchDynamo is a Python-level JIT compiler designed to make unmodified PyTorch programs faster.
+It uses Python's Frame Evaluation API to dynamically modify Python bytecode right before it is executed.
+This allows it to seamlessly optimize PyTorch programs, including those using modern Python features.
+
+This module provides the main interface for TorchDynamo's functionality, including:
+- Various compilation backends and their registration
+- Optimization and export capabilities
+- Debugging and profiling utilities
+- Graph manipulation and control flow tools
+- Decorators for fine-grained control over compilation behavior
+"""
+
 import torch
 
 from . import convert_frame, eval_frame, resume_execution
