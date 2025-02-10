@@ -1,7 +1,7 @@
 #pragma once
 
 #include <ATen/Config.h>
-#if defined(__aarch64__) && AT_MKLDNN_ACL_ENABLED()
+#if AT_MKLDNN_ACL_ENABLED()
 
 #include <ATen/native/quantized/cpu/OnednnUtils.h>
 #include <arm_compute/core/Error.h>
@@ -13,6 +13,8 @@
 #include <arm_compute/runtime/NEON/functions/NEQuantizationLayer.h>
 #include <arm_compute/runtime/Tensor.h>
 #include <array>
+
+namespace acl_utils {
 
 using ACLDynamicQuantMatmulCacheKey = std::tuple<
     int64_t, // M
@@ -30,7 +32,7 @@ struct ACLDynamicQuantMatmul {
   arm_compute::Tensor src_s8_tensor;
   arm_compute::Tensor src_fp32_tensor;
   arm_compute::Tensor wei_tensor;
-  arm_compute::Tensor bia_tensor;
+  std::optional<arm_compute::Tensor> bia_tensor;
   arm_compute::Tensor dst_tensor;
   arm_compute::NEQuantizationLayer quant;
   std::shared_ptr<arm_compute::IMemoryManager> memory_manager{
@@ -41,12 +43,11 @@ struct ACLDynamicQuantMatmul {
   arm_compute::TensorInfo src_s8_tensor_info;
   arm_compute::TensorInfo src_fp32_tensor_info;
   arm_compute::TensorInfo wei_tensor_info;
-  arm_compute::TensorInfo bia_tensor_info;
+  std::optional<arm_compute::TensorInfo> bia_tensor_info;
   arm_compute::TensorInfo dst_tensor_info;
   arm_compute::GEMMInfo gemm_info;
   arm_compute::ActivationLayerInfo acl_relu_info{
       arm_compute::ActivationFunction::RELU};
-  bool with_bias{false};
 
   // key for use in the cache
   ACLDynamicQuantMatmulCacheKey key;
@@ -58,13 +59,15 @@ struct ACLDynamicQuantMatmul {
     // this will not free memory, it will just tell ACL that we're no longer
     // using the pointer
     wei_tensor.allocator()->free();
-    if (with_bias) {
-      bia_tensor.allocator()->free();
+    if (bia_tensor.has_value()) {
+      bia_tensor.value().allocator()->free();
     }
     // deallocate memory used for auxiliary tensors
     memory_manager->clear();
   }
 };
+
+} // namespace acl_utils
 
 struct PackedLinearWeightsACL : public PackedLinearWeightsOnednn {
   PackedLinearWeightsACL(
@@ -94,8 +97,8 @@ struct PackedLinearWeightsACL : public PackedLinearWeightsOnednn {
   at::Tensor apply_dynamic_relu(at::Tensor input, bool reduce_range = false)
       override;
 
-  std::shared_ptr<ACLDynamicQuantMatmul> get_acl_dynamic_quant_matmul(
-      const ACLDynamicQuantMatmulCacheKey& key) {
+  std::shared_ptr<acl_utils::ACLDynamicQuantMatmul> get_acl_dynamic_quant_matmul(
+      const acl_utils::ACLDynamicQuantMatmulCacheKey& key) {
     // We're only maintaining a 2 element LRU cache
     // hit first
     if (acl_dynamic_quant_cache[0] != nullptr &&
@@ -127,14 +130,15 @@ struct PackedLinearWeightsACL : public PackedLinearWeightsOnednn {
   // allow for a (configuration free) fast path for autoregressive
   // transformer-like models which usually involve 2 input tensor shapes; one
   // for the prefill phase and another for the autoregressive phase
-  std::array<std::shared_ptr<ACLDynamicQuantMatmul>, 2> acl_dynamic_quant_cache;
+  std::array<std::shared_ptr<acl_utils::ACLDynamicQuantMatmul>, 2>
+      acl_dynamic_quant_cache;
 
-  std::shared_ptr<ACLDynamicQuantMatmul> create_acl_dynamic_quant_matmul(
-      const ACLDynamicQuantMatmulCacheKey& key) {
-    int64_t m = std::get<M>(key);
-    bool fuse_relu = std::get<FUSE_RELU>(key);
-    auto acl_gemm = std::make_shared<ACLDynamicQuantMatmul>();
-    acl_gemm->with_bias = bias_.has_value();
+  std::shared_ptr<acl_utils::ACLDynamicQuantMatmul>
+  create_acl_dynamic_quant_matmul(
+      const acl_utils::ACLDynamicQuantMatmulCacheKey& key) {
+    int64_t m = std::get<acl_utils::M>(key);
+    bool fuse_relu = std::get<acl_utils::FUSE_RELU>(key);
+    auto acl_gemm = std::make_shared<acl_utils::ACLDynamicQuantMatmul>();
     acl_gemm->key = key;
     acl_gemm->src_fp32_tensor_info = arm_compute::TensorInfo(
         arm_compute::TensorShape(k_, m), arm_compute::Format::F32);
@@ -161,12 +165,16 @@ struct PackedLinearWeightsACL : public PackedLinearWeightsOnednn {
         arm_compute::QuantizationInfo(wei_scale_, wei_zero_point_, true));
     acl_gemm->wei_tensor_info.set_are_values_constant(true);
 
-    acl_gemm->bia_tensor_info = arm_compute::TensorInfo(
-        arm_compute::TensorShape(), 1, arm_compute::DataType::F32);
-    if (acl_gemm->with_bias) {
-      acl_gemm->bia_tensor_info.set_tensor_shape(
-          arm_compute::TensorShape(1, n_));
+    // True iff the linear layer has bias && all std::optional bias containers
+    // have a value
+    bool with_bias{false};
+    if (bias_.has_value()) {
+      acl_gemm->bia_tensor_info = arm_compute::TensorInfo(
+          arm_compute::TensorShape(1, n_), 1, arm_compute::DataType::F32);
+      acl_gemm->bia_tensor = arm_compute::Tensor();
+      with_bias = true;
     }
+
     acl_gemm->dst_tensor_info = arm_compute::TensorInfo(
         arm_compute::TensorShape(n_, m), arm_compute::Format::F32);
 
@@ -191,7 +199,7 @@ struct PackedLinearWeightsACL : public PackedLinearWeightsOnednn {
         arm_compute::NEGEMMLowpMatrixMultiplyCore::validate(
             &acl_gemm->src_s8_tensor_info,
             &acl_gemm->wei_tensor_info,
-            acl_gemm->with_bias ? &acl_gemm->bia_tensor_info : nullptr,
+            with_bias ? &acl_gemm->bia_tensor_info.value() : nullptr,
             &acl_gemm->dst_tensor_info,
             acl_gemm->gemm_info);
 
@@ -204,8 +212,9 @@ struct PackedLinearWeightsACL : public PackedLinearWeightsOnednn {
     acl_gemm->src_fp32_tensor.allocator()->init(acl_gemm->src_fp32_tensor_info);
     acl_gemm->src_s8_tensor.allocator()->init(acl_gemm->src_s8_tensor_info);
     acl_gemm->wei_tensor.allocator()->init(acl_gemm->wei_tensor_info);
-    if (acl_gemm->with_bias) {
-      acl_gemm->bia_tensor.allocator()->init(acl_gemm->bia_tensor_info);
+    if (with_bias) {
+      acl_gemm->bia_tensor.value().allocator()->init(
+          acl_gemm->bia_tensor_info.value());
     }
     acl_gemm->dst_tensor.allocator()->init(acl_gemm->dst_tensor_info);
 
@@ -215,8 +224,8 @@ struct PackedLinearWeightsACL : public PackedLinearWeightsOnednn {
     // give ACL access to weight and bias pointer
     acl_gemm->wei_tensor.allocator()->import_memory(
         (int8_t*)weight_.get()->get_data_handle());
-    if (bias_.has_value()) {
-      acl_gemm->bia_tensor.allocator()->import_memory(
+    if (with_bias) {
+      acl_gemm->bia_tensor.value().allocator()->import_memory(
           (float*)bias_.value().get_data_handle());
     }
 
@@ -227,7 +236,7 @@ struct PackedLinearWeightsACL : public PackedLinearWeightsOnednn {
     acl_gemm->gemm.configure(
         &acl_gemm->src_s8_tensor,
         &acl_gemm->wei_tensor,
-        acl_gemm->with_bias ? &acl_gemm->bia_tensor : nullptr,
+        with_bias ? &acl_gemm->bia_tensor.value() : nullptr,
         &acl_gemm->dst_tensor,
         acl_gemm->gemm_info);
 
@@ -248,4 +257,4 @@ struct PackedLinearWeightsACL : public PackedLinearWeightsOnednn {
   at::Tensor apply_dynamic_impl(at::Tensor input, bool reduce_range = false);
 };
 
-#endif // #if defined(__aarch64__) && AT_MKLDNN_ACL_ENABLED()
+#endif // AT_MKLDNN_ACL_ENABLED()

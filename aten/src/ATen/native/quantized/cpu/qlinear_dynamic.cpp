@@ -699,7 +699,7 @@ static at::Tensor linear_dynamic_fp16_with_onednn_weight(
   return dim == 2 ? output : output.reshape(output_size);
 }
 
-#if defined(__aarch64__) && AT_MKLDNN_ACL_ENABLED()
+#if AT_MKLDNN_ACL_ENABLED()
 
 template <bool ReluFused>
 at::Tensor PackedLinearWeightsACL::apply_dynamic_impl(
@@ -817,7 +817,7 @@ at::Tensor PackedLinearWeightsACL::apply_dynamic_relu(
   return apply_dynamic_impl</*ReluFused=*/true>(std::move(input), reduce_range);
 }
 
-#endif // #if defined(__aarch64__) && AT_MKLDNN_ACL_ENABLED()
+#endif // #if AT_MKLDNN_ACL_ENABLED()
 
 #endif // #if AT_MKLDNN_ENABLED()
 
