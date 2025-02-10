@@ -22,7 +22,7 @@ using ACLDynamicQuantMatmulCacheKey = std::tuple<
     int64_t // NUM_THREADS
     >;
 
-enum ACLDynamicQuantMatmulCacheKeyIndex {
+enum class ACLDynamicQuantMatmulCacheKeyIndex {
   M,
   FUSE_RELU,
   NUM_THREADS,
@@ -136,8 +136,10 @@ struct PackedLinearWeightsACL : public PackedLinearWeightsOnednn {
   std::shared_ptr<acl_utils::ACLDynamicQuantMatmul>
   create_acl_dynamic_quant_matmul(
       const acl_utils::ACLDynamicQuantMatmulCacheKey& key) {
-    int64_t m = std::get<acl_utils::M>(key);
-    bool fuse_relu = std::get<acl_utils::FUSE_RELU>(key);
+    int64_t m = std::get<static_cast<int>(
+        acl_utils::ACLDynamicQuantMatmulCacheKeyIndex::M)>(key);
+    bool fuse_relu = std::get<static_cast<int>(
+        acl_utils::ACLDynamicQuantMatmulCacheKeyIndex::FUSE_RELU)>(key);
     auto acl_gemm = std::make_shared<acl_utils::ACLDynamicQuantMatmul>();
     acl_gemm->key = key;
     acl_gemm->src_fp32_tensor_info = arm_compute::TensorInfo(
