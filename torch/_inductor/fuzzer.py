@@ -807,6 +807,7 @@ class ConfigFuzzer:
                 if (
                     field_name not in config
                     and not field_name.startswith("_")
+                    and not "TESTING_ONLY" in field_name
                     and random.random() < p
                 ):
                     value = self.sample(
