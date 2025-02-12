@@ -14,6 +14,7 @@ export USE_CUDA_STATIC_LINK=1
 export INSTALL_TEST=0 # dont install test binaries into site-packages
 export USE_CUPTI_SO=0
 export USE_CUSPARSELT=${USE_CUSPARSELT:-1} # Enable if not disabled by libtorch build
+export USE_CUFILE=${USE_CUFILE:-1}
 
 # Keep an array of cmake variables to add to
 if [[ -z "$CMAKE_ARGS" ]]; then
@@ -159,6 +160,16 @@ if [[ $CUDA_VERSION == 12* ]]; then
             "libnvrtc.so.12"
             "libnvrtc-builtins.so"
         )
+        if [[ $USE_CUFILE == 1 ]]; then
+            DEPS_LIST+=(
+                "/usr/local/cuda/lib64/libcufile.so.0"
+                "/usr/local/cuda/lib64/libcufile_rdma.so.1"
+            )
+            DEPS_SONAME+=(
+                "libcufile.so.0"
+                "libcufile_rdma.so.1"
+            )
+        fi
     else
         echo "Using nvidia libs from pypi."
         CUDA_RPATHS=(
@@ -175,6 +186,11 @@ if [[ $CUDA_VERSION == 12* ]]; then
             '$ORIGIN/../../nvidia/nccl/lib'
             '$ORIGIN/../../nvidia/nvtx/lib'
         )
+        if [[ $USE_CUFILE == 1 ]]; then
+            CUDA_RPATHS+=(
+                '$ORIGIN/../../nvidia/cufile/lib'
+            )
+        fi
         CUDA_RPATHS=$(IFS=: ; echo "${CUDA_RPATHS[*]}")
         export C_SO_RPATH=$CUDA_RPATHS':$ORIGIN:$ORIGIN/lib'
         export LIB_SO_RPATH=$CUDA_RPATHS':$ORIGIN'
