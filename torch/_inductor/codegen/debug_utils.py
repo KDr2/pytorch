@@ -267,7 +267,7 @@ class DebugPrinterManager:
                     ),
                 ):
                     V.graph.wrapper_code.writeline(
-                        f'printf("[  {launch_prefix} - {kernel_name} - {arg}: %ld  ]", {arg}); printf("\\\\n");'
+                        f'printf("[  {launch_prefix} - {kernel_name} - {arg}: %ld  ]\\n", {arg});'
                     )
                 else:
                     if arg_signatures is None and self.kernel_type == "cpp" or "extern":
