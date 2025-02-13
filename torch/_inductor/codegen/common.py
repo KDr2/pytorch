@@ -2246,6 +2246,10 @@ class KernelTemplate:
             choices.append(self.generate(**kwargs))
             return None
         except NotImplementedError as e:
+            log.info(
+                "Cannot Append Choice: %s",
+                stack_info=True if log.getEffectiveLevel() < logging.INFO else False,
+            )
             return e
 
     def generate(self, **kwargs: Any) -> ChoiceCaller:
