@@ -53,6 +53,7 @@ from torch._export.utils import (
     _rename_without_collisions,
     _special_op_to_preserve_cia,
     placeholder_naming_pass,
+    _enforce_placeholder_order_pass,
 )
 from torch._export.verifier import Verifier
 from torch._guards import detect_fake_mode
@@ -895,6 +896,8 @@ def _decompose_exported_program(
         gm,
         ep.range_constraints,
     )
+
+    _enforce_placeholder_order_pass(gm, new_graph_signature)
 
     exported_program = ExportedProgram(
         root=gm,
