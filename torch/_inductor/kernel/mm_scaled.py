@@ -508,6 +508,8 @@ def tuned_scaled_mm(
         mat_a, mat_b, layout=layout, out_dtype=out_dtype
     )
 
+    log.info("Tuned aten._scaled_mm.default: m=%s, n=%s, k=%s, layout=%s", m, n, k, layout)
+
     check_supported_striding(mat_a, mat_b)
 
     scale_a, scale_b = realize_inputs(scale_a, scale_b)

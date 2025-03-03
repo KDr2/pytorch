@@ -168,6 +168,8 @@ def tuned_bmm(mat1, mat2, *, layout=None):
 
     m, n, k, layout, mat1, mat2 = mm_args(mat1, mat2, layout=layout)
 
+    log.info("Tuned aten.bmm: m=%s, n=%s, k=%s, layout=%s", m, n, k, layout)
+
     # options to tune from
     choices = [aten_bmm.bind((mat1, mat2), layout)] if use_aten_gemm_kernels() else []
     if use_triton_template(layout):
