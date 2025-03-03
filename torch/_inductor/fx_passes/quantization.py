@@ -11,12 +11,27 @@ import torch
 from torch._dynamo.utils import counters
 from torch.fx.experimental.symbolic_shapes import has_free_symbols
 from torch.fx.node import map_arg
+from torch.fx.passes.shape_prop import TensorMetadata
 
 from ..lowering import lowerings as L, require_channels_last
-from ..pattern_matcher import Arg, CallFunction, filter_nodes, KeywordArg, ListOf, Match
+from ..pattern_matcher import (
+    Arg,
+    CallFunction,
+    CallFunctionVarArgs,
+    filter_nodes,
+    is_backward_pattern,
+    KeywordArg,
+    ListOf,
+    Match,
+    MULTIPLE,
+    Placeholder,
+    register_graph_pattern,
+)
 from ..utils import pad_listlike
 from .freezing_patterns import register_freezing_graph_pattern
+from .group_batch_fusion import is_node_meta_valid
 from .post_grad import register_lowering_pattern
+from .split_cat import construct_pattern_matcher_pass
 
 
 aten = torch.ops.aten
@@ -3590,3 +3605,100 @@ def quant_lift_up(graph_module: torch.fx.GraphModule):
 
     graph_module.graph.lint()
     graph_module.recompile()
+
+
+activation_quantization_aten_pass = construct_pattern_matcher_pass(
+    "activation_quantization_aten_pass"
+)
+@register_graph_pattern(
+    CallFunctionVarArgs(
+        [
+            torch.ops.aten.relu.default,
+            torch.ops.aten.tanh.default,
+            torch.ops.aten.sigmoid.default,
+            torch.ops.aten.gelu.default,
+        ],
+        users=MULTIPLE
+    ),
+    pass_dict=activation_quantization_aten_pass,
+    extra_check=is_backward_pattern(activation_quantization_aten_pass, False),
+)
+def quantize_activation_fw(match: Match, *args, **kwargs):
+    graph = match.graph
+    activation_nodes = match.nodes
+    quant_type = torch._inductor.config.post_grad_fusion_options[
+        "activation_quantization_aten_pass"
+    ].get("quant_type", torch.float8_e5m2)
+    for activation_node in activation_nodes:
+        # check if the activation node is the return node
+        users = list(activation_node.users.keys())
+        for user in users:
+            # check if the user is the return node
+            if user.op == "output":
+                if not is_node_meta_valid(activation_node):
+                    continue
+                # we need to insert a quantization node after it
+                with graph.inserting_after(activation_node):
+                    quant_activation_node = graph.call_function(
+                        torch.ops.prims.convert_element_type.default,
+                        args=(activation_node, quant_type)
+                    )
+                    quant_activation_node.meta.update(activation_node.meta)
+                    quant_activation_node.meta["val"] = quant_activation_node.meta["val"].to(quant_type)
+                    quant_activation_node.meta["tensor_meta"] = TensorMetadata(
+                        shape=quant_activation_node.meta["tensor_meta"].shape,
+                        dtype=quant_type,
+                        requires_grad=quant_activation_node.meta["tensor_meta"].requires_grad,
+                        stride=quant_activation_node.meta["tensor_meta"].stride,
+                        memory_format=quant_activation_node.meta["tensor_meta"].memory_format,
+                        is_quantized=quant_activation_node.meta["tensor_meta"].is_quantized,
+                        qparams=quant_activation_node.meta["tensor_meta"].qparams,
+                    )
+                    # only update the return node args, and remain all other users unchanged
+                    user_updated_args = tuple(
+                        quant_activation_node if node == activation_node else node for node in user.args[0]
+                    )
+                    user.update_arg(0, user_updated_args)
+                    if len(activation_node.users) == 0:
+                        graph.erase_node(activation_node)
+                counters["inductor"]["activation_quantization_aten_pass"] += 1
+                break
+
+
+@register_graph_pattern(
+    Placeholder(["tanh", "relu", "sigmoid", "gelu"], users=MULTIPLE),
+    pass_dict=activation_quantization_aten_pass,
+    extra_check=is_backward_pattern(activation_quantization_aten_pass, True),
+)
+def quantize_activation_bw(match: Match, *args, **kwargs):
+    graph = match.graph
+    inputs = match.nodes
+    quant_type = torch._inductor.config.post_grad_fusion_options[
+        "activation_quantization_aten_pass"
+    ].get("quant_type", torch.float8_e5m2)
+    for input in inputs:
+        if not is_node_meta_valid(input):
+            continue
+        # we need to insert a dequantization node after it
+        with graph.inserting_after(input):
+            dequant_activation_node = graph.call_function(
+                torch.ops.prims.convert_element_type.default,
+                args=(input, input.meta["val"].dtype)
+            )
+        input.replace_all_uses_with(dequant_activation_node)
+        # restore dequant_activation_node input
+        dequant_activation_node.replace_input_with(dequant_activation_node, input)
+        dequant_activation_node.meta.update(input.meta)
+        
+        # replace the input with quant type to keep sync with forward pass
+        input.meta["val"] = input.meta["val"].to(quant_type)
+        input.meta["tensor_meta"] = TensorMetadata(
+            shape=input.meta["tensor_meta"].shape,
+            dtype=quant_type,
+            requires_grad=input.meta["tensor_meta"].requires_grad,
+            stride=input.meta["tensor_meta"].stride,
+            memory_format=input.meta["tensor_meta"].memory_format,
+            is_quantized=input.meta["tensor_meta"].is_quantized,
+            qparams=input.meta["tensor_meta"].qparams,
+        )
+        counters["inductor"]["activation_quantization_aten_pass"] += 1
