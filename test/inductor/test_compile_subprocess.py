@@ -14,7 +14,6 @@ import torch
 import torch.library
 from torch._inductor.compile_fx import _InProcessFxCompile, FxCompile, FxCompileMode
 from torch._inductor.test_case import TestCase
-from torch.testing._internal.common_utils import TEST_WITH_ASAN
 from torch.testing._internal.inductor_utils import GPU_TYPE, HAS_CPU, HAS_GPU
 
 
@@ -77,7 +76,7 @@ if HAS_CPU:
         inductor.test_torchinductor.CommonTemplate, CpuTests, "cpu", test_failures
     )
 
-if HAS_GPU and not TEST_WITH_ASAN:
+if HAS_GPU:
 
     class GPUTests(TestSubprocess):
         common = check_model_gpu
