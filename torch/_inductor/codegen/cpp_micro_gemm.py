@@ -1628,14 +1628,6 @@ def create_micro_gemm(
                 ):
                     continue
                 block_m, block_n, block_k = config.register_blocking
-                if (
-                    config.vec_isa_cls == VecAMX
-                    and m < block_m
-                    and input_dtype == torch.bfloat16
-                    and input2_dtype == torch.int8
-                ):
-                    # For int8 WoQ GEMM, AMX micro-kernel may not perform well if m < block_m
-                    continue
                 # Criteria on the ranking of configurations
                 # 1. ISA: AMX > VEC
                 # 2. Dividable by block sizes (block_m, block_n, block_k)
