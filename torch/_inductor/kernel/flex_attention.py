@@ -12,6 +12,7 @@ from typing import Any, Optional, Union
 import sympy
 
 import torch
+from torch._inductor.utils import is_tf32_supported
 from torch._inductor.virtualized import V
 from torch.utils._ordered_set import OrderedSet
 from torch.utils._pytree import tree_map
@@ -134,10 +135,22 @@ def maybe_realize(args: list[Optional[IRNode]]):
 
 
 def get_float32_precision():
-    if torch.get_float32_matmul_precision() == "highest" or torch.version.hip:
-        return "'ieee'"
-    else:
-        return "'tf32'"
+    # Return ieee if no GPU is avaiable, or highest precision specified.
+    if (
+        torch.get_float32_matmul_precision() == "highest"
+        or not torch.cuda.is_available()
+    ):
+        return ["'ieee'"]
+
+    # On ROCm benchmark TF32 and FP32 as TF32 (after triton 3.3) as perf is inconsistent
+    if torch.version.hip:
+        if is_tf32_supported:
+            return ["'ieee'", "'tf32'"]
+        else:
+            return ["'ieee'"]
+
+    # Default for NVIDIA environment
+    return ["'tf32'"]
 
 
 def zeros_and_scatter_lowering(shape: list[int], indices, values):
@@ -1320,7 +1333,6 @@ def flex_attention(
         else v
         for k, v in kernel_options.items()
     }
-    kernel_options.setdefault("FLOAT32_PRECISION", get_float32_precision())
     if _use_flex_decoding(query, kernel_options):
         return create_flex_decoding_kernel(
             query,
@@ -1441,6 +1453,10 @@ def flex_attention(
         if torch.version.hip:
             configs = [(c[0], c[1], c[2], 1) for c in configs]
 
+    # Get available fp32 precision options. ROCm will return TF32 and FP32 to ensure
+    # that the fastest implementation is chosen.
+    fp32_precision = get_float32_precision()
+
     # Mark SPARSE_KV_BLOCK_SIZE & SPARSE_Q_BLOCK_SIZE as static shapes and add guards.
     SPARSE_KV_BLOCK_SIZE = V.graph.sizevars.evaluate_static_shape(SPARSE_KV_BLOCK_SIZE)
     SPARSE_Q_BLOCK_SIZE = V.graph.sizevars.evaluate_static_shape(SPARSE_Q_BLOCK_SIZE)
@@ -1458,27 +1474,54 @@ def flex_attention(
                 )
             continue
 
-        cur_kernel_options = original_kernel_options.copy()
-        # Performance tuning
-        # Triton parameters
-        # Remove prefix for forward kernels options and delete backward kernel options.
-        for k in list(cur_kernel_options.keys()):
-            if k.startswith("fwd_"):
-                v = cur_kernel_options.pop(k)
-                cur_kernel_options[k[4:]] = v
-            if k.startswith("bwd_"):
-                cur_kernel_options.pop(k)
-        cur_kernel_options.setdefault("num_stages", num_stages)
-        cur_kernel_options.setdefault("num_warps", num_warps)
-        cur_kernel_options.setdefault("BLOCK_M", BLOCK_M)
-        cur_kernel_options.setdefault("BLOCK_N", BLOCK_N)
-        # Blocksparse options
-        cur_kernel_options.setdefault("SPARSE_Q_BLOCK_SIZE", SPARSE_Q_BLOCK_SIZE)
-        cur_kernel_options.setdefault("SPARSE_KV_BLOCK_SIZE", SPARSE_KV_BLOCK_SIZE)
+        for precision in fp32_precision:
+            cur_kernel_options = original_kernel_options.copy()
+            # Performance tuning
+            # Triton parameters
+            # Remove prefix for forward kernels options and delete backward kernel options.
+            for k in list(cur_kernel_options.keys()):
+                if k.startswith("fwd_"):
+                    v = cur_kernel_options.pop(k)
+                    cur_kernel_options[k[4:]] = v
+                if k.startswith("bwd_"):
+                    cur_kernel_options.pop(k)
+            cur_kernel_options["FLOAT32_PRECISION"] = precision
 
-        error = flex_attention_template.maybe_append_choice(
-            choices=choices,
-            input_nodes=[
+            cur_kernel_options.setdefault("num_stages", num_stages)
+            cur_kernel_options.setdefault("num_warps", num_warps)
+            cur_kernel_options.setdefault("BLOCK_M", BLOCK_M)
+            cur_kernel_options.setdefault("BLOCK_N", BLOCK_N)
+            # Blocksparse options
+            cur_kernel_options.setdefault("SPARSE_Q_BLOCK_SIZE", SPARSE_Q_BLOCK_SIZE)
+            cur_kernel_options.setdefault("SPARSE_KV_BLOCK_SIZE", SPARSE_KV_BLOCK_SIZE)
+
+            error = flex_attention_template.maybe_append_choice(
+                choices=choices,
+                input_nodes=[
+                    query,
+                    key,
+                    value,
+                    logsumexp,
+                    kv_num_blocks,
+                    kv_indices,
+                    full_kv_num_blocks,
+                    full_kv_indices,
+                ],
+                layout=layout,
+                subgraphs=[
+                    subgraph_buffer,
+                    mask_graph_buffer,
+                ],
+                mutated_inputs=[
+                    logsumexp,
+                ],
+                call_sizes=query.get_size(),
+                **cur_kernel_options,
+            )
+            if error is not None and len(configs) == 1:
+                raise error
+        inputs_for_autotuning = (
+            [
                 query,
                 key,
                 value,
@@ -1487,50 +1530,26 @@ def flex_attention(
                 kv_indices,
                 full_kv_num_blocks,
                 full_kv_indices,
-            ],
-            layout=layout,
-            subgraphs=[
-                subgraph_buffer,
-                mask_graph_buffer,
-            ],
-            mutated_inputs=[
-                logsumexp,
-            ],
-            call_sizes=query.get_size(),
-            **cur_kernel_options,
+            ]
+            + list(score_mod_other_buffers)
+            + list(mask_mod_other_buffers)
         )
-        if error is not None and len(configs) == 1:
-            raise error
-    inputs_for_autotuning = (
-        [
-            query,
-            key,
-            value,
+        input_gen_fns = {
+            4: create_num_blocks_fake_generator(kv_indices),
+            5: create_indices_fake,
+            6: create_num_blocks_fake_generator(full_kv_indices),
+            7: create_indices_fake,
+        }
+        return (
+            autotune_select_algorithm(
+                "flex_attention",
+                choices,
+                inputs_for_autotuning,
+                layout,
+                input_gen_fns=input_gen_fns,
+            ),
             logsumexp,
-            kv_num_blocks,
-            kv_indices,
-            full_kv_num_blocks,
-            full_kv_indices,
-        ]
-        + list(score_mod_other_buffers)
-        + list(mask_mod_other_buffers)
-    )
-    input_gen_fns = {
-        4: create_num_blocks_fake_generator(kv_indices),
-        5: create_indices_fake,
-        6: create_num_blocks_fake_generator(full_kv_indices),
-        7: create_indices_fake,
-    }
-    return (
-        autotune_select_algorithm(
-            "flex_attention",
-            choices,
-            inputs_for_autotuning,
-            layout,
-            input_gen_fns=input_gen_fns,
-        ),
-        logsumexp,
-    )
+        )
 
 
 # ---------------------------- Backward HOP Implementation ----------------------------
@@ -2408,7 +2427,6 @@ def flex_attention_backward(*args, **kwargs):
         else v
         for k, v in kernel_options.items()
     }
-    kernel_options.setdefault("FLOAT32_PRECISION", get_float32_precision())
     if seq_len_q % 128 != 0 or seq_len_kv % 128 != 0:
         kernel_options.setdefault("IS_DIVISIBLE", False)
     else:
@@ -2513,6 +2531,10 @@ def flex_attention_backward(*args, **kwargs):
 
     set_head_dim_values(kernel_options, qk_head_dim, v_head_dim, V.graph.sizevars)
 
+    # Get available fp32 precision options. ROCm will return TF32 and FP32 to ensure
+    # that the fastest implementation is chosen.
+    fp32_precision = get_float32_precision()
+
     SPARSE_Q_BLOCK_SIZE = V.graph.sizevars.evaluate_static_shape(SPARSE_Q_BLOCK_SIZE)
     SPARSE_KV_BLOCK_SIZE = V.graph.sizevars.evaluate_static_shape(SPARSE_KV_BLOCK_SIZE)
 
@@ -2541,30 +2563,68 @@ def flex_attention_backward(*args, **kwargs):
         ):
             continue
 
-        # Performance tuning
-        # Triton heuristics
-        cur_kernel_options = original_kernel_options.copy()
-        # Remove prefix for backward kernels options and delete forward kernel options.
-        for k in list(cur_kernel_options.keys()):
-            if k.startswith("bwd_"):
-                v = cur_kernel_options.pop(k)
-                cur_kernel_options[k[4:]] = v
-            if k.startswith("fwd_"):
-                cur_kernel_options.pop(k)
-        cur_kernel_options.setdefault("num_warps", num_warps)
-        cur_kernel_options.setdefault("num_stages", num_stages)
+        for precision in fp32_precision:
+            # Performance tuning
+            # Triton heuristics
+            cur_kernel_options = original_kernel_options.copy()
+            # Remove prefix for backward kernels options and delete forward kernel options.
+            for k in list(cur_kernel_options.keys()):
+                if k.startswith("bwd_"):
+                    v = cur_kernel_options.pop(k)
+                    cur_kernel_options[k[4:]] = v
+                if k.startswith("fwd_"):
+                    cur_kernel_options.pop(k)
 
-        cur_kernel_options.setdefault("BLOCK_M1", BLOCK1)
-        cur_kernel_options.setdefault("BLOCK_N1", BLOCK2)
-        cur_kernel_options.setdefault("BLOCK_M2", BLOCK2)
-        cur_kernel_options.setdefault("BLOCK_N2", BLOCK1)
-        # Blocksparse options
-        cur_kernel_options.setdefault("SPARSE_Q_BLOCK_SIZE", SPARSE_Q_BLOCK_SIZE)
-        cur_kernel_options.setdefault("SPARSE_KV_BLOCK_SIZE", SPARSE_KV_BLOCK_SIZE)
+            cur_kernel_options["FLOAT32_PRECISION"] = precision
 
-        flex_attention_backward_template.maybe_append_choice(
-            choices=choices,
-            input_nodes=[
+            cur_kernel_options.setdefault("num_warps", num_warps)
+            cur_kernel_options.setdefault("num_stages", num_stages)
+
+            cur_kernel_options.setdefault("BLOCK_M1", BLOCK1)
+            cur_kernel_options.setdefault("BLOCK_N1", BLOCK2)
+            cur_kernel_options.setdefault("BLOCK_M2", BLOCK2)
+            cur_kernel_options.setdefault("BLOCK_N2", BLOCK1)
+            # Blocksparse options
+            cur_kernel_options.setdefault("SPARSE_Q_BLOCK_SIZE", SPARSE_Q_BLOCK_SIZE)
+            cur_kernel_options.setdefault("SPARSE_KV_BLOCK_SIZE", SPARSE_KV_BLOCK_SIZE)
+
+            flex_attention_backward_template.maybe_append_choice(
+                choices=choices,
+                input_nodes=[
+                    query,
+                    key,
+                    value,
+                    logsumexp,
+                    delta,
+                    grad_out,
+                    grad_query,
+                    broadcasted_grad_value,
+                    kv_num_blocks,
+                    kv_indices,
+                    q_num_blocks,
+                    q_indices,
+                    full_kv_num_blocks,
+                    full_kv_indices,
+                    full_q_num_blocks,
+                    full_q_indices,
+                ],
+                layout=layout_broadcasted_k,  # We use store_output only for grad_key
+                subgraphs=[
+                    fw_subgraph_buffer,
+                    joint_outputs.grad_input,
+                    mask_graph_buffer,
+                    joint_outputs.captured_grads_compute,
+                ],
+                mutated_inputs=[
+                    grad_query,
+                    broadcasted_grad_value,
+                    *joint_outputs.mutated_grads,
+                ],
+                call_sizes=query.get_size() + key.get_size()[1:3],
+                **cur_kernel_options,
+            )
+        inputs_for_autotuning = (
+            [
                 query,
                 key,
                 value,
@@ -2581,74 +2641,42 @@ def flex_attention_backward(*args, **kwargs):
                 full_kv_indices,
                 full_q_num_blocks,
                 full_q_indices,
-            ],
-            layout=layout_broadcasted_k,  # We use store_output only for grad_key
-            subgraphs=[
-                fw_subgraph_buffer,
-                joint_outputs.grad_input,
-                mask_graph_buffer,
-                joint_outputs.captured_grads_compute,
-            ],
-            mutated_inputs=[
-                grad_query,
-                broadcasted_grad_value,
-                *joint_outputs.mutated_grads,
-            ],
-            call_sizes=query.get_size() + key.get_size()[1:3],
-            **cur_kernel_options,
+            ]
+            + list(score_mod_other_buffers)
+            + list(mask_mod_other_buffers)
+            + joint_outputs.mutated_grads
         )
-    inputs_for_autotuning = (
-        [
-            query,
-            key,
-            value,
-            logsumexp,
-            delta,
-            grad_out,
-            grad_query,
-            broadcasted_grad_value,
-            kv_num_blocks,
-            kv_indices,
-            q_num_blocks,
-            q_indices,
-            full_kv_num_blocks,
-            full_kv_indices,
-            full_q_num_blocks,
-            full_q_indices,
-        ]
-        + list(score_mod_other_buffers)
-        + list(mask_mod_other_buffers)
-        + joint_outputs.mutated_grads
-    )
-    input_gen_fns = {
-        8: create_num_blocks_fake_generator(kv_indices),  # kv_num_blocks
-        9: create_indices_fake,
-        10: create_num_blocks_fake_generator(q_indices),  # q_num_blocks
-        11: create_indices_fake,
-        12: create_num_blocks_fake_generator(full_kv_indices),  # full_kv_num_blocks
-        13: create_indices_fake,
-        14: create_num_blocks_fake_generator(full_q_indices),  # full_q_num_blocks
-        15: create_indices_fake,
-    }
+        input_gen_fns = {
+            8: create_num_blocks_fake_generator(kv_indices),  # kv_num_blocks
+            9: create_indices_fake,
+            10: create_num_blocks_fake_generator(q_indices),  # q_num_blocks
+            11: create_indices_fake,
+            12: create_num_blocks_fake_generator(full_kv_indices),  # full_kv_num_blocks
+            13: create_indices_fake,
+            14: create_num_blocks_fake_generator(full_q_indices),  # full_q_num_blocks
+            15: create_indices_fake,
+        }
 
-    broadcasted_grad_key = autotune_select_algorithm(
-        "flex_attention_backward",
-        choices,
-        inputs_for_autotuning,
-        layout_broadcasted_k,
-        input_gen_fns=input_gen_fns,
-    )  # [Bq, Hkv, seq_len_kv, k_head_dim]
+        broadcasted_grad_key = autotune_select_algorithm(
+            "flex_attention_backward",
+            choices,
+            inputs_for_autotuning,
+            layout_broadcasted_k,
+            input_gen_fns=input_gen_fns,
+        )  # [Bq, Hkv, seq_len_kv, k_head_dim]
 
-    if V.graph.sizevars.evaluate_expr(sympy.Eq(Bq, Bkv)):
-        grad_key = broadcasted_grad_key
-        grad_value = broadcasted_grad_value
-    else:
-        assert V.graph.sizevars.evaluate_expr(sympy.Gt(Bq, 1) & sympy.Eq(Bkv, 1)), (
-            f"Bq and Bkv must broadcastable. "
-            f"Got Bq={V.graph.sizevars.evaluate_expr(Bq)} "
-            f"and Bkv={V.graph.sizevars.evaluate_expr(Bkv)}"
-        )
-        grad_key = lowerings[aten.sum](broadcasted_grad_key, axis=0, keepdims=True)
-        grad_value = lowerings[aten.sum](broadcasted_grad_value, axis=0, keepdims=True)
+        if V.graph.sizevars.evaluate_expr(sympy.Eq(Bq, Bkv)):
+            grad_key = broadcasted_grad_key
+            grad_value = broadcasted_grad_value
+        else:
+            assert V.graph.sizevars.evaluate_expr(sympy.Gt(Bq, 1) & sympy.Eq(Bkv, 1)), (
+                f"Bq and Bkv must broadcastable. "
+                f"Got Bq={V.graph.sizevars.evaluate_expr(Bq)} "
+                f"and Bkv={V.graph.sizevars.evaluate_expr(Bkv)}"
+            )
+            grad_key = lowerings[aten.sum](broadcasted_grad_key, axis=0, keepdims=True)
+            grad_value = lowerings[aten.sum](
+                broadcasted_grad_value, axis=0, keepdims=True
+            )
 
-    return (grad_query, grad_key, grad_value, tuple(joint_outputs.captured_grads))
+        return (grad_query, grad_key, grad_value, tuple(joint_outputs.captured_grads))
