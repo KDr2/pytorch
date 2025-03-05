@@ -1427,6 +1427,9 @@ class AotCodeCompiler:
         # guarantee the source code hash contains ISA difference.
         cpp_command = repr(vec_isa_cmd_gen.get_command_line())
 
+        # Meta internal AOTInductor CPU
+        use_relative_path = config.is_fbcode() and device_type == "cpu" and graph.aot_mode
+
         (
             specified_output_path,
             specified_artifact_name,
@@ -1510,7 +1513,7 @@ class AotCodeCompiler:
                 device_type=device_type if device_type != "xpu" else "cpu",
                 aot_mode=graph.aot_mode,
                 compile_only=True,
-                use_relative_path=config.is_fbcode(),
+                use_relative_path=use_relative_path,
             )
             object_builder = CppBuilder(
                 name=str(consts_s.stem),
@@ -1632,7 +1635,7 @@ class AotCodeCompiler:
                 device_type=device_type,
                 aot_mode=graph.aot_mode,
                 compile_only=True,
-                use_relative_path=config.is_fbcode(),
+                use_relative_path=use_relative_path,
                 use_mmap_weights=use_mmap_weights,
             )
             object_builder = CppBuilder(
@@ -1685,7 +1688,7 @@ class AotCodeCompiler:
                 vec_isa=picked_vec_isa,
                 device_type=device_type,
                 aot_mode=graph.aot_mode,
-                use_relative_path=config.is_fbcode(),
+                use_relative_path=use_relative_path,
             )
 
             so_builder = CppBuilder(
@@ -1923,7 +1926,7 @@ class CppCodeCache:
             lib = None
 
             cpp_build_option = CppTorchDeviceOptions(
-                **compile_command, use_relative_path=config.is_fbcode()
+                **compile_command, use_relative_path=use_relative_path
             )
             cpp_builder = CppBuilder(
                 name=output_name,
