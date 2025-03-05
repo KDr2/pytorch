@@ -710,13 +710,47 @@ class GraphModuleSerializer(metaclass=Final):
         args,
         kwargs=None
     ) -> list[NamedArgument]:
-        assert isinstance(target, (torch._ops.OpOverload, *_registered_extension_types()))
-        kwargs = kwargs or {}
+        schema = None
         serialized_args = []
+        # skip the first `arg_index_offset` args in the for loop below
+        arg_index_offset = 0
 
-        schema = _get_schema_from_target(target)
+        if isinstance(target, torch._higher_order_ops.torchbind.CallTorchBind):
+            obj = args[0]
+            method = args[1]
+            # The schema is the schema of `obj.method`, so doesn't include obj and method themselves
+            schema = target.schema(obj, method)
+
+            # obj
+            serialized_args.append(
+                NamedArgument(
+                    name="obj",
+                    arg=self.serialize_input(obj, None),
+                    kind=ArgumentKind.POSITIONAL,
+                )
+            )
+
+            # method
+            serialized_args.append(
+                NamedArgument(
+                    name="method",
+                    arg=self.serialize_input(method, None),
+                    kind=ArgumentKind.POSITIONAL,
+                )
+            )
+            # skip method in args because it's not in  `obj.method`'s schema
+            args = [args[0]] + args[2:]
+            # skip the first obj arg as we have added them here
+            arg_index_offset = 1
+        else:
+            assert isinstance(target, (torch._ops.OpOverload, *_registered_extension_types()))
+            schema = _get_schema_from_target(target)
+        assert schema is not None
+        kwargs = kwargs or {}
 
         for i, schema_arg in enumerate(schema.arguments):
+            if i < arg_index_offset:
+                continue
             if schema_arg.name in kwargs:
                 serialized_args.append(
                     NamedArgument(
@@ -849,6 +883,25 @@ class GraphModuleSerializer(metaclass=Final):
             arg_name = arg.get_name()
             assert arg_name is not None, "Buffer must have valid name"
             return Argument.create(as_tensor=TensorArgument(name=arg_name))
+        elif isinstance(arg, inductor_ir.TorchBindObject):
+            # This is a special branch for handling TorchBindObject
+            # for inductor's ExternalFallbackNode
+            # export_extern_kernel_node() is using this function to serialize arguments
+            arg_name = arg.get_name()
+            assert arg_name is not None, "Buffer must have valid name"
+            arg_val = arg.get_value()
+            if isinstance(arg_val, FakeScriptObject):
+                class_fqn = arg_val.script_class_name
+            elif isinstance(arg_val, torch._C.ScriptObject):
+                class_fqn = arg_val._type().qualified_name()
+            else:
+                raise SerializeError(
+                    f"Unknown value in TorchBindObject {arg_name}. It should be either a FakeScriptObject or torch._C.ScriptObject"
+                )
+            self.custom_objs[arg_name] = arg
+            return Argument.create(
+                as_custom_obj=CustomObjArgument(arg_name, class_fqn)
+            )
         elif isinstance(arg, torch.SymInt):
             # This is a special branch for handling SymInt args in inductor's
             # ExternalFallbackNode.
@@ -2879,7 +2932,7 @@ def _canonicalize_graph(
         elif a.type == "as_optional_tensors":
             return a.as_optional_tensors
         elif a.type == "as_custom_obj":
-            return None
+            return a.as_custom_obj
         elif a.type == "as_operator":
             return None
         else:
@@ -2922,6 +2975,8 @@ def _canonicalize_graph(
                     return None
                 else:
                     raise AssertionError(f"Unknown optional tensor type: {a}")
+            elif isinstance(a, CustomObjArgument):
+                return a.name
             else:
                 raise AssertionError(f"Unknown argument type: {a}")
 
@@ -3032,6 +3087,8 @@ def _canonicalize_graph(
         elif isinstance(a, SymBoolArgument):
             if a.type == "as_name":
                 a.as_name = _rename(a.as_name, graph.sym_bool_values)
+        elif isinstance(a, CustomObjArgument):
+            a.name = _rename(a.name, graph.custom_obj_values)
         else:
             raise AssertionError(f"Unknown argument type: {a}")
 
@@ -3049,6 +3106,8 @@ def _canonicalize_graph(
         elif isinstance(a, OptionalTensorArgument):
             if a.type == "as_tensor":
                 a.as_tensor.name = name_table.get(a.as_tensor.name, a.as_tensor.name)
+        elif isinstance(a, CustomObjArgument):
+            a.name = name_table.get(a.name, a.name)
         else:
             raise AssertionError(f"Unknown argument type: {a}")
 
@@ -3081,6 +3140,9 @@ def _canonicalize_graph(
     sorted_sym_bool_values = dict(
         sorted(graph.sym_bool_values.items(), key=operator.itemgetter(0))
     )
+    sorted_custom_obj_values = dict(
+        sorted(graph.custom_obj_values.items(), key=operator.itemgetter(0))
+    )
 
     # Stage 5: Recurse in subgraphs.
     counter = 0
@@ -3103,6 +3165,7 @@ def _canonicalize_graph(
         sym_float_values=sorted_sym_float_values,
         sym_bool_values=sorted_sym_bool_values,
         is_single_tensor_return=graph.is_single_tensor_return,
+        custom_obj_values=sorted_custom_obj_values,
     )
     return graph, name_table
 
@@ -3196,7 +3259,7 @@ def canonicalize(ep: ExportedProgram) -> ExportedProgram:
         sorted_inputs, sorted_outputs, graph
     )
 
-    def replace_input(inp):
+    def replace_input(spec):
         assert isinstance(spec, InputSpec)
         if spec.type == "user_input":
             arg = spec.user_input.arg
@@ -3240,6 +3303,8 @@ def canonicalize(ep: ExportedProgram) -> ExportedProgram:
             t = spec.tensor_constant.arg
             t.name = replace_table[t.name]
         elif spec.type == "custom_obj":
+            t = spec.custom_obj.arg
+            t.name = replace_table[t.name]
             return
         elif spec.type == "token":
             tok = spec.token.arg

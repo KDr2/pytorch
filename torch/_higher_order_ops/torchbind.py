@@ -33,6 +33,16 @@ class CallTorchBind(HigherOrderOperator):
     def __call__(self, obj, method, *args, **kwargs):
         return super().__call__(obj, method, *args, **kwargs)
 
+    @staticmethod
+    def schema(obj, method) -> torch.FunctionSchema:
+        """
+        Returns the schema of ``obj.method`` call.
+        """
+        assert isinstance(obj, torch._inductor.ir.TorchBindObject)
+        val = obj.get_real_obj()
+        schema = val._get_method(method).schema
+        return schema
+
 
 call_torchbind = CallTorchBind()
 
