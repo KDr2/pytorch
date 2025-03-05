@@ -1876,6 +1876,8 @@ class PythonWrapperCodegen(CodeGen):
                 "kwargs": config.kwargs,
                 "num_warps": config.num_warps,
                 "num_stages": config.num_stages,
+                "num_consumer_groups": config.num_consumer_groups,
+                "num_buffers_warp_spec": config.num_buffers_warp_spec,
             }
             for config in configs
         ]
