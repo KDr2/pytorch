@@ -11,6 +11,8 @@ from torch._inductor.autoheuristic.autoheuristic_utils import (
     context_add_using_tf32,
     mm_operations,
 )
+
+from torch._dynamo.utils import counters
 from torch._inductor.codegen.cpp_gemm_template import CppGemmTemplate
 from torch._inductor.virtualized import V
 
@@ -358,6 +360,8 @@ def tuned_mm(mat1, mat2, *, layout=None):
     m, n, k, layout, mat1, mat2 = mm_args(mat1, mat2, layout=layout)
     name = "mm"
 
+    # below is for getting an overview logging info of inductor mms
+    counters["inductor"][("aten.mm",(m, n, k))] = counters["inductor"].get(("aten.mm",(m, n, k)), 0) + 1
     log.info(
         "Tuned aten.mm: m=%s, n=%s, k=%s, mat1_dtype=%s, mat2_dtype=%s, output_layout=%s",
         m,
@@ -477,7 +481,9 @@ def tuned_int_mm(mat1, mat2, *, layout=None):
     m, n, k, layout, mat1, mat2 = mm_args(
         mat1, mat2, layout=layout, out_dtype=torch.int32
     )
-
+    
+    # below is for getting an overview logging info of inductor mms
+    counters["inductor"][("aten._int_mm",(m, n, k))] = counters["inductor"].get(("aten._int_mm",(m, n, k)), 0) + 1
     log.info(
         "Tuned aten._int_mm: m=%s, n=%s, k=%s, mat1_dtype=%s, mat2_dtype=%s, output_layout=%s",
         m,
@@ -522,6 +528,8 @@ def tuned_addmm(inp, mat1, mat2, *, alpha=1, beta=1, layout=None):
     m, n, k, layout, mat1, mat2, inp_expanded = mm_args(mat1, mat2, inp, layout=layout)
     static_shape, is_nonzero = _is_static_problem(layout)
 
+    # below is for getting an overview logging info of inductor mms
+    counters["inductor"][("aten.addmm",(m, n, k))] = counters["inductor"].get(("aten.addmm",(m, n, k)), 0) + 1
     log.info(
         "Tuned aten.addmm: m=%s, n=%s, k=%s, mat1_dtype=%s, mat2_dtype=%s, output_layout=%s",
         m,

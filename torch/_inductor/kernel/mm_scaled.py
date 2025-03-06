@@ -8,6 +8,8 @@ import sympy
 import torch
 from torch._inductor.codegen.rocm.ck_universal_gemm_template import CKGemmTemplate
 from torch.utils._triton import has_triton_tma_device
+from torch._dynamo.utils import counters
+
 
 from ..config import triton as triton_config
 from ..ir import _IntLike, ChoiceCaller, Layout, StorageBox, TensorBox
@@ -507,7 +509,8 @@ def tuned_scaled_mm(
     m, n, k, layout, mat_a, mat_b = mm_args(
         mat_a, mat_b, layout=layout, out_dtype=out_dtype
     )
-
+    # below is for getting an overview logging info of inductor mms
+    counters["inductor"][("aten._scaled_mm.default",(m, n, k))] = counters["inductor"].get(("aten._scaled_mm.default",(m, n, k)), 0) + 1
     log.info(
         "Tuned aten._scaled_mm.default: m=%s, n=%s, k=%s, mat1_dtype=%s, mat2_dtype=%s, output_layout=%s",
         m,
