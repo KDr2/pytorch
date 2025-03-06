@@ -542,11 +542,13 @@ def _get_optimization_cflags(
     if _IS_WINDOWS:
         return ["O1" if min_optimize else "O2"]
     else:
-        cflags = (
-            ["O0", "g"]
-            if config.aot_inductor.debug_compile
-            else ["O1" if min_optimize else "O3", "DNDEBUG"]
-        )
+        cflags = []
+        if config.aot_inductor.debug_compile:
+            cflags = ["O0", "g"]
+        elif min_optimize and config.aot_inductor.compile_wrapper_with_O0:
+            cflags = ["O0"]
+        else:
+            cflags = ["O1" if min_optimize else "O3", "DNDEBUG"]
         cflags += _get_ffast_math_flags()
         cflags.append("fno-finite-math-only")
         if not config.cpp.enable_unsafe_math_opt_flag:
