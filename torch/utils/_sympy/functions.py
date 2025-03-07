@@ -290,7 +290,11 @@ class FloorDiv(sympy.Function):
             pass  # https://github.com/pytorch/pytorch/issues/108276
 
         return None
-
+        	
+    def _ccode(self, printer):
+        x, y = self.args
+        _x, _y = printer._print(x), printer._print(y)
+        return f"floor({_x}/{_y})"
 
 class ModularIndexing(sympy.Function):
     """
