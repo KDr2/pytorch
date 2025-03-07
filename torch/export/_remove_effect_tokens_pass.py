@@ -70,6 +70,8 @@ def _remove_effect_tokens_from_graph_helper(
         with ep.graph.inserting_before(node):
             new_node = ep.graph.call_function(func, node.args[2:], node.kwargs)
         for k, v in node.meta.items():
+            if k == "unbacked_bindings":
+                continue
             new_node.meta[k] = v
 
         node.replace_all_uses_with(new_node)

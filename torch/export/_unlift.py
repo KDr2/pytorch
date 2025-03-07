@@ -426,4 +426,7 @@ def _unlift_exported_program_lifted_states(ep: ExportedProgram) -> torch.nn.Modu
     )
     unlift_gm = _create_stateful_graph_module(new_gm, ep.range_constraints, ep)
     unlift_gm.meta.update(ep.graph_module.meta)
+    for node in unlift_gm.graph.nodes:
+        if "unbacked_bindings" in node.meta:
+            del node.meta["unbacked_bindings"]
     return unlift_gm
