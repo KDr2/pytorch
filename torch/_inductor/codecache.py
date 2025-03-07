@@ -1746,6 +1746,10 @@ class AotCodeCompiler:
             for custom_obj_idx, (name, constant) in enumerate(
                 graph.torchbind_constants.items()
             ):
+                if isinstance(
+                    constant, torch._library.fake_class_registry.FakeScriptObject
+                ):
+                    constant = constant.real_obj
                 assert isinstance(constant, torch._C.ScriptObject)
                 custom_obj_name = f"{CUSTOM_OBJ_FILENAME_PREFIX}{custom_obj_idx}"
 
@@ -1753,9 +1757,7 @@ class AotCodeCompiler:
 
                 qual_name_to_id[name] = custom_obj_name
                 custom_obj_bytes = torch._C._pickle_save(constant)
-                custom_obj_path = os.path.join(
-                    specified_output_path, custom_obj_name
-                )
+                custom_obj_path = os.path.join(specified_output_path, custom_obj_name)
 
                 write_atomic(custom_obj_path, custom_obj_bytes, True)
                 generated_files.append(custom_obj_path)
