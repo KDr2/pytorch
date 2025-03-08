@@ -5113,9 +5113,18 @@ class ExternKernel(InputsKernel):
 
         unbacked_bindings: Optional[dict[sympy.Symbol, pytree.KeyPath]] = None
         if shape_env := V.fake_mode.shape_env:
-            rebind_unbacked(shape_env, V.current_node, example_output)
+            remove_effect_token_in_path = False
+            node_meta_val = V.current_node.meta.get("val")
+            if isinstance(
+                V.current_node.target, torch._higher_order_ops.effects.WithEffects
+            ):
+                remove_effect_token_in_path = True
+                node_meta_val = node_meta_val[1]  # remove the first effect token
+            rebind_unbacked(
+                shape_env, V.current_node, example_output, remove_effect_token_in_path
+            )
             unbacked_bindings = compute_unbacked_bindings(
-                shape_env, example_output, V.current_node.meta.get("val")
+                shape_env, example_output, node_meta_val
             )
 
         example_out_li = (
