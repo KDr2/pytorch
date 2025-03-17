@@ -904,8 +904,9 @@ def _record_memory_history_impl(
     stacks: str = "all",
     max_entries: int = sys.maxsize,
     device: Union[Device, int] = None,
+    clear_history: bool = False,
 ):
-    _C._cuda_record_memory_history(enabled, context, stacks, max_entries)
+    _C._cuda_record_memory_history(enabled, context, stacks, max_entries, clear_history)
 
 
 _record_memory_history.__signature__ = signature(_record_memory_history_impl)  # type: ignore[attr-defined]
