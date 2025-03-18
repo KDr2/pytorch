@@ -10086,6 +10086,24 @@ def forward(self, x, b_t, y):
     return (add_1,)""",
         )
 
+    def test_python_asserts_with_sym_int(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                y = x + 1
+                assert y.max().item() > 0
+                return y
+
+        model = Model()
+        ep = torch.export.export(model, (torch.zeros(4, dtype=torch.int),))
+
+        inputs = (torch.ones(4, dtype=torch.int),)
+        self.assertEqual(ep.module()(*inputs), model(*inputs))
+        inputs = (-torch.ones(4, dtype=torch.int),)
+        with self.assertRaisesRegex(
+            RuntimeError, "Runtime assertion failed for expression"
+        ):
+            ep.module()(*inputs)
+
     def test_predispatch_grad_wrappers(self):
         class Model(torch.nn.Module):
             def forward(self, x, y):
