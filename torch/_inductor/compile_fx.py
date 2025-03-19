@@ -740,7 +740,7 @@ def _compile_fx_inner(
         if cache_info is None or cache_info["cache_state"] == "bypass":
             assert mb_compiled_graph is None
             mb_compiled_graph = fx_codegen_and_compile(
-                gm, example_inputs, inputs_to_check, **graph_kwargs
+                gm, example_inputs, inputs_to_check, None, **graph_kwargs
             )
 
         # CACHE MISS: Compile the graph and save to cache
@@ -749,12 +749,12 @@ def _compile_fx_inner(
             assert key_info is not None
             TritonBundler.begin_compile()
             try:
+                cache_key = key_info[0]
                 mb_compiled_graph = fx_codegen_and_compile(
-                    gm, example_inputs, inputs_to_check, **graph_kwargs
+                    gm, example_inputs, inputs_to_check, cache_key, **graph_kwargs
                 )
                 assert mb_compiled_graph is not None
                 mb_compiled_graph._time_taken_ns = time.time_ns() - start_time
-                cache_key = key_info[0]
                 mb_compiled_graph._fx_graph_cache_key = cache_key
                 (
                     triton_bundle,
@@ -896,6 +896,7 @@ class FxCompile(ABC):
         gm: GraphModule,
         example_inputs: Sequence[InputType],
         inputs_to_check: Sequence[int],
+        cache_key: Optional[str],
         graph_kwargs: _CompileFxKwargs,
     ) -> OutputCode: ...
 
@@ -911,6 +912,7 @@ class _InProcessFxCompile(FxCompile):
         gm: GraphModule,
         example_inputs: Sequence[InputType],
         inputs_to_check: Sequence[int],
+        cache_key: Optional[str],
         graph_kwargs: _CompileFxKwargs,
     ) -> OutputCode:
         # Sorry about the mess, we need graph_kwargs to continue to be able
@@ -1141,6 +1143,7 @@ class _InProcessFxCompile(FxCompile):
                 )
                 metrics_helper = metrics.CachedMetricsHelper()
                 with V.set_graph_handler(graph):
+                    graph.fx_graph_cache_key = cache_key
                     graph.run(*example_inputs)
                     output_strides: list[Optional[tuple[_StrideExprStr, ...]]] = []
                     if graph.graph_outputs is not None:
@@ -1307,6 +1310,7 @@ def fx_codegen_and_compile(
     # This is derivable from the other inputs to this function, but we pass it
     # in explicitly because it's nontrivial to compute
     inputs_to_check: Sequence[int],
+    cache_key: Optional[str],
     **graph_kwargs: Unpack[_CompileFxKwargs],
 ) -> OutputCode:
     scheme: FxCompile
@@ -1331,7 +1335,7 @@ def fx_codegen_and_compile(
         )
         scheme = _AsyncFxCompile(scheme)
 
-    return scheme.codegen_and_compile(gm, example_inputs, inputs_to_check, graph_kwargs)
+    return scheme.codegen_and_compile(gm, example_inputs, inputs_to_check, cache_key, graph_kwargs)
 
 
 def get_input_idxs_to_check(

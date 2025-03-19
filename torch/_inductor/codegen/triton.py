@@ -3457,6 +3457,7 @@ class TritonKernel(SIMDKernel[TritonCSEVariable]):
             "min_split_scan_rblock": config.triton.min_split_scan_rblock,
             "spill_threshold": config.triton.spill_threshold,
             "store_cubin": config.triton.store_cubin,
+            "fx_graph_cache_key": getattr(V.graph, "fx_graph_cache_key", None),
         }
         if torch.version.hip is not None:
             inductor_meta["is_hip"] = True
