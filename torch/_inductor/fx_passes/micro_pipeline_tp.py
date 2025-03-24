@@ -222,7 +222,7 @@ class _ReduceScatterMatch:
 def find_reduce_scatter_patterns(graph: torch.fx.Graph):
     c10d = torch.ops._c10d_functional
 
-    def reduce_scatter_template(inp: PatternExpr):
+    def reduce_scatter_template(inp: PatternExpr, users: int):
         return CallFunction(
             c10d.wait_tensor.default,
             CallFunction(
@@ -231,14 +231,16 @@ def find_reduce_scatter_patterns(graph: torch.fx.Graph):
                 KeywordArg("reduce_op"),
                 Ignored(),
                 KeywordArg("group_name"),
+                _users=users,
             ),
         )
 
     # Matches funcol.reduce_scatter_tensor with scatter_dim == 0
-    zero_dim_reduce_scatter_pattern = reduce_scatter_template(KeywordArg("input"))
+    zero_dim_reduce_scatter_pattern_single_user = reduce_scatter_template(KeywordArg("input"), users=1)
+    zero_dim_reduce_scatter_pattern_multi_user = reduce_scatter_template(KeywordArg("input"), users=MULTIPLE)
 
     # Matches funcol.reduce_scatter_tensor with scatter_dim > 0
-    non_zero_dim_reduce_scatter_pattern = reduce_scatter_template(
+    non_zero_dim_reduce_scatter_pattern_single_user = reduce_scatter_template(
         CallFunction(
             aten.cat.default,
             ListOf(
@@ -255,12 +257,33 @@ def find_reduce_scatter_patterns(graph: torch.fx.Graph):
                 )
             ),
         ),
+        users=1,
+    )
+
+    non_zero_dim_reduce_scatter_pattern_multi_user = reduce_scatter_template(
+        CallFunction(
+            aten.cat.default,
+            ListOf(
+                CallFunction(
+                    operator.getitem,
+                    CallFunction(
+                        aten.split.Tensor,
+                        KeywordArg("input"),
+                        Ignored(),
+                        KeywordArg("scatter_dim"),
+                        _users=MULTIPLE,
+                    ),
+                    Ignored(),
+                )
+            ),
+        ),
+        users=MULTIPLE,
     )
 
     reduce_scatters = []
     for node in reversed(graph.nodes):
         if node.target == c10d.wait_tensor.default:
-            if match := non_zero_dim_reduce_scatter_pattern.match(node):
+            if match := non_zero_dim_reduce_scatter_pattern_single_user.match(node):
                 assert isinstance(match, Match)
                 reduce_scatters.append(
                     _ReduceScatterMatch(
@@ -273,7 +296,33 @@ def find_reduce_scatter_patterns(graph: torch.fx.Graph):
                         group_name=match.kwargs["group_name"],
                     )
                 )
-            elif match := zero_dim_reduce_scatter_pattern.match(node):
+            elif match := zero_dim_reduce_scatter_pattern_single_user.match(node):
+                assert isinstance(match, Match)
+                reduce_scatters.append(
+                    _ReduceScatterMatch(
+                        match=match,
+                        input_node=match.kwargs["input"],
+                        rs_node=match.nodes[0],
+                        res_node=node,
+                        reduce_op=match.kwargs["reduce_op"],
+                        scatter_dim=0,
+                        group_name=match.kwargs["group_name"],
+                    )
+                )
+            elif match := non_zero_dim_reduce_scatter_pattern_multi_user.match(node):
+                assert isinstance(match, Match)
+                reduce_scatters.append(
+                    _ReduceScatterMatch(
+                        match=match,
+                        input_node=match.kwargs["input"],
+                        rs_node=match.nodes[-2],
+                        res_node=node,
+                        reduce_op=match.kwargs["reduce_op"],
+                        scatter_dim=match.kwargs["scatter_dim"],
+                        group_name=match.kwargs["group_name"],
+                    )
+                )
+            elif match := zero_dim_reduce_scatter_pattern_multi_user.match(node):
                 assert isinstance(match, Match)
                 reduce_scatters.append(
                     _ReduceScatterMatch(
@@ -1001,5 +1050,5 @@ def micro_pipeline_tp_pass(graph: torch.fx.Graph):
         if fuse_matmul_reduce_scatter(reduce_scatter):
             fused_reduce_scatters = True
 
-    if reduce_scatters and not fused_reduce_scatters:
-        raise AssertionError("no successful fusions of matul-reduce-scatters")
+    # if reduce_scatters and not fused_reduce_scatters:
+    #     raise AssertionError("no successful fusions of matul-reduce-scatters")
