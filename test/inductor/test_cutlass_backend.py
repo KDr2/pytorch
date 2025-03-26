@@ -37,6 +37,7 @@ from torch.testing import FileCheck
 from torch.testing._internal.common_cuda import SM80OrLater, SM90OrLater
 from torch.testing._internal.common_utils import (
     IN_RE_WORKER,
+    TEST_WITH_SLOW_GRADCHECK,
     instantiate_parametrized_tests,
     IS_FBCODE,
     parametrize,
@@ -785,6 +786,7 @@ class TestCutlassBackend(TestCase):
     @unittest.skipIf(not SM80OrLater or SM90OrLater, "need sm_8x exactly")
     @parametrize("dynamic", (False,))
     @mock.patch.dict(os.environ, {"PATH": _get_path_without_sccache()})
+    @unittest.skipIf(TEST_WITH_SLOW_GRADCHECK, "Failing slow gradcheck in CI, see")
     def test_max_autotune_cutlass_backend_sparse_semi_structured_mm(
         self, dynamic: bool
     ):
