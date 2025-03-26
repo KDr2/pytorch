@@ -10,6 +10,7 @@ from torch.testing._internal.common_utils import NoTest, run_tests, TEST_MPS, Te
 if not torch.accelerator.is_available():
     print("No available accelerator detected, skipping tests", file=sys.stderr)
     TestCase = NoTest  # noqa: F811
+    exit(0)
 
 TEST_MULTIACCELERATOR = torch.accelerator.device_count() > 1
 
