@@ -2171,7 +2171,7 @@ assert KinetoStepTracker.current_step() == initial_step + 2 * niters
     @unittest.skipIf(not torch.cuda.is_available(), "CUDA is required")
     @unittest.skipIf(not kineto_available(), "Kineto is required")
     @unittest.skipIf(
-        torch.version.debug, "failing in debug build, see #150059 for examples"
+        torch.version.debug, "failing in debug build, see #150059 for example"
     )
     def test_profile_all_threads(self):
         profiling_started = threading.Event()
