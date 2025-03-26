@@ -786,7 +786,7 @@ class TestCutlassBackend(TestCase):
     @unittest.skipIf(not SM80OrLater or SM90OrLater, "need sm_8x exactly")
     @parametrize("dynamic", (False,))
     @mock.patch.dict(os.environ, {"PATH": _get_path_without_sccache()})
-    @unittest.skipIf(TEST_WITH_SLOW_GRADCHECK, "Failing slow gradcheck in CI, see")
+    @unittest.skipIf(TEST_WITH_SLOW_GRADCHECK, "Failing slow gradcheck in CI, see #150059 for examples")
     def test_max_autotune_cutlass_backend_sparse_semi_structured_mm(
         self, dynamic: bool
     ):
