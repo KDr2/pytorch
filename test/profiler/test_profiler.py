@@ -21,12 +21,12 @@ from typing import Optional, TYPE_CHECKING
 from unittest.mock import patch
 
 import expecttest
-import torch.version
 
 import torch
 import torch.nn as nn
 import torch.optim
 import torch.utils.data
+import torch.version
 from torch._C._profiler import _ExperimentalConfig, _ExtraFields_PyCall
 from torch.autograd.profiler import KinetoStepTracker, profile as _profile
 from torch.autograd.profiler_legacy import profile as _profile_legacy
@@ -2170,7 +2170,9 @@ assert KinetoStepTracker.current_step() == initial_step + 2 * niters
     @skipIfTorchDynamo("profiler gets ignored if dynamo activated")
     @unittest.skipIf(not torch.cuda.is_available(), "CUDA is required")
     @unittest.skipIf(not kineto_available(), "Kineto is required")
-    @unittest.skipIf(torch.version.debug, "failing in debug build, see #150059 for examples")
+    @unittest.skipIf(
+        torch.version.debug, "failing in debug build, see #150059 for examples"
+    )
     def test_profile_all_threads(self):
         profiling_started = threading.Event()
         profiling_ended = threading.Event()
