@@ -40,7 +40,6 @@ from torch.testing._internal.common_utils import (
     instantiate_parametrized_tests,
     IS_FBCODE,
     parametrize,
-    TEST_WITH_SLOW_GRADCHECK,
 )
 from torch.testing._internal.inductor_utils import HAS_CPU, HAS_CUDA
 
