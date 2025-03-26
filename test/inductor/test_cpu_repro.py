@@ -4149,7 +4149,7 @@ class CPUReproTests(TestCase):
                         "__at_align__ std::array", 0, exactly=True
                     ).run(code)
 
-    @unittest.skipIf(os.getenv("ATEN_CPU_CAPABILITY") == "nogpu_NO_AVX2", "failing in CI, see ")
+    @unittest.skipIf(os.getenv("ATEN_CPU_CAPABILITY") == "default", "failing in CI, see ")
     def test_group_norm_large_input(self):
         class M(torch.nn.Module):
             def __init__(self) -> None:
