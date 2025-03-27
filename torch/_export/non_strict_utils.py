@@ -666,6 +666,14 @@ class _NonStrictTorchFunctionHandler(torch.overrides.TorchFunctionMode):
             # Redirect to torch.select for indexing with symint.
             if isinstance(args[1], torch.SymInt):
                 return torch.select, [args[0], 0, args[1]], {}
+            if isinstance(args[1], tuple):
+                r = args[0]
+                for i in args[1]:
+                    if isinstance(i, torch.SymInt):
+                        r = torch.select(r, 0, i)
+                    else:
+                        r = r[i]
+                return lambda: r, [], {}
         return func, args, kwargs
 
     def __torch_function__(self, func, types, args=(), kwargs=None):
