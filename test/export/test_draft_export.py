@@ -53,6 +53,7 @@ class TestDraftExport(TestCase):
 
             inp = (torch.randn(3, 3), torch.randn(3, 3))
             self.assertEqual(ep.module()(*inp), M()(*inp))
+            ep.run_decompositions()
 
     def test_missing_meta_kernel_impl(self):
         with torch.library._scoped_library("mylib", "FRAGMENT") as lib:
@@ -85,6 +86,44 @@ class TestDraftExport(TestCase):
 
             inp = (torch.randn(3, 3), torch.randn(3, 3))
             self.assertEqual(ep.module()(*inp), M()(*inp))
+
+            self.assertEqual(len(report.custom_op_profiles), 1)
+            self.assertEqual(len(report.custom_op_profiles["mylib.foo.default"]), 1)
+
+            ep = ep.run_decompositions()
+            self.assertEqual(ep.module()(*inp), M()(*inp))
+
+    def test_missing_meta_kernel_custom_op_multiple_profiles(self):
+        with torch.library._scoped_library("mylib", "FRAGMENT"):
+
+            @torch.library.custom_op("mylib::foo3", mutates_args={})
+            def foo3_impl(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+                return a + b
+
+            class M(torch.nn.Module):
+                def forward(self, a, b, c, d):
+                    res1 = torch.ops.mylib.foo3(a, b)
+                    res2 = torch.ops.mylib.foo3(c, d)
+                    return res1, res2
+
+            inp = (
+                torch.ones(3, 4),
+                torch.ones(3, 4),
+                torch.ones(2, 3, 4),
+                torch.ones(2, 3, 4),
+            )
+
+            ep = draft_export(M(), inp)
+            report = ep._report
+
+            self.assertEqual(len(report.failures), 1)
+            self.assertEqual(
+                report.failures[0].failure_type, FailureType.MISSING_FAKE_KERNEL
+            )
+            self.assertEqual(len(report.custom_op_profiles), 1)
+            self.assertEqual(len(report.custom_op_profiles["mylib.foo3.default"]), 2)
+
+            ep.run_decompositions()
 
     @unittest.skipIf(not torch.cuda.is_available(), "Requires cuda")
     def test_missing_meta_kernel_guard(self):
@@ -521,6 +560,7 @@ class TestDraftExport(TestCase):
             report.failures[0].data["reason"],
             "Dtypes torch.bfloat16 and torch.float32 are not equal!",
         )
+        ep = ep.run_decompositions()
 
     # https://github.com/pytorch/pytorch/issues/140625
     @unittest.skipIf(IS_WINDOWS, "aoti_compile_and_package not supported on Windows")

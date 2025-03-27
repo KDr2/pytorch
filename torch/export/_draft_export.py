@@ -11,7 +11,12 @@ from typing import Any, Callable, Optional, Union
 import torch
 import torch._logging._internal
 import torch._logging.structured
-from torch._export.passes.insert_custom_op_guards import insert_custom_op_guards
+from torch._export.passes.insert_custom_op_guards import (
+    generate_and_register_fake_kernels,
+    get_custom_op_profiles,
+    insert_custom_op_guards,
+    OpProfile,
+)
 from torch.export import ExportedProgram
 from torch.export._trace import _export
 from torch.export.dynamic_shapes import refine_dynamic_shapes_from_suggested_fixes
@@ -151,10 +156,12 @@ class DraftExportReport:
         failures: list[FailureReport],
         str_to_filename: dict[int, str],
         expressions_created: dict[int, dict[str, Any]],
+        custom_op_profiles: dict[str, set[OpProfile]],
     ):
         self.failures: list[FailureReport] = failures
         self.str_to_filename = str_to_filename
         self.expressions_created: dict[int, dict[str, Any]] = expressions_created
+        self.custom_op_profiles = custom_op_profiles
 
     def successful(self) -> bool:
         return len(self.failures) == 0 or all(
@@ -192,6 +199,9 @@ Please follow the instructions to fix the errors.
 
     def apply_suggested_fixes(self) -> None:
         raise NotImplementedError("Not implemented yet")
+
+    def generate_and_register_fake_kernels(self) -> None:
+        generate_and_register_fake_kernels(self.custom_op_profiles)
 
 
 @dataclass
@@ -448,7 +458,13 @@ def draft_export(
             if v.visited:
                 expressions_created[k] = v.record
 
-        report = DraftExportReport(failures, str_to_filename, expressions_created)
+        custom_op_profiles = get_custom_op_profiles(
+            ep.graph_module, list(custom_ops_logs.keys())
+        )
+        report = DraftExportReport(
+            failures, str_to_filename, expressions_created, custom_op_profiles
+        )
+        report.generate_and_register_fake_kernels()
 
         # Add asserts around custom ops
         insert_custom_op_guards(ep.graph_module, list(custom_ops_logs.keys()))
