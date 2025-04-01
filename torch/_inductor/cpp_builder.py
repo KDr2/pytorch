@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any, BinaryIO, Optional, Union
 
 import torch
+from torch._dynamo.exc import SkipFrame
 from torch._dynamo.utils import dynamo_timed
 from torch._inductor import config, exc
 from torch._inductor.cpu_vec_isa import invalid_vec_isa, VecISA
@@ -1681,24 +1682,47 @@ class CppBuilder:
         It is must need a temperary directory to store object files in Windows.
         After build completed, delete the temperary directory to save disk space.
         """
-        if self._use_relative_path:
-            # remote build uses relative path
-            return self.build_fbcode_re()
-        _create_if_dir_not_exist(self._output_dir)
-        _build_tmp_dir = os.path.join(
-            self._output_dir, f"{self._name}_{_BUILD_TEMP_DIR}"
-        )
-        _create_if_dir_not_exist(_build_tmp_dir)
 
-        build_cmd = self.get_command_line()
-        if self._preprocessing:
-            with open(self.get_target_file_path(), "wb") as preprocessed_file:
-                run_compile_cmd(
-                    build_cmd, cwd=_build_tmp_dir, write_stdout_to=preprocessed_file
+        try:
+            if self._use_relative_path:
+                # remote build uses relative path
+                return self.build_fbcode_re()
+            _create_if_dir_not_exist(self._output_dir)
+            _build_tmp_dir = os.path.join(
+                self._output_dir, f"{self._name}_{_BUILD_TEMP_DIR}"
+            )
+            _create_if_dir_not_exist(_build_tmp_dir)
+
+            build_cmd = self.get_command_line()
+            if self._preprocessing:
+                with open(self.get_target_file_path(), "wb") as preprocessed_file:
+                    run_compile_cmd(
+                        build_cmd, cwd=_build_tmp_dir, write_stdout_to=preprocessed_file
+                    )
+            else:
+                run_compile_cmd(build_cmd, cwd=_build_tmp_dir)
+            _remove_dir(_build_tmp_dir)
+        except (exc.CppCompileError, SkipFrame) as e:
+            error_str = ""
+            if isinstance(e, exc.CppCompileError):
+                error_str = e.output
+            else:
+                error_str = str(e)
+            if (
+                "__check_inputs_outputs" in error_str
+                and " is too big to optimize" in error_str
+            ):
+                modified_message = (
+                    f"{error_str}\n"
+                    "The runtime check __check_inputs_outputs() is too big to optimize. "
+                    "Please use torch._inductor.config.aot_inductor.compile_wrapper_opt_level = 'O0' flag."
                 )
-        else:
-            run_compile_cmd(build_cmd, cwd=_build_tmp_dir)
-        _remove_dir(_build_tmp_dir)
+                if isinstance(e, exc.CppCompileError):
+                    raise exc.CppCompileError(e.cmd, output=modified_message) from e
+                else:
+                    raise SkipFrame(modified_message) from e
+            else:
+                raise e
 
     def save_compile_cmd_to_cmake(
         self,
