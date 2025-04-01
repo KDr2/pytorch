@@ -200,8 +200,6 @@ def _override_composite_implicit_decomp(cia_ops_to_callable, safe=True):
     # and their usual decompositions need to be shadowed rather than overridden.
     # Thus we will avoid asserting that they are valid to preserve, and will not
     # replace their CompositeImplicitAutograd kernels with NotImplemented.
-    # The only current users of this mode are variants of aten::to that we will
-    # replace with aten::_to_copy in FunctionalTensorMode.__torch_dispatch__.
     saved_tables = {}
     patched_ops = set()
     for op_overload, decomp_callable in cia_ops_to_callable.items():
@@ -276,21 +274,6 @@ def _override_composite_implicit_decomp(cia_ops_to_callable, safe=True):
             op.py_kernels.update(saved_tables[op])
             op._dispatch_cache.clear()
             _deregister_op_impl(op)
-
-
-@contextmanager
-def _override_decomp_aten_to_variants():
-    # Preserve variants of aten::to understanding that they are mutating/aliasing
-    # and their CompositeImplicitAutograd kernels will not become NotImplemented.
-    # We will later replace them with aten._to_copy when functionalizing.
-    with _override_composite_implicit_decomp(
-        {
-            torch.ops.aten.to.dtype_layout: _special_op_to_preserve_cia,
-            torch.ops.aten.to.dtype: _special_op_to_preserve_cia,
-        },
-        safe=False,
-    ):
-        yield
 
 
 def _split_decomp_table_to_cia_and_python_decomp(
@@ -465,15 +448,9 @@ def _decompose_and_get_gm_with_new_signature_constants(
 
         tx = TracingContext(fake_mode)
 
-        with (
-            fake_mode
-        ), _override_decomp_aten_to_variants(), _override_composite_implicit_decomp(
+        with fake_mode, _override_composite_implicit_decomp(
             cia_to_decomp,
-        ), _enable_graph_inputs_of_type_nn_module(
-            ep.example_inputs
-        ), tracing(
-            tx
-        ):
+        ), _enable_graph_inputs_of_type_nn_module(ep.example_inputs), tracing(tx):
             retracing_args_unwrapped = pytree.tree_unflatten(
                 retracing_args, mod._in_spec
             )
