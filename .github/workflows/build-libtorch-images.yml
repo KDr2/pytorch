@@ -43,14 +43,14 @@ jobs:
     strategy:
       matrix:
         include: |
-          [
+          ${{ fromJSON([
             { name: "libtorch-cxx11-builder", tag: "cuda11.8",  runner: "linux.9xlarge.ephemeral" },
             { name: "libtorch-cxx11-builder", tag: "cuda12.4",  runner: "linux.9xlarge.ephemeral" },
             { name: "libtorch-cxx11-builder", tag: "cuda12.6",  runner: "linux.9xlarge.ephemeral" },
             { name: "libtorch-cxx11-builder", tag: "cpu",       runner: "linux.9xlarge.ephemeral" },
             { name: "libtorch-cxx11-builder", tag: "rocm6.2.4", runner: "linux.9xlarge.ephemeral" },
             { name: "libtorch-cxx11-builder", tag: "rocm6.3",   runner: "linux.9xlarge.ephemeral" }
-          ]
+          ]) }}
     runs-on: ${{ needs.get-label-type.outputs.label-type }}${{ matrix.runner }}
     name: Build docker image ${{ matrix.name }}:${{ matrix.tag }}
     steps:
