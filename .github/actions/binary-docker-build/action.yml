@@ -1,0 +1,53 @@
+name: Binary docker build
+
+description: Build docker image for binary builds
+
+inputs:
+  docker-image-name-pr:
+    description: Docker image name for PR builds
+    required: true
+  docker-image-name-main:
+    description: Docker image name for main branch builds
+    required: true
+  docker-build-dir:
+    description: Location of the build.sh relative to .ci/docker
+    required: true
+
+env:
+  DOCKER_REGISTRY: "docker.io"
+  DOCKER_BUILDKIT: 1
+  WITH_PUSH: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release')) }}
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout PyTorch
+      uses: actions/checkout@v4
+    - name: Calculate docker image
+      if: env.WITH_PUSH == 'false'
+      uses: pytorch/test-infra/.github/actions/calculate-docker-image@csl/calculate_docker_image_custom_script_path
+      with:
+        docker-image-name: ${{ docker-image-name-pr }}
+        docker-build-dir: .ci/docker
+        docker-build-script: ${{ docker-build-dir }}/build.sh
+        always-rebuild: true
+        push: true
+    - name: Authenticate if WITH_PUSH
+      if: env.WITH_PUSH == 'true'
+      env:
+        DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+        DOCKER_ID: ${{ secrets.DOCKER_ID }}
+      run: |
+        if [[ "${WITH_PUSH}" == true ]]; then
+          echo "${DOCKER_TOKEN}" | docker login -u "${DOCKER_ID}" --password-stdin
+        fi
+    - name: Build Docker Image
+      if: env.WITH_PUSH == 'true'
+      uses: nick-fields/retry@v3.0.0
+      with:
+        shell: bash
+        timeout_minutes: 90
+        max_attempts: 3
+        retry_wait_seconds: 90
+        command: |
+          .ci/docker/${{ docker-build-dir }}/build.sh ${{ docker-image-name-main }}
