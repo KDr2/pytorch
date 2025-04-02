@@ -55,10 +55,12 @@ jobs:
       - name: Build docker image
         uses: pytorch/test-infra/.github/actions/calculate-docker-image@csl/unify_manywheel_docker_pull
         with:
-          docker-image-name-pr: manylinux2_28-builder-cuda${{matrix.cuda_version}}
-          docker-image-name-main: manylinux2_28-builder:cuda${{matrix.cuda_version}}
+          docker-image-name: manylinux2_28-builder-cuda${{matrix.cuda_version}}
+          custom-tag-prefix: cuda${{matrix.cuda_version}}
           docker-build-dir: manywheel
-        secrets: inherit
+        secrets:
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+          DOCKER_ID: ${{ secrets.DOCKER_ID }}
 
   build-docker-cuda-aarch64:
     environment: ${{ (github.ref == 'refs/heads/main' || startsWith(github.event.ref, 'refs/tags/v')) && 'docker-build' || '' }}
@@ -74,10 +76,12 @@ jobs:
       - name: Build docker image
         uses: pytorch/test-infra/.github/actions/calculate-docker-image@csl/unify_manywheel_docker_pull
         with:
-          docker-image-name-pr: manylinuxaarch64-builder-cuda${{matrix.cuda_version}}
-          docker-image-name-main: manylinuxaarch64-builder:cuda${{matrix.cuda_version}}
+          docker-image-name: manylinuxaarch64-builder
+          custom-tag-prefix: cuda${{matrix.cuda_version}}
           docker-build-dir: manywheel
-        secrets: inherit
+        secrets:
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+          DOCKER_ID: ${{ secrets.DOCKER_ID }}
 
   build-docker-rocm-manylinux_2_28:
     environment: ${{ (github.ref == 'refs/heads/main' || startsWith(github.event.ref, 'refs/tags/v')) && 'docker-build' || '' }}
@@ -93,8 +97,8 @@ jobs:
       - name: Build docker image
         uses: pytorch/test-infra/.github/actions/calculate-docker-image@csl/unify_manywheel_docker_pull
         with:
-          docker-image-name-pr: manylinux2_28-builder-rocm${{matrix.rocm_version}}
-          docker-image-name-main: manylinux2_28-builder:rocm${{matrix.rocm_version}}
+          docker-image-name: manylinux2_28-builder
+          custom-tag-prefix: rocm${{matrix.rocm_version}}
           docker-build-dir: manywheel
 
   build-docker-cpu-manylinux_2_28:
@@ -107,10 +111,12 @@ jobs:
       - name: Build docker image
         uses: pytorch/test-infra/.github/actions/calculate-docker-image@csl/unify_manywheel_docker_pull
         with:
-          docker-image-name-pr: manylinux2_28-builder-cpu
-          docker-image-name-main: manylinux2_28-builder:cpu
+          docker-image-name: manylinux2_28-builder
+          custom-tag-prefix: cpu
           docker-build-dir: manywheel
-        secrets: inherit
+        secrets:
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+          DOCKER_ID: ${{ secrets.DOCKER_ID }}
 
   build-docker-cpu-aarch64:
     environment: ${{ (github.ref == 'refs/heads/main' || startsWith(github.event.ref, 'refs/tags/v')) && 'docker-build' || '' }}
@@ -122,10 +128,12 @@ jobs:
       - name: Build docker image
         uses: pytorch/test-infra/.github/actions/calculate-docker-image@csl/unify_manywheel_docker_pull
         with:
-          docker-image-name-pr: manylinuxaarch64-builder-cpu-aarch64
-          docker-image-name-main: manylinuxaarch64-builder:cpu-aarch64
+          docker-image-name: manylinuxaarch64-builder
+          custom-tag-prefix: cpu-aarch64
           docker-build-dir: manywheel
-        secrets: inherit
+        secrets:
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+          DOCKER_ID: ${{ secrets.DOCKER_ID }}
 
   build-docker-cpu-aarch64-2_28:
     environment: ${{ (github.ref == 'refs/heads/main' || startsWith(github.event.ref, 'refs/tags/v')) && 'docker-build' || '' }}
@@ -137,10 +145,12 @@ jobs:
       - name: Build docker image
         uses: pytorch/test-infra/.github/actions/calculate-docker-image@csl/unify_manywheel_docker_pull
         with:
-          docker-image-name-pr: manylinuxaarch64-builder-cpu-aarch64-2_28
-          docker-image-name-main: manylinuxaarch64-builder:cpu-aarch64-2_28
+          docker-image-name: manylinuxaarch64-builder
+          custom-tag-prefix: cpu-aarch64-2_28
           docker-build-dir: manywheel
-        secrets: inherit
+        secrets:
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+          DOCKER_ID: ${{ secrets.DOCKER_ID }}
 
   build-docker-cpu-cxx11-abi:
     environment: ${{ (github.ref == 'refs/heads/main' || startsWith(github.event.ref, 'refs/tags/v')) && 'docker-build' || '' }}
@@ -152,10 +162,12 @@ jobs:
       - name: Build docker image
         uses: pytorch/test-infra/.github/actions/calculate-docker-image@csl/unify_manywheel_docker_pull
         with:
-          docker-image-name-pr: manylinuxcxx11-abi-builder-cpu-cxx11-abi
-          docker-image-name-main: manylinuxcxx11-abi-builder:cpu-cxx11-abi
+          docker-image-name: manylinuxcxx11-abi-builder
+          custom-tag-prefix: cpu-cxx11-abi
           docker-build-dir: manywheel
-        secrets: inherit
+        secrets:
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+          DOCKER_ID: ${{ secrets.DOCKER_ID }}
 
   build-docker-xpu:
     environment: ${{ (github.ref == 'refs/heads/main' || startsWith(github.event.ref, 'refs/tags/v')) && 'docker-build' || '' }}
@@ -167,7 +179,9 @@ jobs:
       - name: Build docker image
         uses: pytorch/test-infra/.github/actions/calculate-docker-image@csl/unify_manywheel_docker_pull
         with:
-          docker-image-name-pr: manylinux2_28-builder-xpu
-          docker-image-name-main: manylinux2_28-builder:xpu
+          docker-image-name: manylinux2_28-builder
+          custom-tag-prefix: xpu
           docker-build-dir: manywheel
-        secrets: inherit
+        secrets:
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+          DOCKER_ID: ${{ secrets.DOCKER_ID }}

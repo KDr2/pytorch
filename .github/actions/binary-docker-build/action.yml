@@ -3,15 +3,15 @@ name: Binary docker build
 description: Build docker image for binary builds
 
 inputs:
-  docker-image-name-pr:
+  docker-image-name:
     description: Docker image name for PR builds
-    required: true
-  docker-image-name-main:
-    description: Docker image name for main branch builds
     required: true
   docker-build-dir:
     description: Location of the build.sh relative to .ci/docker
     required: true
+  custom-tag-prefix:
+    description: Custom tag prefix for the docker image
+    required: false
 
 runs:
   using: composite
@@ -22,8 +22,9 @@ runs:
       if: env.WITH_PUSH == 'false'
       uses: pytorch/test-infra/.github/actions/calculate-docker-image@csl/calculate_docker_image_custom_script_path
       with:
-        docker-image-name: ${{ docker-image-name-pr }}
+        docker-image-name: ${{ docker-image-name }}
         docker-build-dir: .ci/docker
+        custom-tag-prefix: ${{ inputs.custom-tag-prefix }}
         docker-build-script: ${{ docker-build-dir }}/build.sh
         always-rebuild: true
         push: true
@@ -45,4 +46,4 @@ runs:
         max_attempts: 3
         retry_wait_seconds: 90
         command: |
-          .ci/docker/${{ docker-build-dir }}/build.sh ${{ docker-image-name-main }}
+          .ci/docker/${{ docker-build-dir }}/build.sh ${{ docker-image-name }}:${{ inputs.custom-tag-prefix }}
