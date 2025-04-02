@@ -62,6 +62,10 @@ on:
         required: true
         type: string
         description: Docker image to use
+      DOCKER_IMAGE_TAG:
+        required: true
+        type: string
+        description: Docker image tag to use
       LIBTORCH_CONFIG:
         required: false
         type: string
@@ -203,11 +207,25 @@ jobs:
               { config: "default" },
             ]}
 
+      - name: Calculate docker image
+        id: calculate-docker-image
+        if: ${{ steps.filter.outputs.is-test-matrix-empty == 'False' && inputs.build_environment != 'linux-s390x-binary-manywheel' }}
+        uses: pytorch/test-infra/.github/actions/calculate-docker-image@csl/calculate_docker_image_custom_script_path
+        with:
+          docker-registry: docker.io
+          docker-image-name: ${{ inputs.DOCKER_IMAGE }}
+          custom-tag-prefix: ${{ inputs.DOCKER_IMAGE_TAG }}
+          # The docker-build-script should also be set when building the docker image,
+          # but if we want to spin wait for the docker build job to finish, it
+          # isn't useful.  Instead, we use the default value to get around some
+          # checks in the action
+          docker-build-dir: .ci/docker
+
       - name: Pull Docker image
         if: ${{ steps.filter.outputs.is-test-matrix-empty == 'False' && inputs.build_environment != 'linux-s390x-binary-manywheel' }}
         uses: pytorch/test-infra/.github/actions/pull-docker-image@main
         with:
-          docker-image: ${{ inputs.DOCKER_IMAGE }}
+          docker-image: ${{ steps.calculate-docker-image.outputs.docker-image }}
 
       - name: Build PyTorch binary
         if: ${{ steps.filter.outputs.is-test-matrix-empty == 'False' }}

@@ -41,6 +41,7 @@ jobs:
     needs: get-label-type
     environment: ${{ (github.ref == 'refs/heads/main' || startsWith(github.event.ref, 'refs/tags/v')) && 'docker-build' || '' }}
     strategy:
+      fail-fast: false
       matrix:
         include: [
           { name: "libtorch-cxx11-builder", tag: "cuda11.8",  runner: "linux.9xlarge.ephemeral" },

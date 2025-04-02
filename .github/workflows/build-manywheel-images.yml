@@ -44,6 +44,7 @@ jobs:
     environment: ${{ (github.ref == 'refs/heads/main' || startsWith(github.event.ref, 'refs/tags/v')) && 'docker-build' || '' }}
     needs: get-label-type
     strategy:
+      fail-fast: false
       matrix:
         include: [
           { name: "manylinux2_28-builder",      tag: "cuda12.8",          runner: "linux.9xlarge.ephemeral" },
