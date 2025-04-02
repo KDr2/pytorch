@@ -39,6 +39,10 @@ on:
         required: true
         type: string
         description: Docker image to use
+      DOCKER_IMAGE_TAG_PREFIX:
+        required: true
+        type: string
+        description: Docker image tag to use
       LIBTORCH_CONFIG:
         required: false
         type: string

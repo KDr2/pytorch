@@ -62,7 +62,7 @@ on:
         required: true
         type: string
         description: Docker image to use
-      DOCKER_IMAGE_TAG:
+      DOCKER_IMAGE_TAG_PREFIX:
         required: true
         type: string
         description: Docker image tag to use
@@ -214,7 +214,7 @@ jobs:
         with:
           docker-registry: docker.io
           docker-image-name: ${{ inputs.DOCKER_IMAGE }}
-          custom-tag-prefix: ${{ inputs.DOCKER_IMAGE_TAG }}
+          custom-tag-prefix: ${{ inputs.DOCKER_IMAGE_TAG_PREFIX }}
           # The docker-build-script should also be set when building the docker image,
           # but if we want to spin wait for the docker build job to finish, it
           # isn't useful.  Instead, we use the default value to get around some
