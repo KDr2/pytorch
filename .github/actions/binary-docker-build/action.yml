@@ -28,10 +28,10 @@ runs:
       if: env.WITH_PUSH == 'false'
       uses: pytorch/test-infra/.github/actions/calculate-docker-image@csl/calculate_docker_image_custom_script_path
       with:
-        docker-image-name: ${{ docker-image-name }}
+        docker-image-name: ${{ inputs.docker-image-name }}
         docker-build-dir: .ci/docker
         custom-tag-prefix: ${{ inputs.custom-tag-prefix }}
-        docker-build-script: ${{ docker-build-dir }}/build.sh
+        docker-build-script: ${{ inputs.docker-build-dir }}/build.sh
         always-rebuild: true
         push: true
     - name: Authenticate if WITH_PUSH
@@ -52,4 +52,4 @@ runs:
         max_attempts: 3
         retry_wait_seconds: 90
         command: |
-          .ci/docker/${{ docker-build-dir }}/build.sh ${{ docker-image-name }}:${{ inputs.custom-tag-prefix }}
+          .ci/docker/${{ inputs.docker-build-dir }}/build.sh ${{ inputs.docker-image-name }}:${{ inputs.custom-tag-prefix }}
