@@ -13,10 +13,12 @@ on:
     paths:
       - .ci/docker/**
       - .github/workflows/build-manywheel-images.yml
+      - .github/actions/binary-docker-build/**
   pull_request:
     paths:
       - .ci/docker/**
       - .github/workflows/build-manywheel-images.yml
+      - .github/actions/binary-docker-build/**
 
 
 env:
