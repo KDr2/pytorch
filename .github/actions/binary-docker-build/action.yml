@@ -13,11 +13,6 @@ inputs:
     description: Location of the build.sh relative to .ci/docker
     required: true
 
-env:
-  DOCKER_REGISTRY: "docker.io"
-  DOCKER_BUILDKIT: 1
-  WITH_PUSH: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release')) }}
-
 runs:
   using: composite
   steps:
