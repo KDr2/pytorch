@@ -148,7 +148,7 @@ jobs:
       DESIRED_CUDA: cpu
       GPU_ARCH_TYPE: cpu
       DOCKER_IMAGE: pytorch/manylinux2_28-builder
-      DOCKER_IMAGE_TAG_PREFIX: cpu
+      DOCKER_IMAGE_TAG: cpu
       DESIRED_PYTHON: "3.9"
       build_name: wheel-py3_9-cpu
       use_s3: False
@@ -273,7 +273,7 @@ jobs:
       DESIRED_CUDA: cpu
       GPU_ARCH_TYPE: cpu
       DOCKER_IMAGE: pytorch/manylinux2_28-builder
-      DOCKER_IMAGE_TAG_PREFIX: cpu
+      DOCKER_IMAGE_TAG: cpu
       DESIRED_PYTHON: "3.10"
       build_name: wheel-py3_10-cpu
       use_s3: False
@@ -398,7 +398,7 @@ jobs:
       DESIRED_CUDA: cpu
       GPU_ARCH_TYPE: cpu
       DOCKER_IMAGE: pytorch/manylinux2_28-builder
-      DOCKER_IMAGE_TAG_PREFIX: cpu
+      DOCKER_IMAGE_TAG: cpu
       DESIRED_PYTHON: "3.11"
       build_name: wheel-py3_11-cpu
       use_s3: False
@@ -523,7 +523,7 @@ jobs:
       DESIRED_CUDA: cpu
       GPU_ARCH_TYPE: cpu
       DOCKER_IMAGE: pytorch/manylinux2_28-builder
-      DOCKER_IMAGE_TAG_PREFIX: cpu
+      DOCKER_IMAGE_TAG: cpu
       DESIRED_PYTHON: "3.12"
       build_name: wheel-py3_12-cpu
       use_s3: False
@@ -648,7 +648,7 @@ jobs:
       DESIRED_CUDA: cpu
       GPU_ARCH_TYPE: cpu
       DOCKER_IMAGE: pytorch/manylinux2_28-builder
-      DOCKER_IMAGE_TAG_PREFIX: cpu
+      DOCKER_IMAGE_TAG: cpu
       DESIRED_PYTHON: "3.13"
       build_name: wheel-py3_13-cpu
       use_s3: False
@@ -773,7 +773,7 @@ jobs:
       DESIRED_CUDA: cpu
       GPU_ARCH_TYPE: cpu
       DOCKER_IMAGE: pytorch/manylinux2_28-builder
-      DOCKER_IMAGE_TAG_PREFIX: cpu
+      DOCKER_IMAGE_TAG: cpu
       DESIRED_PYTHON: "3.13t"
       build_name: wheel-py3_13t-cpu
       use_s3: False

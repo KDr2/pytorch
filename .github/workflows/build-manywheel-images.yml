@@ -61,7 +61,7 @@ jobs:
           { name: "manylinux2_28-builder",      tag: "xpu",               runner: "linux.9xlarge.ephemeral" },
         ]
     runs-on: ${{ needs.get-label-type.outputs.label-type }}${{ matrix.runner }}
-    name: Build docker image ${{ matrix.name }}:${{ matrix.tag }}
+    name: ${{ matrix.name }}:${{ matrix.tag }}
     steps:
       - name: Build docker image
         uses: pytorch/pytorch/.github/actions/binary-docker-build@csl/unify_manywheel_docker_pull
