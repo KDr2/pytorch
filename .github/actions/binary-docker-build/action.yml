@@ -24,8 +24,8 @@ runs:
   steps:
     - name: Checkout PyTorch
       uses: actions/checkout@v4
+
     - name: Calculate docker image
-      if: env.WITH_PUSH == 'false'
       uses: pytorch/test-infra/.github/actions/calculate-docker-image@csl/calculate_docker_image_custom_script_path
       with:
         docker-image-name: ${{ inputs.docker-image-name }}
@@ -34,6 +34,7 @@ runs:
         docker-build-script: ${{ inputs.docker-build-dir }}/build.sh
         always-rebuild: true
         push: true
+
     - name: Authenticate if WITH_PUSH
       if: env.WITH_PUSH == 'true'
       env:
@@ -44,6 +45,7 @@ runs:
         if [[ "${WITH_PUSH}" == true ]]; then
           echo "${DOCKER_TOKEN}" | docker login -u "${DOCKER_ID}" --password-stdin
         fi
+
     - name: Build Docker Image
       if: env.WITH_PUSH == 'true'
       uses: nick-fields/retry@v3.0.0
