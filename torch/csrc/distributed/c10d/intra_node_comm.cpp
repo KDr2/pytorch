@@ -160,7 +160,7 @@ bool IntraNodeComm::rendezvous() {
   if (isInitialized_) {
     return true;
   }
-  if (!isIntraNodeCommSupported() || !isEnabled() || worldSize_ < 2 ||
+  if (!isIntraNodeCommSupported() || worldSize_ < 2 ||
       worldSize_ > kMaxDevices) {
     return false;
   }
