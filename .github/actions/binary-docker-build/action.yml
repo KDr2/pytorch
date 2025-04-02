@@ -12,6 +12,13 @@ inputs:
   custom-tag-prefix:
     description: Custom tag prefix for the docker image
     required: false
+secrets:
+  DOCKER_TOKEN:
+    description: Docker token for authentication
+    required: true
+  DOCKER_ID:
+    description: Docker ID for authentication
+    required: true
 
 runs:
   using: composite
