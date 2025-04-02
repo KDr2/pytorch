@@ -45,21 +45,20 @@ jobs:
     needs: get-label-type
     strategy:
       matrix:
-        include: |
-          ${{ fromJSON([
-            { name: "manylinux2_28-builder",      tag: "cuda12.8",          runner: "linux.9xlarge.ephemeral" },
-            { name: "manylinux2_28-builder",      tag: "cuda12.6",          runner: "linux.9xlarge.ephemeral" },
-            { name: "manylinux2_28-builder",      tag: "cuda12.4",          runner: "linux.9xlarge.ephemeral" },
-            { name: "manylinux2_28-builder",      tag: "cuda11.8",          runner: "linux.9xlarge.ephemeral" },
-            { name: "manylinux2_28-builder",      tag: "cpu",               runner: "linux.9xlarge.ephemeral" },
-            { name: "manylinux2_28-builder",      tag: "rocm6.2.4",         runner: "linux.9xlarge.ephemeral" },
-            { name: "manylinux2_28-builder",      tag: "rocm6.3",           runner: "linux.9xlarge.ephemeral" },
-            { name: "manylinuxaarch64-builder",   tag: "cuda12.8",          runner: "linux.arm64.2xlarge.ephemeral" },
-            { name: "manylinuxaarch64-builder",   tag: "cpu-aarch64",       runner: "linux.arm64.2xlarge.ephemeral" },
-            { name: "manylinuxaarch64-builder",   tag: "cpu-aarch64-2_28",  runner: "linux.arm64.2xlarge.ephemeral" },
-            { name: "manylinuxcxx11-abi-builder", tag: "cpu-cxx11-abi",     runner: "linux.9xlarge.ephemeral" },
-            { name: "manylinux2_28-builder",      tag: "xpu",               runner: "linux.9xlarge.ephemeral" },
-          ]) }}
+        include: [
+          { name: "manylinux2_28-builder",      tag: "cuda12.8",          runner: "linux.9xlarge.ephemeral" },
+          { name: "manylinux2_28-builder",      tag: "cuda12.6",          runner: "linux.9xlarge.ephemeral" },
+          { name: "manylinux2_28-builder",      tag: "cuda12.4",          runner: "linux.9xlarge.ephemeral" },
+          { name: "manylinux2_28-builder",      tag: "cuda11.8",          runner: "linux.9xlarge.ephemeral" },
+          { name: "manylinux2_28-builder",      tag: "cpu",               runner: "linux.9xlarge.ephemeral" },
+          { name: "manylinux2_28-builder",      tag: "rocm6.2.4",         runner: "linux.9xlarge.ephemeral" },
+          { name: "manylinux2_28-builder",      tag: "rocm6.3",           runner: "linux.9xlarge.ephemeral" },
+          { name: "manylinuxaarch64-builder",   tag: "cuda12.8",          runner: "linux.arm64.2xlarge.ephemeral" },
+          { name: "manylinuxaarch64-builder",   tag: "cpu-aarch64",       runner: "linux.arm64.2xlarge.ephemeral" },
+          { name: "manylinuxaarch64-builder",   tag: "cpu-aarch64-2_28",  runner: "linux.arm64.2xlarge.ephemeral" },
+          { name: "manylinuxcxx11-abi-builder", tag: "cpu-cxx11-abi",     runner: "linux.9xlarge.ephemeral" },
+          { name: "manylinux2_28-builder",      tag: "xpu",               runner: "linux.9xlarge.ephemeral" },
+        ]
     runs-on: ${{ needs.get-label-type.outputs.label-type }}${{ matrix.runner }}
     name: Build docker image ${{ matrix.name }}:${{ matrix.tag }}
     steps:
