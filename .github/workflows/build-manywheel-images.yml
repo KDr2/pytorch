@@ -58,7 +58,6 @@ jobs:
           docker-image-name: manylinux2_28-builder-cuda${{matrix.cuda_version}}
           custom-tag-prefix: cuda${{matrix.cuda_version}}
           docker-build-dir: manywheel
-        secrets:
           DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
           DOCKER_ID: ${{ secrets.DOCKER_ID }}
 
@@ -79,7 +78,6 @@ jobs:
           docker-image-name: manylinuxaarch64-builder
           custom-tag-prefix: cuda${{matrix.cuda_version}}
           docker-build-dir: manywheel
-        secrets:
           DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
           DOCKER_ID: ${{ secrets.DOCKER_ID }}
 
@@ -114,7 +112,6 @@ jobs:
           docker-image-name: manylinux2_28-builder
           custom-tag-prefix: cpu
           docker-build-dir: manywheel
-        secrets:
           DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
           DOCKER_ID: ${{ secrets.DOCKER_ID }}
 
@@ -131,7 +128,6 @@ jobs:
           docker-image-name: manylinuxaarch64-builder
           custom-tag-prefix: cpu-aarch64
           docker-build-dir: manywheel
-        secrets:
           DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
           DOCKER_ID: ${{ secrets.DOCKER_ID }}
 
@@ -148,7 +144,6 @@ jobs:
           docker-image-name: manylinuxaarch64-builder
           custom-tag-prefix: cpu-aarch64-2_28
           docker-build-dir: manywheel
-        secrets:
           DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
           DOCKER_ID: ${{ secrets.DOCKER_ID }}
 
@@ -165,7 +160,6 @@ jobs:
           docker-image-name: manylinuxcxx11-abi-builder
           custom-tag-prefix: cpu-cxx11-abi
           docker-build-dir: manywheel
-        secrets:
           DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
           DOCKER_ID: ${{ secrets.DOCKER_ID }}
 
@@ -182,6 +176,5 @@ jobs:
           docker-image-name: manylinux2_28-builder
           custom-tag-prefix: xpu
           docker-build-dir: manywheel
-        secrets:
           DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
           DOCKER_ID: ${{ secrets.DOCKER_ID }}

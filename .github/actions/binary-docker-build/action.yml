@@ -12,7 +12,6 @@ inputs:
   custom-tag-prefix:
     description: Custom tag prefix for the docker image
     required: false
-secrets:
   DOCKER_TOKEN:
     description: Docker token for authentication
     required: true
@@ -38,8 +37,8 @@ runs:
     - name: Authenticate if WITH_PUSH
       if: env.WITH_PUSH == 'true'
       env:
-        DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
-        DOCKER_ID: ${{ secrets.DOCKER_ID }}
+        DOCKER_TOKEN: ${{ inputs.DOCKER_TOKEN }}
+        DOCKER_ID: ${{ inputs.DOCKER_ID }}
       run: |
         if [[ "${WITH_PUSH}" == true ]]; then
           echo "${DOCKER_TOKEN}" | docker login -u "${DOCKER_ID}" --password-stdin
