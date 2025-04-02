@@ -39,6 +39,7 @@ runs:
       env:
         DOCKER_TOKEN: ${{ inputs.DOCKER_TOKEN }}
         DOCKER_ID: ${{ inputs.DOCKER_ID }}
+      shell: bash
       run: |
         if [[ "${WITH_PUSH}" == true ]]; then
           echo "${DOCKER_TOKEN}" | docker login -u "${DOCKER_ID}" --password-stdin
