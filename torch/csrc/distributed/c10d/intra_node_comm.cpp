@@ -68,7 +68,6 @@ static NvlMesh getNvlMesh(const std::vector<int>& rankToDeviceIdx) {
 #endif
 }
 
-
 /**
  * Detech topology given a NvlMesh.
  */
