@@ -55,7 +55,7 @@ jobs:
       - name: Build docker image
         uses: pytorch/pytorch/.github/actions/binary-docker-build@csl/unify_manywheel_docker_pull
         with:
-          docker-image-name: manylinux2_28-builder-cuda${{matrix.cuda_version}}
+          docker-image-name: manylinux2_28-builder
           custom-tag-prefix: cuda${{matrix.cuda_version}}
           docker-build-dir: manywheel
           DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
