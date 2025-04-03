@@ -29,6 +29,9 @@
 #include <torch/csrc/utils/python_compat.h>
 #include <torch/csrc/utils/python_strings.h>
 #include <optional>
+#ifdef USE_CUDA
+#include <torch/csrc/cuda/memory_snapshot.h>
+#endif
 
 namespace py = pybind11;
 
@@ -1144,6 +1147,59 @@ std::vector<std::shared_ptr<Result>> PythonTracer::getEvents(
 
   return out;
 }
+// ============================================================================
+// == Memory Tracer ======================================================
+// ============================================================================
+
+// Assuming python_tracer::PythonMemoryTracerBase is defined elsewhere
+class PythonMemoryTracer final : public python_tracer::PythonMemoryTracerBase {
+ public:
+  explicit PythonMemoryTracer();
+  ~PythonMemoryTracer() override;
+  void start() override;
+  void stop() override;
+  void export_memory_history(const std::string path) override;
+};
+
+PythonMemoryTracer::PythonMemoryTracer() {}
+PythonMemoryTracer::~PythonMemoryTracer() {}
+
+void PythonMemoryTracer::start() {
+#ifdef USE_CUDA
+  // TODO make this configurable
+  int max_entries = 100000;
+  cuda::_record_memory_history(true, true, max_entries, true, true);
+#endif
+}
+
+void PythonMemoryTracer::export_memory_history(const std::string path) {
+  PyGILState_STATE gil_state = PyGILState_Ensure();
+  THPObjectPtr torch_cuda_memory_module(
+      PyImport_ImportModule("torch.cuda.memory"));
+  if (!torch_cuda_memory_module) {
+    return;
+  }
+  THPObjectPtr snapshot_func(
+      PyObject_GetAttrString(torch_cuda_memory_module.get(), "_dump_snapshot"));
+  if (!snapshot_func) {
+    return;
+  }
+  PyObject* py_filename = PyUnicode_FromString(path.c_str());
+  // Call the function with arguments (e.g., a file path)
+  PyObject* args = PyTuple_Pack(1, py_filename);
+  PyObject* result = PyObject_Call(snapshot_func.get(), args, NULL);
+  Py_DECREF(args);
+  if (result == NULL) {
+    return;
+  }
+  PyGILState_Release(gil_state);
+}
+
+void PythonMemoryTracer::stop() {
+#ifdef USE_CUDA
+  cuda::_record_memory_history(false);
+#endif
+}
 
 // ============================================================================
 // == API =====================================================================
@@ -1181,6 +1237,11 @@ std::unique_ptr<python_tracer::PythonTracerBase> getTracer(
     torch::profiler::impl::RecordQueue* queue) {
   return std::make_unique<PythonTracer>(queue);
 }
+
+std::unique_ptr<python_tracer::PythonMemoryTracerBase> getMemoryTracer() {
+  return std::make_unique<PythonMemoryTracer>();
+}
+
 } // namespace
 } // namespace torch::profiler::impl
 
@@ -1191,5 +1252,7 @@ void init() {
   TORCH_CHECK(PyType_Ready(&torch::profiler::impl::TraceContextType) == 0);
   torch::profiler::impl::python_tracer::registerTracer(
       &torch::profiler::impl::getTracer);
+  torch::profiler::impl::python_tracer::registerMemoryTracer(
+      &torch::profiler::impl::getMemoryTracer);
 }
 } // namespace torch::autograd::profiler::python_tracer
