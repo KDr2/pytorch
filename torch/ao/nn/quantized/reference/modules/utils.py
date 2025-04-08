@@ -193,10 +193,10 @@ def _quantize_weight_decomposed(
     weight_quant_min: typing.Optional[int],
     weight_quant_max: typing.Optional[int],
 ) -> torch.Tensor:
-    _DTYPE_TO_QVALUE_BOUNDS = {
-        torch.uint8: (0, 255),
-        torch.int8: (-128, 127),
-        torch.int32: (-(2**31), 2**31 - 1),
+    _DTYPE_TO_QVALUE_BOUNDS: dict[torch.dtype, tuple[int, int]] = {
+        torch.uint8: (int(0), int(255)),
+        torch.int8: (int(-128), int(127)),
+        torch.int32: (int(-(2**31)), int(2**31 - 1)),
     }
     # TODO: add an util function for converting qdtype to dtype
     _QDTYPE_TO_UNDERLYING_INT_REPR_DTYPE = {
@@ -255,10 +255,10 @@ def _dequantize_weight_decomposed(
     weight_quant_max: typing.Optional[int],
 ) -> torch.Tensor:
     # TODO: get the quant_min and quant_max from activation_post_process
-    _DTYPE_TO_QVALUE_BOUNDS = {
-        torch.uint8: (0, 255),
-        torch.int8: (-128, 127),
-        torch.int32: (-(2**31), 2**31 - 1),
+    _DTYPE_TO_QVALUE_BOUNDS: dict[torch.dtype, tuple[int, int]] = {
+        torch.uint8: (int(0), int(255)),
+        torch.int8: (int(-128), int(127)),
+        torch.int32: (int(-(2**31)), int(2**31 - 1)),
     }
     # TODO: add an util function for converting qdtype to dtype
     _QDTYPE_TO_UNDERLYING_INT_REPR_DTYPE = {
