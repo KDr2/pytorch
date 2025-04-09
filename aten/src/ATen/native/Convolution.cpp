@@ -93,7 +93,7 @@ static bool conv_benchmark_empty_cache = true;
 
 // Check workload to activate fast depthwise FP16 cudnn conv kernels
 template <typename T>
-bool check_cudnn_depthwise_workload(const at::Tensor& input, T stride) {
+static bool check_cudnn_depthwise_workload(const at::Tensor& input, T stride) {
   auto w = at::symint::size<T>(input, 3);  // same as h
   auto ch = at::symint::size<T>(input, 1);
   auto bs = at::symint::size<T>(input, 0);
@@ -216,7 +216,7 @@ bool check_cudnn_depthwise_workload(const at::Tensor& input, T stride) {
 
 // simplified version for cudnn 8.2 and above
 template <typename T>
-bool check_cudnn_depthwise_workload_with_filter(const at::Tensor& input, T stride, const at::Tensor& weight) {
+static bool check_cudnn_depthwise_workload_with_filter(const at::Tensor& input, T stride, const at::Tensor& weight) {
   // 1D conv
   if(at::symint::size<T>(input, 2) == 1 && stride == 1){
     return true;
@@ -636,7 +636,7 @@ REGISTER_NO_CPU_DISPATCH(miopen_convolution_transpose_backward_stub)
 REGISTER_NO_CPU_DISPATCH(miopen_depthwise_convolution_backward_stub)
 
 template <typename T>
-std::ostream& operator<<(std::ostream & out, const ConvParams<T>& params) {
+static std::ostream& operator<<(std::ostream & out, const ConvParams<T>& params) {
   out << "ConvParams {"
       << "  stride = " << IntArrayRef{params.stride}
       << "  padding = " << ArrayRef<T>{params.padding}
@@ -912,7 +912,7 @@ at::Tensor complex_convolution_mode(
 
 } // namespace
 
-at::Tensor conv1d_symint(
+static at::Tensor conv1d_symint(
     const Tensor& input_, const Tensor& weight, const std::optional<Tensor>& bias_opt,
     SymIntArrayRef stride, SymIntArrayRef padding, SymIntArrayRef dilation, c10::SymInt groups) {
   // See [Note: hacky wrapper removal for optional tensor]
@@ -937,7 +937,7 @@ at::Tensor conv1d_symint(
   return is_batched ? std::move(output) : output.squeeze(0);
 }
 
-at::Tensor conv2d_symint(
+static at::Tensor conv2d_symint(
     const Tensor& input_, const Tensor& weight, const std::optional<Tensor>& bias_opt,
     SymIntArrayRef stride, SymIntArrayRef padding, SymIntArrayRef dilation, c10::SymInt groups) {
   // See [Note: hacky wrapper removal for optional tensor]
@@ -962,7 +962,7 @@ at::Tensor conv2d_symint(
   return is_batched ? std::move(output) : output.squeeze(0);
 }
 
-at::Tensor conv3d_symint(
+static at::Tensor conv3d_symint(
     const Tensor& input_, const Tensor& weight, const std::optional<Tensor>& bias_opt,
     SymIntArrayRef stride, SymIntArrayRef padding, SymIntArrayRef dilation, c10::SymInt groups) {
   // See [Note: hacky wrapper removal for optional tensor]
@@ -1053,7 +1053,7 @@ static Tensor convolution_same(
                                 dilation, false, output_padding, groups);
 }
 
-Tensor _convolution_mode_symint(
+static Tensor _convolution_mode_symint(
     const Tensor& input, const Tensor& weight, const std::optional<Tensor>& bias_opt,
     SymIntArrayRef stride, std::string_view padding, SymIntArrayRef dilation,
     c10::SymInt groups) {
@@ -1071,7 +1071,7 @@ Tensor _convolution_mode_symint(
   TORCH_CHECK(false, "Invalid padding string: '", padding, "'");
 }
 
-at::Tensor conv1d_padding_symint(
+static at::Tensor conv1d_padding_symint(
     const Tensor& input_, const Tensor& weight, const std::optional<Tensor>& bias,
     c10::SymIntArrayRef stride, std::string_view padding, c10::SymIntArrayRef dilation,
     c10::SymInt groups) {
@@ -1085,7 +1085,7 @@ at::Tensor conv1d_padding_symint(
   return is_batched ? std::move(output) : output.squeeze(0);
 }
 
-at::Tensor conv2d_padding_symint(
+static at::Tensor conv2d_padding_symint(
     const Tensor& input_, const Tensor& weight, const std::optional<Tensor>& bias,
     c10::SymIntArrayRef stride, std::string_view padding, c10::SymIntArrayRef dilation,
     c10::SymInt groups) {
@@ -1099,7 +1099,7 @@ at::Tensor conv2d_padding_symint(
   return is_batched ? std::move(output) : output.squeeze(0);
 }
 
-at::Tensor conv3d_padding_symint(
+static at::Tensor conv3d_padding_symint(
     const Tensor& input_, const Tensor& weight, const std::optional<Tensor>& bias,
     c10::SymIntArrayRef stride, std::string_view padding, c10::SymIntArrayRef dilation,
     c10::SymInt groups) {
@@ -1113,7 +1113,7 @@ at::Tensor conv3d_padding_symint(
   return is_batched ? std::move(output) : output.squeeze(0);
 }
 
-at::Tensor conv_transpose1d_symint(
+static at::Tensor conv_transpose1d_symint(
     const Tensor& input_, const Tensor& weight, const std::optional<Tensor>& bias_opt,
     SymIntArrayRef stride, SymIntArrayRef padding, SymIntArrayRef output_padding, c10::SymInt groups, SymIntArrayRef dilation) {
   // See [Note: hacky wrapper removal for optional tensor]
@@ -1132,7 +1132,7 @@ at::Tensor conv_transpose1d_symint(
   return is_batched ? std::move(output) : output.squeeze(0);
 }
 
-at::Tensor conv_transpose2d_symint(
+static at::Tensor conv_transpose2d_symint(
     const Tensor& input_, const Tensor& weight, const std::optional<Tensor>& bias_opt,
     SymIntArrayRef stride, SymIntArrayRef padding, SymIntArrayRef output_padding, c10::SymInt groups, SymIntArrayRef dilation) {
   // See [Note: hacky wrapper removal for optional tensor]
@@ -1151,7 +1151,7 @@ at::Tensor conv_transpose2d_symint(
   return is_batched ? std::move(output) : output.squeeze(0);
 }
 
-at::Tensor conv_transpose3d_symint(
+static at::Tensor conv_transpose3d_symint(
     const Tensor& input_, const Tensor& weight, const std::optional<Tensor>& bias_opt,
     SymIntArrayRef stride, SymIntArrayRef padding, SymIntArrayRef output_padding, c10::SymInt groups, SymIntArrayRef dilation) {
   // See [Note: hacky wrapper removal for optional tensor]
@@ -1199,7 +1199,7 @@ at::Tensor convolution_overrideable(
 // a bool indicating whether the bias is defined. This is done to save memory by
 // avoiding saving the full bias tensor for backward.
 template <typename T>
-ConvBackend _select_conv_backend(
+static ConvBackend _select_conv_backend(
     const Tensor& input,
     const Tensor& weight,
     const std::optional<Tensor>& bias,

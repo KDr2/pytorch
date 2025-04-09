@@ -9,7 +9,7 @@
 
 using namespace ideep;
 
-RegisterEngineAllocator cpu_alloc(
+static RegisterEngineAllocator cpu_alloc(
   engine::cpu_engine(),
   [](size_t size) {
     return c10::GetAllocator(c10::DeviceType::CPU)->raw_allocate(size);
@@ -20,7 +20,7 @@ RegisterEngineAllocator cpu_alloc(
 );
 
 namespace at::native::mkldnn{
-void clear_computation_cache();
+static void clear_computation_cache();
 
 void clear_computation_cache() {
   // Reset computation_cache for forward convolutions

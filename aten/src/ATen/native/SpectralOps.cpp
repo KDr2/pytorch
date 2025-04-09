@@ -357,14 +357,14 @@ Tensor fftn_c2c(
 }  // namespace (anonymous)
 
 // torch.fft.fft, analogous to NumPy's numpy.fft.fft
-Tensor fft_fft_symint(const Tensor& self, std::optional<SymInt> n, int64_t dim,
+static Tensor fft_fft_symint(const Tensor& self, std::optional<SymInt> n, int64_t dim,
                std::optional<std::string_view> norm) {
   return self.is_complex() ?
     fft_c2c("fft", {}, self, n, dim, norm, /*forward=*/true) :
     fft_r2c("fft", {}, self, n, dim, norm, /*forward=*/true, /*onesided=*/false);
 }
 
-Tensor& fft_fft_symint_out(const Tensor& self, std::optional<SymInt> n,
+static Tensor& fft_fft_symint_out(const Tensor& self, std::optional<SymInt> n,
                     int64_t dim, std::optional<std::string_view> norm, Tensor& out) {
   if (self.is_complex()) {
     fft_c2c("fft", out, self, n, dim, norm, /*forward=*/true);
@@ -374,14 +374,14 @@ Tensor& fft_fft_symint_out(const Tensor& self, std::optional<SymInt> n,
   return out;
 }
 
-Tensor fft_ifft_symint(const Tensor& self, std::optional<SymInt> n, int64_t dim,
+static Tensor fft_ifft_symint(const Tensor& self, std::optional<SymInt> n, int64_t dim,
                 std::optional<std::string_view> norm) {
   return self.is_complex() ?
     fft_c2c("ifft", {}, self, n, dim, norm, /*forward=*/false) :
     fft_r2c("ifft", {}, self, n, dim, norm, /*forward=*/false, /*onesided=*/false);
 }
 
-Tensor& fft_ifft_symint_out(const Tensor& self, std::optional<SymInt> n,
+static Tensor& fft_ifft_symint_out(const Tensor& self, std::optional<SymInt> n,
                      int64_t dim, std::optional<std::string_view> norm, Tensor& out) {
   if (self.is_complex()) {
     fft_c2c("ifft", out, self, n, dim, norm, /*forward=*/false);

@@ -4070,7 +4070,7 @@ Tensor linalg_solve_triangular(
   return out;
 }
 
-Tensor linalg_vander_symint(
+static Tensor linalg_vander_symint(
     const Tensor& x,
     std::optional<c10::SymInt> N) {
   auto t = x.scalar_type();

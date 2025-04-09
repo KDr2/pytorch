@@ -34,7 +34,7 @@
 
 namespace at::native {
 
-Tensor embedding_symint(const Tensor & weight, const Tensor & indices,
+static Tensor embedding_symint(const Tensor & weight, const Tensor & indices,
                         c10::SymInt padding_idx, bool scale_grad_by_freq, bool sparse) {
   TORCH_CHECK(weight.dim() == 2,  "'weight' must be 2-D");
   auto indices_arg = TensorArg(indices, "indices", 1);
@@ -53,7 +53,7 @@ Tensor embedding_symint(const Tensor & weight, const Tensor & indices,
   return weight.index_select(0, indices.reshape(-1)).view_symint(size);
 }
 
-Tensor embedding_backward_symint(
+static Tensor embedding_backward_symint(
     const Tensor & grad, const Tensor & indices, c10::SymInt num_weights,
     c10::SymInt padding_idx, bool scale_grad_by_freq, bool sparse) {
   if (sparse) {

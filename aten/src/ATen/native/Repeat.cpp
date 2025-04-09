@@ -98,7 +98,7 @@ Tensor repeat_interleave_symint(
   return ret;
 }
 
-Tensor repeat_interleave_symint(
+static Tensor repeat_interleave_symint(
     const Tensor& self,
     c10::SymInt repeats,
     std::optional<int64_t> dim_opt,

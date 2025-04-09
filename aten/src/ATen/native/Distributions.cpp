@@ -371,17 +371,17 @@ Tensor& random_(Tensor& self, int64_t to, std::optional<Generator> gen) {
   return random_(self, 0, to, std::move(gen));
 }
 
-Tensor& random_meta_(Tensor& self, std::optional<Generator> gen) {
+static Tensor& random_meta_(Tensor& self, std::optional<Generator> gen) {
   // No error checking yay
   return self;
 }
 
-Tensor& random_meta_(Tensor& self, int64_t from, std::optional<int64_t> to, std::optional<Generator> gen) {
+static Tensor& random_meta_(Tensor& self, int64_t from, std::optional<int64_t> to, std::optional<Generator> gen) {
   // No error checking yay
   return self;
 }
 
-Tensor& random_meta_(Tensor& self, int64_t to, std::optional<Generator> gen) {
+static Tensor& random_meta_(Tensor& self, int64_t to, std::optional<Generator> gen) {
   // No error checking yay
   return self;
 }
