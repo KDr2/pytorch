@@ -1,5 +1,7 @@
 import copy
 import typing
+import types
+import functools
 
 import torch
 from torch.export.exported_program import _decompose_exported_program
@@ -67,3 +69,58 @@ def _export_forward_backward(
     _remove_detach_pass(gm, new_graph_signature)
 
     return ep._update(gm, new_graph_signature)
+
+
+def _sticky_export(model):
+    """
+    This is an experimental API to wrap a model with export decorator 
+    so that it automatically exports without users needing to find 
+    inputs for export. This is useful for real life inference pipelines 
+    where the model we want to export is buried under frameworkcode. 
+    Typical usage is:
+    
+        model = _sticky_export(model)
+        model(*args, **kwargs)
+
+    This will automatically export the model when it is called for the first time and use the 
+    resulting exported artifact in the future. 
+    """
+    if not isinstance(model, torch.nn.Module):
+        raise TypeError("sticky_export expects an instance of torch.nn.Module")
+
+    from torch.export import export
+    from torch.utils._pytree import tree_flatten
+
+    if hasattr(model, "_original_forward"):
+        # Already patched
+        return model
+
+    model._original_forward = model.forward  # stash it
+
+    def exported_forward(*args, **kwargs):
+        # only export once, this should be ok because we are using dim.auto 
+        # and will rely on export runtime asseriton to fail if something is changed.
+        if not hasattr(model, "_exported_module"):
+            model.forward = model._original_forward  # Unpatch temporarily
+
+            dynamic_specs_args, _ = tree_flatten((args, kwargs))
+            shapes_collection = torch.export.ShapesCollection() 
+            for arg in dynamic_specs_args:
+                if isinstance(arg, torch.Tensor):
+                    shapes = [torch.export.Dim.AUTO for _ in range(len(arg.shape))]
+                    shapes_collection[arg] = shapes
+
+            model._exported_module = export(model, args, kwargs, dynamic_shapes=shapes_collection, strict=False).module()
+        return model._exported_module(*args, **kwargs)
+
+    model.forward = exported_forward
+    return model
+
+
+def _undo_sticky_export(model):
+    if hasattr(model, "_original_forward"):
+        model.forward = model._original_forward
+        del model._original_forward
+    if hasattr(model, "_exported_module"):
+        del model._exported_module
+    return model
