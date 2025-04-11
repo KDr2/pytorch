@@ -751,7 +751,10 @@ class Tracer(TracerBase):
                 self.root_module_name = root._get_name()
                 self.submodule_paths = {mod: name for name, mod in root.named_modules()}
             else:
-                self.root = torch.nn.Module()
+                if hasattr(root, "_orig_mod"):
+                    self.root = root._orig_mod
+                else:
+                    self.root = torch.nn.Module()
                 fn = root
 
             tracer_cls: Optional[type[Tracer]] = getattr(self, "__class__", None)

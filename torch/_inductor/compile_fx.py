@@ -16,6 +16,7 @@ from collections import defaultdict
 from contextlib import AbstractContextManager
 from inspect import currentframe
 from itertools import count
+from operator import attrgetter
 from typing import Any, Callable, Optional, TYPE_CHECKING, TypeVar, Union
 from typing_extensions import Never, override, ParamSpec, Protocol, TypedDict, Unpack
 from unittest import mock
@@ -81,6 +82,7 @@ from torch._inductor.utils import (
     should_use_remote_fx_graph_cache,
     tensor_is_aligned,
 )
+from torch._library.fake_class_registry import FakeScriptObject
 from torch._logging import trace_structured
 from torch._utils_internal import compile_time_strobelight_meta
 from torch.fx import GraphModule
@@ -1111,13 +1113,14 @@ class _InProcessFxCompile(FxCompile):
                 if aot_mode and config.aot_inductor.use_runtime_constant_folding:
                     # torchbind objects have name that starts with _torchbind_obj
                     # See caffe2/torch/fx/_symbolic_trace.py?lines=406
-                    # We don't use node.meta["val"] because we don't typically
-                    # attach meta["val"] for get_attr nodes.
                     const_gm, const_output_index = split_const_gm(
                         gm,
                         skip_folding_node_fn=lambda node: node.op == "get_attr"
                         and isinstance(node.target, str)
-                        and node.target.startswith("_torchbind_obj"),
+                        and (
+                            node.target.startswith("_torchbind_obj")
+                            or isinstance(node.meta.get("val", None), FakeScriptObject)
+                        ),
                     )
 
                     const_graph = GraphLowering(
@@ -2130,11 +2133,19 @@ def compile_fx(
                 # this will go away.
                 for node in gm.graph.nodes:
                     if node.op == "get_attr" and "val" not in node.meta:
-                        target = getattr(gm, node.target)
+                        target = attrgetter(node.target)(gm)
                         if isinstance(target, torch.Tensor):
                             node.meta["val"] = fake_mode.from_tensor(
                                 target, static_shapes=True
                             )
+                        elif isinstance(target, torch.ScriptObject):
+                            node.meta["val"] = (
+                                torch._library.fake_class_registry.maybe_to_fake_obj(
+                                    fake_mode, target
+                                )
+                            )
+                        elif isinstance(target, FakeScriptObject):
+                            node.meta["val"] = target
 
             unlifted_gm = _unlift_graph(model_, gm, graph_signature)
             if "dynamo_flat_name_to_original_fqn" in model_.meta:

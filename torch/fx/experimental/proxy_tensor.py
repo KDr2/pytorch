@@ -2193,9 +2193,12 @@ class _MakefxTracer:
             stack.enter_context(_set_make_fx_tracer(self))
 
             assert self.fx_tracer is not None
+            wrap_key_func = wrap_key(func, args, self.fx_tracer, self.pre_dispatch)
+            if hasattr(f, "_orig_mod"):
+                wrap_key_func._orig_mod = f._orig_mod  # noqa: B010
             try:
                 t = dispatch_trace(
-                    wrap_key(func, args, self.fx_tracer, self.pre_dispatch),
+                    wrap_key_func,
                     tracer=self.fx_tracer,
                     concrete_args=tuple(phs),
                 )
