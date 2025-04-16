@@ -14130,6 +14130,9 @@ op_db: list[OpInfo] = [
            check_batched_forward_grad=False,
            supports_out=False,
            skips=(
+               # Compiler issue on ROCm. Regression started in ROCm 6.4.
+               DecorateInfo(unittest.skip('Skipped!'), 'TestCommon', 'test_non_standard_bool_values',
+                            dtypes=[torch.bool], active_if=TEST_WITH_ROCM),
            )),
     OpInfo('masked_select',
            dtypes=all_types_and_complex_and(torch.bool, torch.half, torch.bfloat16),
@@ -15570,6 +15573,9 @@ op_db: list[OpInfo] = [
                # NOTE: this failure may not reproduce consistently on different systems
                # false INTERNAL ASSERT FAILED at "...torch/csrc/jit/passes/utils/check_alias_annotation.cpp":185
                DecorateInfo(unittest.skip("Internal assert failed!"), 'TestJit', 'test_variant_consistency_jit'),
+               # Compiler issue on ROCm. Regression started in ROCm 6.4.
+               DecorateInfo(unittest.skip('Skipped!'), 'TestCommon', 'test_non_standard_bool_values',
+                            dtypes=[torch.bool], active_if=TEST_WITH_ROCM),
            )),
     OpInfo('nn.functional.interpolate',
            aten_name="interpolate",
@@ -18636,7 +18642,12 @@ op_db: list[OpInfo] = [
            supports_forward_ad=True,
            supports_fwgrad_bwgrad=True,
            sample_inputs_func=sample_inputs_scatter,
-           error_inputs_func=error_inputs_scatter_and_scatter_add),
+           error_inputs_func=error_inputs_scatter_and_scatter_add,
+           skips=(
+               # Compiler issue on ROCm. Regression started in ROCm 6.4.
+               DecorateInfo(unittest.skip('Skipped!'), 'TestCommon', 'test_non_standard_bool_values',
+                            dtypes=[torch.bool], active_if=TEST_WITH_ROCM),
+           )),
     UnaryUfuncInfo(
         'bfloat16',
         op=lambda x, *args, **kwargs: x.bfloat16(*args, **kwargs),
@@ -19425,7 +19436,11 @@ op_db: list[OpInfo] = [
            error_inputs_func=error_inputs_scatter_and_scatter_add,
            supports_forward_ad=True,
            supports_fwgrad_bwgrad=True,
-           ),
+           skips=(
+               # Compiler issue on ROCm. Regression started in ROCm 6.4.
+               DecorateInfo(unittest.skip('Skipped!'), 'TestCommon', 'test_non_standard_bool_values',
+                            dtypes=[torch.bool], active_if=TEST_WITH_ROCM),
+           )),
     OpInfo('stack',
            dtypes=all_types_and_complex_and(torch.complex32, torch.bool, torch.float16, torch.bfloat16),
            sample_inputs_func=sample_inputs_stack,
@@ -19436,8 +19451,7 @@ op_db: list[OpInfo] = [
                # https://github.com/pytorch/pytorch/issues/77046
                DecorateInfo(unittest.expectedFailure, 'TestMathBits', 'test_conj_view'),
                DecorateInfo(unittest.expectedFailure, 'TestMathBits', 'test_neg_view'),
-           ),
-           ),
+           )),
     OpInfo('_chunk_cat',
            dtypes=all_types_and_complex_and(torch.complex32, torch.bool, torch.float16, torch.bfloat16),
            sample_inputs_func=sample_inputs_chunk_cat,
@@ -20017,13 +20031,23 @@ op_db: list[OpInfo] = [
            supports_forward_ad=True,
            supports_fwgrad_bwgrad=True,
            error_inputs_func=error_inputs_tril_triu,
-           sample_inputs_func=sample_inputs_tril_triu),
+           sample_inputs_func=sample_inputs_tril_triu,
+           skips=(
+               # Compiler issue on ROCm. Regression started in ROCm 6.4.
+               DecorateInfo(unittest.skip('Skipped!'), 'TestCommon', 'test_non_standard_bool_values',
+                            dtypes=[torch.bool], active_if=TEST_WITH_ROCM),
+           )),
     OpInfo('triu',
            dtypes=all_types_and_complex_and(torch.bool, torch.half, torch.bfloat16, torch.chalf),
            supports_forward_ad=True,
            supports_fwgrad_bwgrad=True,
            error_inputs_func=error_inputs_tril_triu,
-           sample_inputs_func=sample_inputs_tril_triu),
+           sample_inputs_func=sample_inputs_tril_triu,
+           skips=(
+               # Compiler issue on ROCm. Regression started in ROCm 6.4.
+               DecorateInfo(unittest.skip('Skipped!'), 'TestCommon', 'test_non_standard_bool_values',
+                            dtypes=[torch.bool], active_if=TEST_WITH_ROCM),
+           )),
     OpInfo('triu_indices',
            dtypes=_dispatch_dtypes((torch.int32, torch.int64)),
            sample_inputs_func=sample_inputs_trilu_indices,
@@ -21601,6 +21625,11 @@ op_db: list[OpInfo] = [
         supports_forward_ad=True,
         supports_fwgrad_bwgrad=True,
         sample_inputs_func=sample_inputs_scatter_reduce,
+        skips=(
+            # Compiler issue on ROCm. Regression started in ROCm 6.4.
+            DecorateInfo(unittest.skip('Skipped!'), 'TestCommon', 'test_non_standard_bool_values',
+                         dtypes=[torch.bool], active_if=TEST_WITH_ROCM),
+        ),
     ),
     OpInfo(
         'scatter_reduce',
