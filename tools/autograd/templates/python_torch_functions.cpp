@@ -78,7 +78,7 @@ static PyMethodDef torch_functions_shard[] = {
   ${py_method_defs}
 };
 
-void gatherTorchFunctions${shard_id}(std::vector<PyMethodDef> &torch_functions) {
+static void gatherTorchFunctions${shard_id}(std::vector<PyMethodDef> &torch_functions) {
   constexpr size_t num_functions = sizeof(torch_functions_shard) / sizeof(torch_functions_shard[0]);
   torch_functions.insert(
     torch_functions.end(),
