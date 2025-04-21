@@ -1443,6 +1443,7 @@ class Graph:
         the_function: Callable[..., Any],
         args: Optional[tuple["Argument", ...]] = None,
         kwargs: Optional[dict[str, "Argument"]] = None,
+        name: Optional[str] = None,
         type_expr: Optional[Any] = None,
     ) -> Node:
         """
@@ -1460,6 +1461,8 @@ class Graph:
 
             kwargs (Optional[Dict[str, Argument]]): The keyword arguments to be passed
                 to the called function
+            
+            name (Optional[str]): The name of the node. If not specified, set to None
 
             type_expr (Optional[Any]): an optional type annotation representing the
                 Python type the output of this node will have.
@@ -1473,7 +1476,7 @@ class Graph:
             as :meth:`Graph.create_node`.
         """
         return self.create_node(
-            "call_function", the_function, args, kwargs, type_expr=type_expr
+            "call_function", the_function, args, kwargs, name=name, type_expr=type_expr
         )
 
     @compatibility(is_backward_compatible=True)
