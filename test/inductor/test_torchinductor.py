@@ -1717,7 +1717,6 @@ class CommonTemplate:
         self.common(fn, (torch.randn(1024),))
 
     @xfailIfS390X
-    @xfail_if_mps
     @config.patch(debug_index_asserts=False)
     @config.patch("cpp.enable_tiling_heuristics", False)
     def test_neg_index(self):
@@ -1727,6 +1726,8 @@ class CommonTemplate:
             fn_opt = torch.compile(fn)
             if is_halide_backend(self.device):
                 pass  # no device asserts in halide
+            if is_mps_backend(self.device):
+                pass  # no device asserts in MPS
             elif self.device == "cpu" and not is_triton_cpu_backend(self.device):
                 _, code = run_and_get_cpp_code(fn_opt, *inps)
                 self.assertTrue(("TORCH_CHECK" in code) is has_assert)
