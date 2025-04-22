@@ -2389,7 +2389,20 @@ def forward(self, arg0_1, arg1_1, arg2_1, arg3_1, arg4_1):
             v.to(torch.float64),
             score_mod,
         )
-        compiled_out, compiled_lse = sdpa_hop(q, k, v, score_mod)
+        compiled_out, compiled_lse = sdpa_hop(
+            q,
+            k,
+            v,
+            score_mod,
+            kernel_options={
+                # "num_warps": 8,
+                # "num_stages": 3,
+                "ENABLE_TMA": True,
+                "TMA_SIZE": 128,
+                "BLOCK_M": 128,
+                "BLOCK_N": 128,
+            },
+        )
 
         self.assertTrue(ref_lse.dtype == torch.float64)
         self.assertTrue(compiled_lse.dtype == torch.float32)
@@ -3990,6 +4003,37 @@ class GraphModule(torch.nn.Module):
         assert torch.allclose(
             C1, C2, atol=1e-2, rtol=1e-2
         ), "Warp specialized kernel result differs from reference"
+
+    @supported_platform
+    @unittest.skipIf(SKIP_UT_ON_CPU, "Skip on CPU as not supported")
+    def test_tma_with_customer_kernel_options(self):
+        make_tensor = functools.partial(
+            torch.ones,
+            (8, 8, 1024, 128),
+            device="cuda",
+            dtype=torch.bfloat16,
+        )
+        query, key, value = make_tensor(), make_tensor(), make_tensor()
+
+        kernel_options_1 = {
+            "BLOCK_M": 128,
+            "BLOCK_N": 128,
+            "ENABLE_TMA": False,
+        }
+        kernel_options_2 = {"BLOCK_M": 128, "BLOCK_N": 128, "ENABLE_TMA": True}
+        out_eager = flex_attention(query, key, value, kernel_options=kernel_options_1)
+
+        flex_compile = torch.compile(flex_attention, fullgraph=True, dynamic=True)
+        out_compiled = flex_compile(query, key, value, kernel_options=kernel_options_1)
+        out_tma_compiled = flex_compile(
+            query, key, value, kernel_options=kernel_options_2
+        )
+
+        # eager vs TMA compiled
+        torch.testing.assert_close(out_eager, out_tma_compiled, atol=3e-3, rtol=2e-3)
+
+        # vanilla compiled vs TMA compiled
+        torch.testing.assert_close(out_tma_compiled, out_compiled, atol=3e-3, rtol=2e-3)
 
 
 class TestBlockMask(InductorTestCase):
