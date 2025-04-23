@@ -1595,12 +1595,36 @@ def use_ck_template(layout: Layout) -> bool:
     return True
 
 
+def use_ck_tile_template(layout: Layout) -> bool:
+    # config knobs check 1
+    if not use_max_autotune():
+        return False
+    # platform check
+    if not torch.version.hip:
+        return False
+    # tensors must be on GPU
+    if not layout.device.type == "cuda":
+        return False
+    # TBD: adjust filters similar to CK template
+    return True
+
+
 def use_ck_gemm_template(layout: Layout, m: int, n: int, k: int) -> bool:
     from .virtualized import V
 
     return (
         _use_autotune_backend("CK")
         and use_ck_template(layout)
+        and V.graph.sizevars.size_hint(m * n * k, fallback=-1) > 0
+    )
+
+
+def use_ck_tile_gemm_template(layout: Layout, m: int, n: int, k: int) -> bool:
+    from .virtualized import V
+
+    return (
+        _use_autotune_backend("CK")
+        and use_ck_tile_template(layout)
         and V.graph.sizevars.size_hint(m * n * k, fallback=-1) > 0
     )
 

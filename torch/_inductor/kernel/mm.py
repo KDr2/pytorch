@@ -19,6 +19,7 @@ from torch.torch_version import TorchVersion
 from .. import config as inductor_config, ir
 from ..codegen.cuda.gemm_template import CUTLASS2xGemmTemplate, CUTLASS3xGemmTemplate
 from ..codegen.rocm.ck_universal_gemm_template import CKGemmTemplate
+from ..codegen.rocm.ck_tile_universal_gemm_template import CKTileGemmTemplate
 from ..codegen.wrapper import PythonWrapperCodegen
 from ..ir import FlexibleLayout, is_triton
 from ..lowering import (
@@ -37,6 +38,7 @@ from ..utils import (
     get_tma_workspace_arg,
     use_aten_gemm_kernels,
     use_ck_gemm_template,
+    use_ck_tile_gemm_template,
     use_cpp_gemm_template,
     use_cutlass_template,
     use_max_autotune,
@@ -650,6 +652,10 @@ def tuned_mm(mat1, mat2, *, layout=None):
 
     if is_nonzero and use_ck_gemm_template(layout, m, n, k):
         CKGemmTemplate.add_ck_gemm_choices(choices, layout, [mat1, mat2])
+
+    if is_nonzero and use_ck_tile_gemm_template(layout, m, n, k):
+        # CK-tile is new CK
+        CKTileGemmTemplate.add_ck_gemm_choices(choices, layout, [mat1, mat2])
 
     if use_cpp_gemm_template(layout, mat1, mat2):
         CppGemmTemplate.add_choices(
