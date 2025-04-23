@@ -25,13 +25,71 @@ log = logging.getLogger(__name__)
 #     return isinstance(number, (int, sympy.Integer))
 
 
-# def torch_layout_to_ck_layout(torch_layout):
-#     if torch_layout.stride[-1] == 1:
-#         return "Row"
-#     elif torch_layout.stride[-2] == 1:
-#         return "Col"
-#     else:
-#         return None
+def torch_layout_to_ck_layout(torch_layout):
+    if torch_layout.stride[-1] == 1:
+        return "Row"
+    elif torch_layout.stride[-2] == 1:
+        return "Col"
+    else:
+        return None
+
+@dataclass
+class CKTileGemmOperation:
+    layout_a: str
+    layout_b: str
+    layout_c: str
+    datatype: str
+    
+    tile_m: int
+    tile_n: int
+    tile_k: int
+
+    warp_m: int
+    warp_n: int
+    warp_k: int
+
+    warp_tile_m: int
+    warp_tile_n: int
+    warp_tile_k: int
+
+    m_is_padded: bool
+    n_is_padded: bool
+    k_is_padded: bool
+
+    pipeline: str
+    scheduler: str
+    epilogue: str
+
+
+def _default_ops_list():
+    return [
+        CKTileGemmOperation(
+            layout_a = "Row"
+            layout_b = "Col"
+            layout_c = "Row"
+            datatype = "FP16"
+
+            tile_m = 256
+            tile_n = 256
+            tile_k = 256
+
+            warp_m = 2
+            warp_n = 2
+            warp_k = 2
+
+            warp_tile_m = 32
+            warp_tile_n = 32
+            warp_tile_k = 16
+
+            m_is_padded = False
+            n_is_padded = False
+            k_is_padded = False
+
+            pipeline = "compv3"
+            scheduler = "intrawave"
+            epilogue = "default"
+        )
+    ]
 
 
 class CKTileGemmTemplate(CKTileTemplate):
@@ -42,8 +100,6 @@ class CKTileGemmTemplate(CKTileTemplate):
     {{instance_definition}}
     extern "C" {
     PT_EXPORT {{kernel_definition}} {
-
-        constexpr auto kBatch = 1;
 
         auto kargs = ck_tile::GemmKernelArgs {
            X,
@@ -66,10 +122,12 @@ class CKTileGemmTemplate(CKTileTemplate):
                       << std::endl;
             return -45;
         }
+
         if (workspace_size) {
             *workspace_size = 0;
             return 0;
         }
+        
         // run the kernel
         auto stream_config = ck_tile::stream_config{stream};
         auto grid_size = {{instance_type}}::GridSize(M, N, kBatch);
@@ -83,77 +141,70 @@ class CKTileGemmTemplate(CKTileTemplate):
     } // extern C
     """
 
-#     def __init__(
-#         self,
-#         input_nodes: List[Buffer],
-#         layout: Layout,
-#         alpha: float,
-#         beta: float,
-#         input_reorder: Optional[List[int]] = None,
-#     ) -> None:
-#         super().__init__(
-#             "ck_gemm_template",
-#             input_nodes=input_nodes,
-#             layout=layout,
-#             input_reorder=input_reorder,
-#         )
-#         self.alpha = alpha
-#         self.beta = beta
+    def __init__(
+        self,
+        input_nodes: List[Buffer],
+        layout: Layout,
+    ) -> None:
+        super().__init__(
+            "ck_tile_gemm_template",
+            input_nodes=input_nodes,
+            layout=layout,
+        )
 
-#     def header(self) -> IndentedBuffer:
-#         res = super().header()
-#         res.splice(
-#             """
-#                 // CK GEMM header(s)
+    def header(self) -> IndentedBuffer:
+        res = super().header()
+        res.splice(
+            """
+                // CK GEMM header(s)
 
-#                 #include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle_v3.hpp"
-#             """
-#         )
-#         return res
+                #include "ck_tile/ops/gemm.hpp"
+                #include "ck_tile/ops/epilogue.hpp"
+            """
+        )
+        return res
 
-#     def globals(self) -> IndentedBuffer:
-#         res = super().globals()
-#         res.splice(
-#             """
-#                 // CK GEMM globals
+    def globals(self) -> IndentedBuffer:
+        res = super().globals()
+        res.splice(
+            """
+                // CK GEMM globals
 
-#                 using Row = ck::tensor_layout::gemm::RowMajor;
-#                 using Col = ck::tensor_layout::gemm::ColumnMajor;
+                using Row = ck_tile::tensor_layout::gemm::RowMajor;
+                using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-#                 using BlockGemmPipelineScheduler = ck::BlockGemmPipelineScheduler;
-#                 using GemmSpecialization = ck::tensor_operation::device::GemmSpecialization;
-#                 using BlockGemmPipelineVersion = ck::BlockGemmPipelineVersion;
-#             """
-#         )
-#         return res
+            """
+        )
+        return res
 
-#     def filter_op(self, op: "CKGemmOperation"):
-#         """
-#         Determines whether a given op definition is suitable for the current
-#         input / output of the operation that this template implements.
+    def filter_op(self, op: "CKTileGemmOperation"):
+        """
+        Determines whether a given op definition is suitable for the current
+        input / output of the operation that this template implements.
 
-#         Filter is based on inputs' dtype, layout and statically inferred size.
+        Filter is based on inputs' dtype, layout and statically inferred size.
 
-#         Returns None if the op is not suitable, otherwise returns the op to be used.
-#         """
-#         metas = [T.get_layout() for T in [*self.input_nodes, self.output_node]]
-#         X_meta = metas[0]
-#         W_meta = metas[1]
-#         Y_meta = metas[-1]
-#         # disable the instance if dtypes don't match
-#         if op.a_element_dtype != self._TORCH_DTYPE_TO_CK[X_meta.dtype]:
-#             return None
-#         if op.b_element_dtype != self._TORCH_DTYPE_TO_CK[W_meta.dtype]:
-#             return None
-#         if op.c_element_dtype != self._TORCH_DTYPE_TO_CK[Y_meta.dtype]:
-#             return None
-#         # disable the instance if layouts don't match
-#         if op.a_layout != torch_layout_to_ck_layout(X_meta):
-#             return None
-#         if op.b_layout != torch_layout_to_ck_layout(W_meta):
-#             return None
-#         if op.c_layout != torch_layout_to_ck_layout(Y_meta):
-#             return None
+        Returns None if the op is not suitable, otherwise returns the op to be used.
+        """
+        metas = [T.get_layout() for T in [*self.input_nodes, self.output_node]]
+        X_meta = metas[0]
+        W_meta = metas[1]
+        Y_meta = metas[-1]
+        # disable the instance if dtypes don't match
+        if op.a_element_dtype != self._TORCH_DTYPE_TO_CK[X_meta.dtype]:
+            return None
+        if op.b_element_dtype != self._TORCH_DTYPE_TO_CK[W_meta.dtype]:
+            return None
+        if op.c_element_dtype != self._TORCH_DTYPE_TO_CK[Y_meta.dtype]:
+            return None
+        # disable the instance if layouts don't match
+        if op.a_layout != torch_layout_to_ck_layout(X_meta):
+            return None
+        if op.b_layout != torch_layout_to_ck_layout(W_meta):
+            return None
+        if op.c_layout != torch_layout_to_ck_layout(Y_meta):
+            return None
+        return op
 #         # try to avoid launching the instance with invalid problem size
 #         # see GridwiseGemm_xdl_cshuffle_v3::CheckValidity
 
