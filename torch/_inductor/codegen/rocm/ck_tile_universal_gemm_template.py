@@ -489,31 +489,25 @@ class CKTileGemmTemplate(CKTileTemplate):
 #         )
 #         return chosen_instances
 
-#     @staticmethod
-#     def add_ck_gemm_choices(
-#         choices,
-#         layout,
-#         input_nodes,
-#         alpha=1,
-#         beta=0,
-#         input_reorder=None,
-#     ):
-#         """
-#         Add Composable Kernel Universal GEMM instance choices to the auto-tuning list.
-#         """
-#         template = CKGemmTemplate(
-#             input_nodes,
-#             layout,
-#             alpha=alpha,
-#             beta=beta,
-#             input_reorder=input_reorder,
-#         )
-#         ops = template.gen_ops()
-#         for op in ops:
-#             template.maybe_append_choice(
-#                 choices,
-#                 op=op,
-#             )
+    @staticmethod
+    def add_choices(
+        choices,
+        layout,
+        input_nodes,
+    ):
+        """
+        Add Composable Kernel Universal GEMM instance choices to the auto-tuning list.
+        """
+        template = CKTileGemmTemplate(
+            input_nodes,
+            layout,
+        )
+        ops = template.gen_ops()
+        for op in ops:
+            template.maybe_append_choice(
+                choices,
+                op=op,
+            )
 
 #     def size_args(self):
 #         X = self.input_nodes[0]

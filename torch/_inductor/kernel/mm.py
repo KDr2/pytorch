@@ -655,7 +655,7 @@ def tuned_mm(mat1, mat2, *, layout=None):
 
     if is_nonzero and use_ck_tile_gemm_template(layout, m, n, k):
         # CK-tile is new CK
-        CKTileGemmTemplate.add_ck_gemm_choices(choices, layout, [mat1, mat2])
+        CKTileGemmTemplate.add_choices(choices, layout, [mat1, mat2])
 
     if use_cpp_gemm_template(layout, mat1, mat2):
         CppGemmTemplate.add_choices(
