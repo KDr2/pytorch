@@ -455,39 +455,35 @@ class CKTileGemmTemplate(CKTileTemplate):
 #             and Y_layout == "Row"
 #         )
 
-#     def gen_ops(self):
-#         """
-#         Creates a list of `CKGemmOperation` instances that match the GEMM operation this template represents.
-#         The instances are guaranteed to have the correct layout, dtype and dimension padding for the GEMM input arguments.
+    def gen_ops(self):
+        """
+        Creates a list of `CKTileGemmOperation` instances that match the GEMM operation this template represents.
+        The instances are guaranteed to have the correct layout, dtype and dimension padding for the GEMM input arguments.
 
-#         An instance may invalidate the GEMM configuration at runtime.
-#         Such instances will be assigned +inf runtime by the autotune process.
-#         """
-#         unfiltered_instances = (
-#             gen_ops_preselected()
-#             if config.rocm.use_preselected_instances and self._is_rcr_f16()
-#             else gen_ops_library()
-#         )
-#         filtered_instances = list(
-#             filter(lambda op: self.filter_op(op), unfiltered_instances)
-#         )
-#         # NB: when using a fixed list order, most likely we will pick the subset of instances
-#         # which are very similar to each other. Randomizing the choice seems to solve this.
-#         random.seed(-11)
-#         chosen_instances = (
-#             random.sample(
-#                 filtered_instances,
-#                 min(len(filtered_instances), config.rocm.n_max_profiling_configs),
-#             )
-#             if config.rocm.n_max_profiling_configs
-#             else filtered_instances
-#         )
-#         log.debug(
-#             "generated %d ck instances after filter: %s",
-#             len(chosen_instances),
-#             chosen_instances,
-#         )
-#         return chosen_instances
+        An instance may invalidate the GEMM configuration at runtime.
+        Such instances will be assigned +inf runtime by the autotune process.
+        """
+        unfiltered_instances = _default_ops_list()
+        filtered_instances = list(
+            filter(lambda op: self.filter_op(op), unfiltered_instances)
+        )
+        # NB: when using a fixed list order, most likely we will pick the subset of instances
+        # which are very similar to each other. Randomizing the choice seems to solve this.
+        random.seed(-11)
+        chosen_instances = (
+            random.sample(
+                filtered_instances,
+                min(len(filtered_instances), config.rocm.n_max_profiling_configs),
+            )
+            if config.rocm.n_max_profiling_configs
+            else filtered_instances
+        )
+        log.debug(
+            "generated %d ck instances after filter: %s",
+            len(chosen_instances),
+            chosen_instances,
+        )
+        return chosen_instances
 
     @staticmethod
     def add_choices(
