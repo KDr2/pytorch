@@ -505,22 +505,16 @@ class CKTileGemmTemplate(CKTileTemplate):
                 op=op,
             )
 
-#     def size_args(self):
-#         X = self.input_nodes[0]
-#         W = self.input_nodes[1]
-#         Bias = self.input_nodes[2] if len(self.input_nodes) == 3 else None
-#         Y = self.output_node
+    def size_args(self):
+        X = self.input_nodes[0]
+        W = self.input_nodes[1]
+        Y = self.output_node
 
-#         M = X.get_size()[0]
-#         K = X.get_size()[1]
-#         N = W.get_size()[1]
-#         LDA = X.get_stride()[0 if X.get_stride()[1] == 1 else 1]
-#         LDB = W.get_stride()[0 if W.get_stride()[1] == 1 else 1]
-#         LDC = Y.get_stride()[0 if Y.get_stride()[1] == 1 else 1]
-#         LDD = (
-#             0
-#             if Bias is None
-#             else Bias.get_stride()[0 if Bias.get_stride()[1] == 1 else 1]
-#         )
+        M = X.get_size()[0]
+        K = X.get_size()[1]
+        N = W.get_size()[1]
+        LDA = X.get_stride()[0 if X.get_stride()[1] == 1 else 1]
+        LDB = W.get_stride()[0 if W.get_stride()[1] == 1 else 1]
+        LDC = Y.get_stride()[0 if Y.get_stride()[1] == 1 else 1]
 
-#         return M, N, K, LDA, LDB, LDC, LDD
+        return M, N, K, LDA, LDB, LDC
