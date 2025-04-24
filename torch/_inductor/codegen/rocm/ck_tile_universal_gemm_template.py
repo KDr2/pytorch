@@ -60,6 +60,10 @@ class CKTileGemmOperation:
     scheduler: str
     epilogue: str
 
+    def name(self):
+        # TBD make unique and descriptive
+        return "cktile_gemm_universal"
+
 
 def _default_ops_list():
     return [
@@ -266,35 +270,113 @@ class CKTileGemmTemplate(CKTileTemplate):
 
 #         return op
 
-#     def emit_ck_instance(self, op: "CKGemmOperation"):
+    def emit_ck_instance(self, op: "CKTileGemmOperation"):
 #         # The Jinja template for generating a C++ type alias *definition* for a Universal GEMM instance
-#         template_definition = r"""
-#     // Gemm operator {{operation_name}}
-#     using Operation_{{operation_name}} =
-#         ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3<
-#             {{template_params}}>;
+        template_definition = r"""
+    // Gemm operator {{operation_name}}
 
-# """
-#         # The Jinja template for generating a C++ type alias *usage* for a Universal GEMM instance
-#         template_type = r"""
-#     Operation_{{operation_name}}
-# """
-#         template_params = []
-#         for field_name, field_value in op.dict_items():
-#             if isinstance(field_value, tuple):
-#                 tuple_elements = ", ".join(map(str, iter(field_value)))
-#                 if "ds" in field_name:  # element type and layout for bias
-#                     arg = f"/* {field_name} */ Tuple<{tuple_elements}>"
-#                 else:  # tile shape
-#                     arg = f"/* {field_name} */ S<{tuple_elements}>"
-#                 template_params.append(arg)
-#             else:
-#                 if field_value is not None:
-#                     template_params.append(f"/* {field_name} */ {field_value}")
-#         return self._template_from_string(template_definition).render(
-#             operation_name=op.name(),
-#             template_params=(",\n" + 12 * " ").join(template_params),
-#         ), self._template_from_string(template_type).render(operation_name=op.name())
+    namespace {{operation_name}} {
+
+        constexpr int32_t TileM = {{tile_m}};
+        constexpr int32_t TileN = {{tile_n}};
+        constexpr int32_t TileK = {{tile_k}};
+
+        constexpr int32_t WarpM = {{warp_m}};
+        constexpr int32_t WarpN = {{warp_n}};
+        constexpr int32_t WarpK = {{warp_k}};
+
+        constexpr int32_t WarpTileM = {{warp_tile_m}};
+        constexpr int32_t WarpTileN = {{warp_tile_n}};
+        constexpr int32_t WarpTileK = {{warp_tile_k}};
+
+        constexpr bool kPadM = {{m_is_padded}};
+        constexpr bool kPadN = {{n_is_padded}};
+        constexpr bool kPadK = {{k_is_padded}};
+
+        using ALayout = {{layout_a}};
+        using BLayout = {{layout_b}};
+        using CLayout = {{layout_c}};
+
+        using ADataType = {{datatype}};
+        using BDataType = {{datatype}};
+        using CDataType = {{datatype}};
+        using AccDataType = F32;
+
+        constexpr bool permuteA = false;
+        constexpr bool permuteB = false;
+        constexpr bool DoubleSmemBuffer = false;
+        constexpr bool TransposeC = false;
+
+        constexpr int kBlockPerCu                         = 1;
+        constexpr ck_tile::index_t TileParitionerGroupNum = 8;
+        constexpr ck_tile::index_t TileParitionerM01      = 4;
+
+        using GemmShape = 
+            ck_tile::TileGemmShape<ck_tile::sequence<TileM, TileN, TileK>,
+                                   ck_tile::sequence<WarpM, WarpN, WarpK>,
+                                   ck_tile::sequence<WarpTileM, WarpTileN, WarpTileK>,
+                                   permuteA,
+                                   permuteB>;
+
+        using TilePartitioner =
+            ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
+                                                      TileParitionerGroupNum,
+                                                      TileParitionerM01>;
+
+        using Traits  =
+            ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;        
+
+        using GemmUniversalTraits =
+            ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
+                                             ALayout, BLayout, CLayout, TransposeC>;    
+
+        using GemmPipelineProblem =
+            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
+
+        using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCr{{pipeline}}<GemmPipelineProblem>;  
+
+        constexpr auto scheduler = ck_tile::GemmPipelineScheduler::{{scheduler}};
+
+        constexpr bool has_hot_loop_v = true;
+        constexpr int32_t tail_number_v = 1;
+
+        using UniversalGemmProblem = 
+            ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                  BDataType,
+                                                  AccDataType,
+                                                  GemmShape,
+                                                  GemmUniversalTraits,
+                                                  scheduler,
+                                                  has_hot_loop_v,
+                                                  tail_number_v>;
+
+        using GemmPipeline = ck_tile::GemmPipelineAgBgCr{{pipeline}}<UniversalGemmProblem>;  
+
+        using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
+                                ck_tile::DefaultGemm2DEpilogueProblem<AccDataType, 
+                                                                      CDataType, 
+                                                                      CLayout, 
+                                                                      kPadM,
+                                                                      kPadN,
+                                                                      WarpTileM,
+                                                                      WarpTileN,
+                                                                      WarpTileK,
+                                                                      UniversalGemmProblem::TransposeC>>;
+
+        using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+    }
+
+"""
+        # The Jinja template for generating a C++ type alias *usage* for a Universal GEMM instance
+        template_type = r"""{{operation_name}}::Kernel"""
+
+        rendered_definition = self._template_from_string(template_definition).render(
+            operation_name=op.name()
+        )
+        rendered_type = self._template_from_string(template_type).render(
+            operation_name=op.name()
+        )
+        return (rendered_definition, rendered_type)
 
     def render(self, kernel: ROCmTemplateKernel, op: "CKTileGemmOperation", **kwargs) -> str:  # type: ignore[override]
         """
