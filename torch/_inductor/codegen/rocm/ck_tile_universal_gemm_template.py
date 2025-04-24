@@ -1,28 +1,24 @@
 # mypy: allow-untyped-defs, disable-error-code="attr-defined, valid-type"
-# import copy
-# import logging
-# import random
-# from typing import List, Optional
+import logging
+import random
+from typing import List, Optional
 
-# import sympy
-
-# import torch
-# from torch._inductor import config
+import torch
+from torch._inductor import config
+from dataclasses import asdict, dataclass
 from torch._inductor.codegen.rocm.ck_tile_template import CKTileTemplate
-# from torch._inductor.codegen.rocm.rocm_kernel import ROCmTemplateKernel
-# from torch._inductor.ir import Buffer, Layout
+from torch._inductor.codegen.rocm.rocm_kernel import ROCmTemplateKernel
+from torch._inductor.ir import Buffer, Layout
 
-# from ...utils import IndentedBuffer, try_import_ck_lib
-
-
-# # _, gen_ops_library, gen_ops_preselected, CKGemmOperation = try_import_ck_lib()
+from ...utils import IndentedBuffer
 
 
 log = logging.getLogger(__name__)
 
 
-# def is_static_int(number):
-#     return isinstance(number, (int, sympy.Integer))
+def is_static_int(number):
+    import sympy
+    return isinstance(number, (int, sympy.Integer))
 
 
 def torch_layout_to_ck_layout(torch_layout):
@@ -371,7 +367,8 @@ class CKTileGemmTemplate(CKTileTemplate):
         template_type = r"""{{operation_name}}::Kernel"""
 
         rendered_definition = self._template_from_string(template_definition).render(
-            operation_name=op.name()
+            operation_name=op.name(),
+            **asdict(op).items()
         )
         rendered_type = self._template_from_string(template_type).render(
             operation_name=op.name()
