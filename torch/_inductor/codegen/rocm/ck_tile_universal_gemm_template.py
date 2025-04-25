@@ -81,13 +81,13 @@ def _default_ops_list():
             warp_tile_n = 32,
             warp_tile_k = 16,
 
-            m_is_padded = False,
-            n_is_padded = False,
-            k_is_padded = False,
+            m_is_padded = 'false',
+            n_is_padded = 'false',
+            k_is_padded = 'false',
 
-            pipeline = "compv3",
-            scheduler = "intrawave",
-            epilogue = "default",
+            pipeline = "CompV3",
+            scheduler = "Intrawave",
+            epilogue = "Default",
         )
     ]
 
@@ -100,6 +100,8 @@ class CKTileGemmTemplate(CKTileTemplate):
     {{instance_definition}}
     extern "C" {
     PT_EXPORT {{kernel_definition}} {
+
+        constexpr int32_t kBatch = 1;
 
         auto kargs = ck_tile::GemmKernelArgs {
            X,
@@ -131,9 +133,9 @@ class CKTileGemmTemplate(CKTileTemplate):
         // run the kernel
         auto stream_config = ck_tile::stream_config{stream};
         auto grid_size = {{instance_type}}::GridSize(M, N, kBatch);
-        auto block_size = {{instance_type}}::BlockSize();
-        auto lds_bytes = 0;
-        auto kBlockPerCU = 1;
+        constexpr auto block_size = {{instance_type}}::BlockSize();
+        constexpr auto lds_bytes = 0;
+        constexpr auto kBlockPerCU = 1;
         auto kernel = ck_tile::make_kernel<block_size.x, kBlockPerCU>({{instance_type}}{}, grid_size, block_size, lds_bytes, kargs);
         float elapsed_time = ck_tile::launch_kernel(stream_config, kernel);
         return 0;
@@ -334,7 +336,7 @@ class CKTileGemmTemplate(CKTileTemplate):
         constexpr auto scheduler = ck_tile::GemmPipelineScheduler::{{scheduler}};
 
         constexpr bool has_hot_loop_v = true;
-        constexpr int32_t tail_number_v = 1;
+        constexpr auto tail_number_v = ck_tile::TailNumber::Full;
 
         using UniversalGemmProblem = 
             ck_tile::UniversalGemmPipelineProblem<ADataType,
@@ -348,16 +350,22 @@ class CKTileGemmTemplate(CKTileTemplate):
 
         using GemmPipeline = ck_tile::GemmPipelineAgBgCr{{pipeline}}<UniversalGemmProblem>;  
 
-        using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
-                                ck_tile::DefaultGemm2DEpilogueProblem<AccDataType, 
-                                                                      CDataType, 
-                                                                      CLayout, 
-                                                                      kPadM,
-                                                                      kPadN,
-                                                                      WarpTileM,
-                                                                      WarpTileN,
-                                                                      WarpTileK,
-                                                                      UniversalGemmProblem::TransposeC>>;
+        using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             AccDataType,
+                                             CDataType,
+                                             CLayout,
+                                             GemmPipelineProblem::kBlockSize,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             WarpM,
+                                             WarpN,
+                                             WarpTileM,
+                                             WarpTileN,
+                                             WarpTileK,
+                                             TransposeC>;
+
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
 
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
     }
