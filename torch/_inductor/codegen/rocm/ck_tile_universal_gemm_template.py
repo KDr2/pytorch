@@ -65,9 +65,9 @@ def _default_ops_list():
     return [
         CKTileGemmOperation(
             layout_a = "Row",
-            layout_b = "Col",
+            layout_b = "Row",
             layout_c = "Row",
-            datatype = "FP16",
+            datatype = "BF16",
 
             tile_m = 256,
             tile_n = 256,
