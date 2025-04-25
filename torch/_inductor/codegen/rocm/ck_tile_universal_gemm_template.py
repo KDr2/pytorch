@@ -116,28 +116,88 @@ class CKTileGemmTemplate(CKTileTemplate):
            kBatch
         };
 
-        if (!{{instance_type}}::IsSupportedArgument(kargs)) {
-            // we do our best to statically avoid this case in `filter_op`
-            std::cerr << "invalid argument for gemm instance " << {{instance_type}}::GetName() 
-                      << ", M: " << M << ", N: " << N << ", K: " << K 
-                      << ", LDA: " << LDA << ", LDB: " << LDB << ", LDC: " << LDC 
-                      << std::endl;
-            return -45;
-        }
-
         if (workspace_size) {
             *workspace_size = 0;
             return 0;
         }
         
         // run the kernel
-        auto stream_config = ck_tile::stream_config{stream};
-        auto grid_size = {{instance_type}}::GridSize(M, N, kBatch);
-        constexpr auto block_size = {{instance_type}}::BlockSize();
-        constexpr auto lds_bytes = 0;
-        constexpr auto kBlockPerCU = 1;
-        auto kernel = ck_tile::make_kernel<block_size.x, kBlockPerCU>({{instance_type}}{}, grid_size, block_size, lds_bytes, kargs);
-        float elapsed_time = ck_tile::launch_kernel(stream_config, kernel);
+        const auto Dispatch = [&](const auto has_hot_loop_, const auto tail_number_) constexpr {
+            using Kernel = {{instance_namespace}}::Kernel<has_hot_loop_.value, tail_number_.value>;
+            if (!Kernel::IsSupportedArgument(kargs)) {
+                // we do our best to statically avoid this case in `filter_op`
+                std::cerr << "invalid argument for gemm instance " << Kernel::GetName() 
+                        << ", M: " << M << ", N: " << N << ", K: " << K 
+                        << ", LDA: " << LDA << ", LDB: " << LDB << ", LDC: " << LDC 
+                        << std::endl;
+                return -45;
+            }
+            auto stream_config = ck_tile::stream_config{stream};
+            auto grid_size = Kernel::GridSize(M, N, kBatch);
+            constexpr auto block_size = Kernel::BlockSize();
+            constexpr auto lds_bytes = 0;
+            constexpr auto kBlockPerCU = 1;
+            auto kernel = ck_tile::make_kernel<block_size.x, kBlockPerCU>(Kernel{}, grid_size, block_size, lds_bytes, kargs);
+            float elapsed_time = ck_tile::launch_kernel(stream_config, kernel);
+        };
+
+        const ck_tile::index_t k_grain     = kBatch * {{instance_namespace}}::TileK;
+        const ck_tile::index_t K_split     = (K + k_grain - 1) / k_grain * {{instance_namespace}}::TileK;
+        const ck_tile::index_t num_loop    = {{instance_namespace}}::TilePartitioner::GetLoopNum(K_split);
+        const bool has_hot_loop            = {{instance_namespace}}::BaseGemmPipeline::BlockHasHotloop(num_loop);
+        const ck_tile::TailNumber tail_num = {{instance_namespace}}::BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
+
+        if (has_hot_loop) {
+            if(tail_num == ck_tile::TailNumber::Full)
+            {
+                Dispatch(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+            }
+            else if(tail_num == ck_tile::TailNumber::Odd)
+            {
+                Dispatch(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+            }
+            else if(tail_num == ck_tile::TailNumber::Even)
+            {
+                Dispatch(ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
+            }
+            else
+            {
+                std::ostringstream err;
+                err << "For compute pipeline tail number should always be Full, but have \"" << tail_num
+                    << "\" which is not supported! PrefetchStages: " << {{instance_namespace}}::BaseGemmPipeline::PrefetchStages
+                    << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+                throw std::runtime_error(err.str());
+            }
+        } 
+        else {
+            if(tail_num == ck_tile::TailNumber::Full)
+            {
+                Dispatch(ck_tile::bool_constant<false>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+            }
+            else if(tail_num == ck_tile::TailNumber::Odd)
+            {
+                Dispatch(ck_tile::bool_constant<false>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+            }
+            else if(tail_num == ck_tile::TailNumber::Even)
+            {
+                Dispatch(ck_tile::bool_constant<false>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+            }
+            else
+            {
+                std::ostringstream err;
+                err << "Num K loop must be larger than number of prefetech stages."
+                    << "\n PrefetchStages: " << {{instance_namespace}}::BaseGemmPipeline::PrefetchStages
+                    << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+                throw std::runtime_error(err.str());
+            }
+        }
+        
         return 0;
     } // kernel definition
     } // extern C
@@ -335,9 +395,7 @@ class CKTileGemmTemplate(CKTileTemplate):
 
         constexpr auto scheduler = ck_tile::GemmPipelineScheduler::{{scheduler}};
 
-        constexpr bool has_hot_loop_v = true;
-        constexpr auto tail_number_v = ck_tile::TailNumber::Full;
-
+        template<bool has_hot_loop_v, ck_tile::TailNumber tail_number_v>
         using UniversalGemmProblem = 
             ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                   BDataType,
@@ -348,7 +406,8 @@ class CKTileGemmTemplate(CKTileTemplate):
                                                   has_hot_loop_v,
                                                   tail_number_v>;
 
-        using GemmPipeline = ck_tile::GemmPipelineAgBgCr{{pipeline}}<UniversalGemmProblem>;  
+        template<bool has_hot_loop_v, ck_tile::TailNumber tail_number_v>
+        using GemmPipeline = ck_tile::GemmPipelineAgBgCr{{pipeline}}<UniversalGemmProblem<has_hot_loop_v, tail_number_v>>;  
 
         using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
@@ -367,21 +426,16 @@ class CKTileGemmTemplate(CKTileTemplate):
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
 
-        using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        template<bool has_hot_loop_v, ck_tile::TailNumber tail_number_v>
+        using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline<has_hot_loop_v, tail_number_v>, GemmEpilogue>;
     }
 
 """
-        # The Jinja template for generating a C++ type alias *usage* for a Universal GEMM instance
-        template_type = r"""{{operation_name}}::Kernel"""
-
         rendered_definition = self._template_from_string(template_definition).render(
             operation_name=op.name(),
             **asdict(op)
         )
-        rendered_type = self._template_from_string(template_type).render(
-            operation_name=op.name()
-        )
-        return (rendered_definition, rendered_type)
+        return rendered_definition
 
     def render(self, kernel: ROCmTemplateKernel, op: "CKTileGemmOperation", **kwargs) -> str:  # type: ignore[override]
         """
@@ -396,7 +450,7 @@ class CKTileGemmTemplate(CKTileTemplate):
         X, W = self.input_nodes
         Y = self.output_node
 
-        instance_definition, instance_type = self.emit_ck_instance(op)
+        instance_definition = self.emit_ck_instance(op)
 
         version_comment = rf"""/**
 * Generated code for CK inductor backend
@@ -422,7 +476,7 @@ class CKTileGemmTemplate(CKTileTemplate):
                     for arg in ["M", "N", "K", "LDA", "LDB", "LDC"]
                 ],
             ),
-            instance_type=instance_type,
+            instance_namespace=op.name(),
             version_comment=version_comment,
         )
 
