@@ -368,7 +368,7 @@ class CKTileGemmTemplate(CKTileTemplate):
 
         rendered_definition = self._template_from_string(template_definition).render(
             operation_name=op.name(),
-            **asdict(op).items()
+            **asdict(op)
         )
         rendered_type = self._template_from_string(template_type).render(
             operation_name=op.name()
