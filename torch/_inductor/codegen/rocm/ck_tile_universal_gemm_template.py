@@ -64,30 +64,30 @@ class CKTileGemmOperation:
 def _default_ops_list():
     return [
         CKTileGemmOperation(
-            layout_a = "Row"
-            layout_b = "Col"
-            layout_c = "Row"
-            datatype = "FP16"
+            layout_a = "Row",
+            layout_b = "Col",
+            layout_c = "Row",
+            datatype = "FP16",
 
-            tile_m = 256
-            tile_n = 256
-            tile_k = 256
+            tile_m = 256,
+            tile_n = 256,
+            tile_k = 256,
 
-            warp_m = 2
-            warp_n = 2
-            warp_k = 2
+            warp_m = 2,
+            warp_n = 2,
+            warp_k = 2,
 
-            warp_tile_m = 32
-            warp_tile_n = 32
-            warp_tile_k = 16
+            warp_tile_m = 32,
+            warp_tile_n = 32,
+            warp_tile_k = 16,
 
-            m_is_padded = False
-            n_is_padded = False
-            k_is_padded = False
+            m_is_padded = False,
+            n_is_padded = False,
+            k_is_padded = False,
 
-            pipeline = "compv3"
-            scheduler = "intrawave"
-            epilogue = "default"
+            pipeline = "compv3",
+            scheduler = "intrawave",
+            epilogue = "default",
         )
     ]
 
@@ -191,18 +191,18 @@ class CKTileGemmTemplate(CKTileTemplate):
         W_meta = metas[1]
         Y_meta = metas[-1]
         # disable the instance if dtypes don't match
-        if op.a_element_dtype != self._TORCH_DTYPE_TO_CK[X_meta.dtype]:
+        if op.datatype != self._TORCH_DTYPE_TO_CK[X_meta.dtype]:
             return None
-        if op.b_element_dtype != self._TORCH_DTYPE_TO_CK[W_meta.dtype]:
+        if op.datatype != self._TORCH_DTYPE_TO_CK[W_meta.dtype]:
             return None
-        if op.c_element_dtype != self._TORCH_DTYPE_TO_CK[Y_meta.dtype]:
+        if op.datatype != self._TORCH_DTYPE_TO_CK[Y_meta.dtype]:
             return None
         # disable the instance if layouts don't match
-        if op.a_layout != torch_layout_to_ck_layout(X_meta):
+        if op.layout_a != torch_layout_to_ck_layout(X_meta):
             return None
-        if op.b_layout != torch_layout_to_ck_layout(W_meta):
+        if op.layout_b != torch_layout_to_ck_layout(W_meta):
             return None
-        if op.c_layout != torch_layout_to_ck_layout(Y_meta):
+        if op.layout_c != torch_layout_to_ck_layout(Y_meta):
             return None
         return op
 #         # try to avoid launching the instance with invalid problem size
