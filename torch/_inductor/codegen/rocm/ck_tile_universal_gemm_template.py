@@ -71,7 +71,7 @@ def _default_ops_list():
 
             tile_m = 256,
             tile_n = 256,
-            tile_k = 256,
+            tile_k = 32,
 
             warp_m = 2,
             warp_n = 2,
@@ -126,19 +126,15 @@ class CKTileGemmTemplate(CKTileTemplate):
             using Kernel = {{instance_namespace}}::Kernel<has_hot_loop_.value, tail_number_.value>;
             if (!Kernel::IsSupportedArgument(kargs)) {
                 // we do our best to statically avoid this case in `filter_op`
-                std::cerr << "invalid argument for gemm instance " << Kernel::GetName() 
-                        << ", M: " << M << ", N: " << N << ", K: " << K 
-                        << ", LDA: " << LDA << ", LDB: " << LDB << ", LDC: " << LDC 
-                        << std::endl;
-                return -45;
+                throw std::runtime_error("invalid argument");
             }
             auto stream_config = ck_tile::stream_config{stream};
             auto grid_size = Kernel::GridSize(M, N, kBatch);
             constexpr auto block_size = Kernel::BlockSize();
             constexpr auto lds_bytes = 0;
             constexpr auto kBlockPerCU = 1;
-            auto kernel = ck_tile::make_kernel<block_size.x, kBlockPerCU>(Kernel{}, grid_size, block_size, lds_bytes, kargs);
-            float elapsed_time = ck_tile::launch_kernel(stream_config, kernel);
+            auto gemm = ck_tile::make_kernel<block_size.x, kBlockPerCU>(Kernel{}, grid_size, block_size, lds_bytes, kargs);
+            float elapsed_time = ck_tile::launch_kernel(stream_config, gemm);
         };
 
         const ck_tile::index_t k_grain     = kBatch * {{instance_namespace}}::TileK;
