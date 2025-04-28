@@ -815,7 +815,7 @@ static void elu_variants_out_mps(const Tensor& self,
                                  const Scalar& scale,
                                  const Scalar& input_scale,
                                  const Tensor& result,
-                                 string func_name) {
+                                 std::string func_name) {
   using namespace mps;
   using CachedGraph = MPSUnaryCachedGraph;
 

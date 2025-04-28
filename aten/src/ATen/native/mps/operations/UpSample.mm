@@ -259,7 +259,7 @@ static void upsample_kernel_out_template(const Tensor& input,
                                          std::optional<double> scale_h_opt,
                                          std::optional<double> scale_w_opt,
                                          const Tensor& output,
-                                         const std::string name) {
+                                         const std::string& name) {
   if (output.numel() == 0) {
     return;
   }

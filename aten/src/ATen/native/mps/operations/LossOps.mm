@@ -58,7 +58,7 @@ static Tensor& mse_loss_backward_out_impl(const Tensor& grad_output,
                                           const Tensor& target,
                                           int64_t reduction,
                                           Tensor& grad_input,
-                                          const string op_name) {
+                                          const std::string& op_name) {
   TORCH_CHECK(target.is_same_size(input), op_name + ": target and input tensors must have identical shapes")
   auto norm = reduction == Reduction::Mean ? 2. / static_cast<double>(input.numel()) : 2.;
 
@@ -200,7 +200,7 @@ static Tensor& bce_loss_out_impl(const Tensor& input,
                                  int64_t reduction,
                                  Tensor& loss,
                                  const std::optional<Tensor>& grad_output_opt,
-                                 const string op_name) {
+                                 const std::string& op_name) {
   // TODO: add sanity check for the elements of input tensor to be within [0..1]
   TORCH_CHECK(target.is_same_size(input), op_name + ": target and input tensors must have identical shapes")
 

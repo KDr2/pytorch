@@ -19,7 +19,7 @@ static void addc_mul_div_out_mps(const Tensor& self,
                                  const Scalar& value_opt, // default value = 1.0
                                  const Tensor& output,
                                  const bool is_div,
-                                 const string op_name) {
+                                 const std::string& op_name) {
   if (value_opt.toDouble() == 0.0) {
     output.copy_(self);
     return;

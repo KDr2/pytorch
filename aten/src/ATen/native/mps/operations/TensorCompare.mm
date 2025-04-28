@@ -80,7 +80,7 @@ static void clamp_mps_graph(CachedGraph* cachedGraph,
   cachedGraph->outputTensor = outputTensor;
 }
 
-static void check_min_max_dims(const OptionalTensorRef clamp_opt, const Tensor& input_t, string op_name) {
+static void check_min_max_dims(const OptionalTensorRef clamp_opt, const Tensor& input_t, std::string op_name) {
   if (!clamp_opt->is_same_size(input_t)) {
     auto num_clamp_dims = clamp_opt->dim();
     auto num_input_dims = input_t.dim();
@@ -119,7 +119,7 @@ static void clamp_tensor_out_mps(const Tensor& input_t,
                                  const OptionalTensorRef min_opt,
                                  const OptionalTensorRef max_opt,
                                  const Tensor& output_t,
-                                 string op_name) {
+                                 std::string op_name) {
   const bool has_min = (min_opt.has_value() && min_opt->defined());
   const bool has_max = (max_opt.has_value() && max_opt->defined());
 
@@ -221,7 +221,7 @@ static void clamp_scalar_out_mps(const Tensor& input_t,
                                  const OptionalScalarRef min_opt,
                                  const OptionalScalarRef max_opt,
                                  const Tensor& output_t,
-                                 string op_name) {
+                                 std::string op_name) {
   using scalar_t = double;
 
   const bool has_min = (min_opt.has_value());
@@ -278,7 +278,7 @@ static void isin_Tensor_Tensor_out_mps(const Tensor& elements,
                                        bool assume_unique,
                                        bool invert,
                                        const Tensor& out,
-                                       string op_name) {
+                                       std::string op_name) {
   if (elements.numel() == 0) {
     return;
   }

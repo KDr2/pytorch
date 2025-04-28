@@ -132,7 +132,7 @@ static void scatter_mps_general(const Tensor& self_arg,
                                 const Tensor& index,
                                 const Tensor& src,
                                 const Tensor& output,
-                                string func_name,
+                                std::string func_name,
                                 const std::string_view reduce) {
   using namespace mps;
 
