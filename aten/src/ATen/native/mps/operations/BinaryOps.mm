@@ -118,7 +118,7 @@ static void binaryOpTensor(const Tensor& self,
   }
 
   @autoreleasepool {
-    string key = op_name + getTensorsStringKey({self, other, output_});
+    std::string key = op_name + getTensorsStringKey({self, other, output_});
     auto cachedGraph = LookUpOrCreateCachedGraph<BinaryOpCachedGraph>(key, [&](auto mpsGraph, auto newCachedGraph) {
       newCachedGraph->primaryTensor =
           mpsGraphRankedPlaceHolder(mpsGraph, getMPSScalarType(inputDataType), getMPSShape(self));

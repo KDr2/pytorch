@@ -140,10 +140,10 @@ static void pool2d_template(const Tensor& input,
     padH = padW = 0;
   }
   @autoreleasepool {
-    string key = op_name + getTensorsStringKey({input, indices, grad_output}) + ":K[" + getArrayRefString(kernel_size) +
-        "]:S[" + getArrayRefString(stride) + "]:P[" + getArrayRefString(padding) + "]:D[" +
-        getArrayRefString(dilation) + "]" + (ceil_mode ? ":ceil" : "") + (count_include_pad ? ":include_pad" : "") +
-        (has_divisor ? ":divisor" : "") + ":" +
+    std::string key = op_name + getTensorsStringKey({input, indices, grad_output}) + ":K[" +
+        getArrayRefString(kernel_size) + "]:S[" + getArrayRefString(stride) + "]:P[" + getArrayRefString(padding) +
+        "]:D[" + getArrayRefString(dilation) + "]" + (ceil_mode ? ":ceil" : "") +
+        (count_include_pad ? ":include_pad" : "") + (has_divisor ? ":divisor" : "") + ":" +
         (suggested_memory_format == MemoryFormat::ChannelsLast ? "NHWC" : "NCHW");
 
     MPSShape* inputShape = getMPSShape(input, memory_format);

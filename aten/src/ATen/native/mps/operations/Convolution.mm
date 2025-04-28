@@ -209,7 +209,7 @@ static Tensor _mps_convolution_impl(const Tensor& input_t_,
       bias_shape_key = "nobias";
     }
 
-    string key;
+    std::string key;
     if (is3DConv) {
       key = "mps_3d_convolution:" + std::to_string(stride[0]) + ":" + std::to_string(stride[1]) + ":" +
           std::to_string(stride[2]) + ":" + std::to_string(dilation[0]) + ":" + std::to_string(dilation[1]) + ":" +
@@ -417,7 +417,7 @@ static Tensor mps_convolution_backward_input(IntArrayRef input_size,
     }
 
     MPSShape* mps_input_shape = getMPSShape(input_size);
-    string key;
+    std::string key;
     if (is3DConv) {
       key = "mps_3d_convolution_backward_input:" + std::to_string(stride[0]) + ":" + std::to_string(stride[1]) + ":" +
           ":" + std::to_string(stride[2]) + std::to_string(dilation[0]) + ":" + std::to_string(dilation[1]) + ":" +
@@ -555,7 +555,7 @@ static Tensor mps_convolution_backward_weights(IntArrayRef weight_size,
     MPSStream* stream = getCurrentMPSStream();
 
     MPSShape* mps_weight_shape = getMPSShape(weight_size);
-    string key;
+    std::string key;
     if (is3DConv) {
       key = "mps_3d_convolution_backward_weights:" + std::to_string(stride[0]) + ":" + std::to_string(stride[1]) + ":" +
           std::to_string(stride[2]) + ":" + std::to_string(dilation[0]) + ":" + std::to_string(dilation[1]) + ":" +

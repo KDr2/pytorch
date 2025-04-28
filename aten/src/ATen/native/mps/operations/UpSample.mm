@@ -103,7 +103,7 @@ static void upsample_out_template(const Tensor& input,
   MPSStream* stream = getCurrentMPSStream();
 
   @autoreleasepool {
-    string key = "upsample_" + std::string(resize_mode_str) + (align_corners ? "_aligned_corners" : "") +
+    std::string key = "upsample_" + std::string(resize_mode_str) + (align_corners ? "_aligned_corners" : "") +
         getTensorsStringKey({input}) + ":[" + std::to_string(scale_h) + "," + std::to_string(scale_w) + "]:[" +
         (is_backward_pass ? getArrayRefString(input_size) : "Undefined") + "]";
 

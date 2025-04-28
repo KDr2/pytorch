@@ -82,7 +82,7 @@ static void unary_op_noresize(const Tensor& self, const Tensor& output_, std::st
   }
 
   @autoreleasepool {
-    string key = op_name + getTensorsStringKey({self, output});
+    std::string key = op_name + getTensorsStringKey({self, output});
     auto cachedGraph = LookUpOrCreateCachedGraph<MPSUnaryCachedGraph>(key, [&](auto mpsGraph, auto newCachedGraph) {
       newCachedGraph->inputTensor_ = mpsGraphRankedPlaceHolder(mpsGraph, self);
       MPSGraphTensor* castTensor = newCachedGraph->inputTensor_;

@@ -44,7 +44,7 @@ static void addc_mul_div_out_mps(const Tensor& self,
       output_ = at::empty_like(self, MemoryFormat::Contiguous);
     }
 
-    string key = op_name + getTensorsStringKey({self, tensor1, tensor2});
+    std::string key = op_name + getTensorsStringKey({self, tensor1, tensor2});
 
     auto cachedGraph = LookUpOrCreateCachedGraph<CachedGraph>(key, [&](auto mpsGraph, auto newCachedGraph) {
       ScalarType common_dtype =

@@ -244,7 +244,7 @@ static Tensor& pad_out_template(Tensor& output,
   }
 
   @autoreleasepool {
-    string key = op_name + getTensorsStringKey({input, grad_output, output}) + ":[" + getArrayRefString(padding) +
+    std::string key = op_name + getTensorsStringKey({input, grad_output, output}) + ":[" + getArrayRefString(padding) +
         "]:" + std::to_string(constantValue);
 
     auto cachedGraph = LookUpOrCreateCachedGraph<CachedGraph>(key, [&](auto mpsGraph, auto newCachedGraph) {
