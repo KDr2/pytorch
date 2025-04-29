@@ -713,6 +713,7 @@ def compile_fx_inner(
                 "compile_fx_inner",
                 phase_name="inductor_compile",
                 log_pt2_compile_event=True,
+                log_waitcounter=True,
                 dynamo_compile_column_us="inductor_cumulative_compile_time_us",
             )
         )
@@ -1289,7 +1290,9 @@ class _InProcessFxCompile(FxCompile):
                     compiled_fn: Any
                     compiled_fn_runner = None
                     with dynamo_timed(
-                        "GraphLowering.compile_to_fn", log_pt2_compile_event=True
+                        "GraphLowering.compile_to_fn",
+                        log_pt2_compile_event=True,
+                        log_waitcounter=True,
                     ):
                         # We are going to start code generating runtime asserts, so make sure
                         # you don't start adding new ones in the lowering process
