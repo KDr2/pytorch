@@ -1837,8 +1837,9 @@ void scaled_gemm(
   cublasLtMatmulDescAttributes_t matmulDescB = CUBLASLT_MATMUL_DESC_B_SCALE_POINTER;
 #if defined(USE_ROCM) && defined(HIPBLASLT_VEC_EXT)
   if (use_rowwise) {
-    matmulDescA = HIPBLASLT_MATMUL_DESC_A_SCALE_POINTER_VEC_EXT;
-    matmulDescB = HIPBLASLT_MATMUL_DESC_B_SCALE_POINTER_VEC_EXT;
+    // swapped - probably due to hipblaslt convention
+    matmulDescB = HIPBLASLT_MATMUL_DESC_A_SCALE_POINTER_VEC_EXT;
+    matmulDescA = HIPBLASLT_MATMUL_DESC_B_SCALE_POINTER_VEC_EXT;
   }
 #else
   // rowwise isn't supported using cublaslt or older hipblaslt
