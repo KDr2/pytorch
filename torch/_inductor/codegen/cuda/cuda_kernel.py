@@ -46,7 +46,9 @@ def _normalize_idx(index: int, total_length: int) -> int:
     return index if index >= 0 else index + total_length
 
 
-ValidLayoutSymbols = Literal["M", "N", "K", "lda", "ldb", "ldc", "ldd"]
+ValidLayoutSymbols = Literal[
+    "M", "N", "K", "B", "lda", "ldb", "ldc", "ldd", "M*K", "K*N", "M*N"
+]
 ValidLayoutAttrs = Literal["size", "stride"]
 
 
@@ -118,6 +120,12 @@ class CUDAKernel(Kernel):
         self.add_layout_arg("M", X, "size", mdim)
         self.add_layout_arg("N", W, "size", ndim)
         self.add_layout_arg("K", X, "size", kdim)
+        if len(X.get_size()) > 2:
+            self.add_layout_arg("B", X, "size", 0)
+            # since we assume batch stride is largest
+            self.add_layout_arg("M*K", X, "stride", 0)
+            self.add_layout_arg("K*N", W, "stride", 0)
+            self.add_layout_arg("M*N", Y, "stride", 0)
 
         lda_dim = self.find_ld_idx(X)
         ldb_dim = self.find_ld_idx(W)
@@ -145,11 +153,12 @@ class CUDAKernel(Kernel):
         M = X.get_size()[mdim]
         N = W.get_size()[ndim]
         K = X.get_size()[kdim]
+        B = X.get_size()[0] if len(X.get_size()) > 2 else 1
         LDA = get_ld(X)
         LDB = get_ld(W)
         LDC = get_ld(Bias) if Bias else 0
         LDD = get_ld(Y)
-        return (M, N, K, LDA, LDB, LDC, LDD)
+        return (M, N, K, B, LDA, LDB, LDC, LDD)
 
     @staticmethod
     def find_ld_idx(node: IRNode) -> int:
@@ -265,7 +274,7 @@ class CUDATemplateKernel(CUDAKernel):
 
         self.init_layout_args()
         size_args = [
-            f"const int {s}" for s in ("M", "N", "K", "lda", "ldb", "ldc", "ldd")
+            f"const int {s}" for s in ("M", "N", "K", "B", "lda", "ldb", "ldc", "ldd")
         ]
 
         runtime_arg_decls = ",".join(

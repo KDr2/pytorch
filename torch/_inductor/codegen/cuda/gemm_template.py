@@ -39,7 +39,6 @@ GEMM_TEMPLATE_CUTLASS_3X = r"""
 extern "C" {
 PT_EXPORT {{kernel_call_signature}} {
   try {
-  int B = {{kernel.size(Y, 0, -3, default_value=1)}};
   using ElementComputeEpilogue = {{instance_type}}::ElementAccumulator;
   using coord_t = cutlass::gemm::GemmCoord::Index;
   static cutlass::KernelHardwareInfo hw_info;
@@ -331,10 +330,11 @@ extern "C" int run_standalone(uint64_t seed, int repetitions) {
     int M = {{kernel.get_layout_args()[0]}};
     int N = {{kernel.get_layout_args()[1]}};
     int K = {{kernel.get_layout_args()[2]}};
-    int lda = {{kernel.get_layout_args()[3]}};
-    int ldb = {{kernel.get_layout_args()[4]}};
-    int ldc = {{kernel.get_layout_args()[5]}};
-    int ldd = {{kernel.get_layout_args()[6]}};
+    int B = {{kernel.get_layout_args()[3]}};
+    int lda = {{kernel.get_layout_args()[4]}};
+    int ldb = {{kernel.get_layout_args()[5]}};
+    int ldc = {{kernel.get_layout_args()[6]}};
+    int ldd = {{kernel.get_layout_args()[7]}};
     uint8_t swizzle = {{kernel.runtime_arg_values[0]}};
 
     using ElementA = {{kernel.cutlass_dtype(X)}};
@@ -1094,7 +1094,7 @@ class CUTLASSGemmTemplate(CUTLASSTemplate, ABC):
             f"(({arg_type}){arg_name}_data.get())"
             for arg_type, arg_name in zip(arg_types, arg_names)
         ]
-        return f"{kernel.kernel_name}({', '.join(arguments)}, M, N, K, lda, ldb, ldc, ldd, swizzle, workspace_size_ptr, (uint8_t*)workspace_data.get(), 0);"  # noqa: B950
+        return f"{kernel.kernel_name}({', '.join(arguments)}, M, N, K, B, lda, ldb, ldc, ldd, swizzle, workspace_size_ptr, (uint8_t*)workspace_data.get(), 0);"  # noqa: B950
 
 
 class CUTLASS3xGemmTemplate(CUTLASSGemmTemplate):

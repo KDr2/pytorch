@@ -455,7 +455,7 @@ class TestCutlassBackend(TestCase):
                 torch.testing.assert_close(actual, expected)
 
     @unittest.skipIf(not SM90OrLater, "need sm_90")
-    @parametrize("dynamic", (False,))
+    @parametrize("dynamic", (False, True))
     @parametrize("use_aoti", (False, True))
     @parametrize("dtype", (torch.float16, torch.bfloat16))
     @mock.patch.dict(os.environ, {"PATH": _get_path_without_sccache()})
@@ -483,7 +483,7 @@ class TestCutlassBackend(TestCase):
         inputs = [
             (
                 torch.randn(B, M, K).cuda().to(dtype),
-                torch.randn(B, K, N).cuda().to(dtype),
+                torch.randn(B, N, K).cuda().to(dtype).permute(0, 2, 1),
             )
             for B, M, N, K in shapes
         ]
