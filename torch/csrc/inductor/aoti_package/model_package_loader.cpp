@@ -1,7 +1,6 @@
 #if !defined(C10_MOBILE) && !defined(ANDROID)
 
 #include <c10/util/error.h>
-#include <c10/util/string_view.h>
 #include <torch/csrc/inductor/aoti_package/model_package_loader.h>
 #include <torch/csrc/inductor/aoti_runner/model_container_runner.h>
 #include <torch/csrc/inductor/aoti_runner/model_container_runner_cpu.h>
@@ -12,37 +11,7 @@
 #include <fstream>
 #include <iostream>
 
-#ifndef _WIN32
-#include <dirent.h>
-#include <sys/stat.h>
-#else
-#include <filesystem>
-namespace fs = std::filesystem;
-#endif
-
-// TODO: C++17 has the filesystem header, which may replace these
-#ifdef _WIN32
-// On Windows, the POSIX implementations are considered deprecated. We simply
-// map to the newer variant.
-#include <direct.h>
-#include <io.h>
-#include <process.h>
-#define access _access
-#define F_OK 0
-#else
-#include <sys/types.h>
-#include <unistd.h>
-#endif
-
 namespace {
-bool file_exists(const std::string& path) {
-#ifdef _WIN32
-  return fs::exists(path);
-#else
-  struct stat rc {};
-  return lstat(path.c_str(), &rc) == 0;
-#endif
-}
 
 std::string create_temp_dir() {
 #ifdef _WIN32
@@ -57,20 +26,14 @@ std::string create_temp_dir() {
   return temp_dir;
 #endif
 }
-
-#ifdef _WIN32
-const std::string k_separator = "\\";
-#else
-const std::string k_separator = "/";
-#endif
 } // namespace
 
 namespace torch::inductor {
 
 namespace {
-const nlohmann::json& load_json_file(const std::string& json_path) {
-  if (!file_exists(json_path)) {
-    throw std::runtime_error("File not found: " + json_path);
+const nlohmann::json& load_json_file(const std::filesystem::path& json_path) {
+  if (!std::filesystem::exists(json_path)) {
+    throw std::runtime_error("File not found: " + json_path.string());
   }
 
   std::ifstream json_file(json_path);
@@ -98,10 +61,9 @@ std::tuple<std::string, std::string> get_cpp_compile_command(
 
   std::string file_ext = compile_only ? ".o" : ".so";
   std::string target_file = output_dir + filename + file_ext;
-  std::string target_dir = output_dir;
+  std::filesystem::path target_dir = output_dir;
   if (target_dir.empty()) {
-    size_t parent_path_idx = filename.find_last_of(k_separator);
-    target_dir = filename.substr(0, parent_path_idx);
+    target_dir = std::filesystem::path(filename).parent_path();
   }
 
   std::string cflags_args;
@@ -135,11 +97,10 @@ std::tuple<std::string, std::string> get_cpp_compile_command(
   }
 
   std::string passthrough_parameters_args;
+  std::string target = "script.ld";
+  auto replacement = (target_dir / target).string();
   for (auto& arg : compile_options["passthrough_args"]) {
     std::string arg_str = arg.get<std::string>();
-    std::string target = "script.ld";
-    std::string replacement = target_dir;
-    replacement.append(k_separator).append(target);
     size_t pos = arg_str.find(target);
     if (pos != std::string::npos) {
       arg_str.replace(pos, target.length(), replacement);
@@ -164,102 +125,6 @@ std::tuple<std::string, std::string> get_cpp_compile_command(
       target_file);
 
   return std::make_tuple(cmd, target_file);
-}
-
-bool recursive_mkdir(const std::string& dir) {
-  // Creates directories recursively, copied from jit_utils.cpp
-  // Check if current dir exists
-  const char* p_dir = dir.c_str();
-  const bool dir_exists = (access(p_dir, F_OK) == 0);
-  if (dir_exists) {
-    return true;
-  }
-
-  // Try to create current directory
-#ifdef _WIN32
-  int ret = _mkdir(dir.c_str());
-#else
-  int ret = mkdir(dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
-#endif
-  // Success
-  if (ret == 0) {
-    return true;
-  }
-
-  // Find folder separator and check if we are at the top
-  auto pos = dir.find_last_of(k_separator);
-  if (pos == std::string::npos) {
-    return false;
-  }
-
-  // Try to create parent directory
-  if (!(recursive_mkdir(dir.substr(0, pos)))) {
-    return false;
-  }
-
-  // Try to create complete path again
-#ifdef _WIN32
-  ret = _mkdir(dir.c_str());
-#else
-  ret = mkdir(dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
-#endif
-  return ret == 0;
-}
-
-bool recursive_rmdir(const std::string& path) {
-#ifdef _WIN32
-  std::error_code ec;
-  return fs::remove_all(path, ec) != static_cast<std::uintmax_t>(-1);
-#else
-  DIR* dir = opendir(path.c_str());
-  if (!dir) {
-    return false;
-  }
-
-  struct dirent* entry = nullptr;
-  struct stat statbuf {};
-  bool success = true;
-
-  // Iterate through directory entries
-  while ((entry = readdir(dir)) != nullptr) {
-    std::string name = entry->d_name;
-
-    // Skip "." and ".."
-    if (name == "." || name == "..") {
-      continue;
-    }
-
-    std::string full_path = path;
-    full_path.append("/").append(name);
-
-    // Get file status
-    if (stat(full_path.c_str(), &statbuf) != 0) {
-      success = false;
-      continue;
-    }
-
-    if (S_ISDIR(statbuf.st_mode)) {
-      // Recursively delete subdirectory
-      if (!recursive_rmdir(full_path)) {
-        success = false;
-      }
-    } else {
-      // Delete file
-      if (unlink(full_path.c_str()) != 0) {
-        success = false;
-      }
-    }
-  }
-
-  closedir(dir);
-
-  // Remove the directory itself
-  if (rmdir(path.c_str()) != 0) {
-    success = false;
-  }
-
-  return success;
-#endif
 }
 
 std::string compile_so(
@@ -295,7 +160,7 @@ std::string compile_so(
 
   // Move the mmapped weights onto the .so
   std::string serialized_weights_path = filename + "_serialized_weights.bin";
-  if (file_exists(serialized_weights_path)) {
+  if (std::filesystem::exists(serialized_weights_path)) {
     std::ifstream serialized_weights_file(
         serialized_weights_path, std::ios::binary);
     if (!serialized_weights_file.is_open()) {
@@ -370,9 +235,9 @@ AOTIModelPackageLoader::AOTIModelPackageLoader(
   std::string cpp_filename;
   std::string consts_filename;
   std::string found_filenames; // Saving for bookkeeping
-  std::string model_directory =
-      "data" + k_separator + "aotinductor" + k_separator + model_name;
-  std::string const_directory = "data" + k_separator + "constants";
+  auto model_directory =
+      std::filesystem::path("data") / "aotinductor" / model_name;
+  auto const_directory = std::filesystem::path("data") / "constants";
 
   for (uint32_t i = 0; i < zip_archive.m_total_files; i++) {
     uint32_t filename_len =
@@ -387,45 +252,44 @@ AOTIModelPackageLoader::AOTIModelPackageLoader(
             &zip_archive, i, filename_str.data(), filename_len)) {
       throw std::runtime_error("Failed to read filename");
     }
+    std::filesystem::path filename(filename_str.c_str());
 
     found_filenames += filename_str;
     found_filenames += " ";
 
     // Only compile files in the specified model directory
-    if (c10::starts_with(filename_str, model_directory) ||
-        c10::starts_with(filename_str, const_directory)) {
-      std::string output_path_str = temp_dir_;
+    bool in_model_directory =
+        (!std::filesystem::relative(filename, model_directory).empty());
+    bool in_const_directory =
+        (!std::filesystem::relative(filename, const_directory).empty());
+    if (in_model_directory || in_const_directory) {
+      std::filesystem::path output_path = temp_dir_;
 
-      if (c10::starts_with(filename_str, model_directory)) {
-        output_path_str += k_separator;
-        output_path_str += filename_str;
-      } else { // startsWith(filename_str, const_directory)
+      if (in_model_directory) {
+        output_path /= filename;
+      } else {
         // Extract constants to the same directory as the rest of the files
         // to be consistent with internal implementation
-        size_t lastSlash = filename_str.find_last_of(k_separator);
-        std::string filename = filename_str;
-        if (lastSlash != std::string::npos) {
-          filename = filename_str.substr(lastSlash + 1);
-        }
-        output_path_str +=
-            k_separator + model_directory + k_separator + filename;
+        output_path /= model_directory;
+        output_path /= filename.filename();
       }
+      auto output_path_str = output_path.string();
 
-      LOG(INFO) << "Extract file: " << filename_str << " to "
-                << output_path_str;
+      LOG(INFO) << "Extract file: " << filename_str << " to " << output_path;
 
       // Create the parent directory if it doesn't exist
-      size_t parent_path_idx = output_path_str.find_last_of(k_separator);
-      if (parent_path_idx == std::string::npos) {
+      if (!output_path.has_parent_path()) {
         throw std::runtime_error(
             "Failed to find parent path in " + output_path_str);
       }
-      std::string parent_path = output_path_str.substr(0, parent_path_idx);
-      if (!recursive_mkdir(parent_path)) {
+      auto parent_path = output_path.parent_path();
+      std::error_code ec{};
+      std::filesystem::create_directories(parent_path, ec);
+      if (!std::filesystem::is_directory(parent_path)) {
         throw std::runtime_error(fmt::format(
             "Failed to create directory {}: {}",
-            parent_path,
-            c10::utils::str_error(errno)));
+            parent_path.string(),
+            ec.message()));
       }
 
       // Extracts file to the temp directory
@@ -433,9 +297,8 @@ AOTIModelPackageLoader::AOTIModelPackageLoader(
           &zip_archive, filename_str.c_str(), output_path_str.c_str(), 0);
 
       // Save the file for bookkeeping
-      size_t extension_idx = output_path_str.find_last_of('.');
-      if (extension_idx != std::string::npos) {
-        std::string filename_extension = output_path_str.substr(extension_idx);
+      if (output_path.has_extension()) {
+        auto filename_extension = output_path.extension();
         if (filename_extension == ".cpp") {
           cpp_filename = output_path_str;
         } else if (filename_extension == ".o") {
@@ -483,7 +346,7 @@ AOTIModelPackageLoader::AOTIModelPackageLoader(
     throw std::runtime_error("Unsupported device found: " + device);
   }
 
-  std::string cubin_dir = temp_dir_ + k_separator + model_directory;
+  std::string cubin_dir = (temp_dir_ / model_directory).string();
   runner_ = registered_aoti_runner[device](
       so_path, num_runners, device, cubin_dir, run_single_threaded);
 }
@@ -491,7 +354,9 @@ AOTIModelPackageLoader::AOTIModelPackageLoader(
 AOTIModelPackageLoader::~AOTIModelPackageLoader() {
   // Clean up the temporary directory
   if (!temp_dir_.empty()) {
-    recursive_rmdir(temp_dir_);
+    std::error_code ec{};
+    // The noexcept version of remove_all is used
+    std::filesystem::remove_all(temp_dir_, ec);
   }
 }
 
