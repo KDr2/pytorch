@@ -53,6 +53,7 @@ TEST(MPMCQueueTest, ConcurrentAccess) {
       int out = 0;
       while (!queue.readIfNotEmpty(out)) {
         // Wait until an element is available
+        std::this_thread::yield();
       }
       EXPECT_LT(out, 5);
     }
@@ -76,6 +77,7 @@ TEST(MPMCQueueTest, MPMCConcurrentAccess) {
         size_t value = i * numElementsPerWriter + j;
         while (!queue.writeIfNotFull(static_cast<int>(value))) {
           // Retry until the queue has space
+          std::this_thread::yield();
         }
       }
     });
@@ -90,6 +92,8 @@ TEST(MPMCQueueTest, MPMCConcurrentAccess) {
       while (totalReadCount < numWriters * numElementsPerWriter) {
         if (queue.readIfNotEmpty(value)) {
           ++totalReadCount;
+        } else {
+          std::this_thread::yield();
         }
       }
     });
