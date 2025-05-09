@@ -1992,8 +1992,9 @@ class TestSparseCSR(TestCase):
     @dtypesIfCUDA(*floating_types_and(torch.complex64,
                                       *[torch.bfloat16] if (SM80OrLater and not TEST_WITH_ROCM) else [],
                                       *[torch.half] if (SM53OrLater and not TEST_WITH_ROCM) else [],
-                                      *[torch.complex128] if CUSPARSE_SPMM_COMPLEX128_SUPPORTED or HIPSPARSE_SPMM_COMPLEX128_SUPPORTED else []
-                                      ))
+                                      *[torch.complex128]
+                                      if CUSPARSE_SPMM_COMPLEX128_SUPPORTED or HIPSPARSE_SPMM_COMPLEX128_SUPPORTED
+                                      else []))
     @sparse_compressed_nonblock_layouts()
     def test_addmm_all_sparse_csr(self, device, dtype, layout):
         M = torch.randn(10, 25, device=device).to(dtype)

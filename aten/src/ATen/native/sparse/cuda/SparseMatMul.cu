@@ -275,7 +275,7 @@ struct CusparseMatrixMultiplyOp {
     // If a specific GPU model does not provide native support for a given data type,
     // the routine returns CUSPARSE_STATUS_ARCH_MISMATCH error
     #if defined(USE_ROCM)
-    TORCH_CHECK(!(computeType == CUDA_R_16F || computeType == CUDA_R_16BF), 
+    TORCH_CHECK(!(computeType == CUDA_R_16F || computeType == CUDA_R_16BF),
         "sparse_mm: Float16 and BFloat16 are not supported on ROCm");
     #else // defined(USE_ROCM)
     cudaDeviceProp* prop = at::cuda::getCurrentDeviceProperties();

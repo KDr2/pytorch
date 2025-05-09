@@ -8,7 +8,7 @@ import operator
 import random
 import unittest
 from torch.testing import make_tensor
-from torch.testing._internal.common_utils import TestCase, run_tests, skipIfRocm, do_test_dtypes, \
+from torch.testing._internal.common_utils import TestCase, run_tests, do_test_dtypes, \
     load_tests, TEST_NUMPY, TEST_SCIPY, IS_WINDOWS, gradcheck, coalescedonoff, \
     DeterministicGuard, first_sample, TEST_WITH_CROSSREF, TEST_WITH_ROCM, skipIfTorchDynamo, \
     parametrize, subtest, is_coalesced_indices, suppress_warnings, instantiate_parametrized_tests, \
@@ -3613,7 +3613,9 @@ class TestSparse(TestSparseBase):
     @dtypesIfCUDA(*floating_types_and(*[torch.half] if SM53OrLater and not TEST_WITH_ROCM else [],
                                       *[torch.bfloat16] if SM80OrLater and not TEST_WITH_ROCM else [],
                                       torch.complex64,
-                                      *[torch.complex128] if CUSPARSE_SPMM_COMPLEX128_SUPPORTED or HIPSPARSE_SPMM_COMPLEX128_SUPPORTED else []))
+                                      *[torch.complex128]
+                                      if CUSPARSE_SPMM_COMPLEX128_SUPPORTED or HIPSPARSE_SPMM_COMPLEX128_SUPPORTED
+                                      else []))
     @unittest.skipIf(TEST_WITH_CROSSREF, "not working with fake tensor")
     @precisionOverride({torch.bfloat16: 1e-2, torch.float16: 1e-2, torch.complex64: 1e-2, torch.float32: 1e-2})
     def test_sparse_matmul(self, device, dtype, coalesced):
