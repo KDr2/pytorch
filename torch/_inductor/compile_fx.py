@@ -2112,9 +2112,7 @@ def partition_fn(
         # in partitioning.
         inputs_devices = get_inputs_devices(joint_inputs, gm)
         _recursive_joint_graph_passes(
-            gm,
-            skip_invoke_subgraph=True,
-            input_device=next(iter(inputs_devices))
+            gm, skip_invoke_subgraph=True, input_device=next(iter(inputs_devices))
         )
 
     static_lifetime_input_indices: Optional[list[int]] = kwargs.pop(  # type: ignore[assignment]
@@ -2205,9 +2203,7 @@ def compile_fx_forward(
         )
 
         inputs_devices = get_inputs_devices(example_inputs, gm)
-        _recursive_joint_graph_passes(
-            gm, input_device=next(iter(inputs_devices))
-        )
+        _recursive_joint_graph_passes(gm, input_device=next(iter(inputs_devices)))
 
         trace_structured(
             "artifact",

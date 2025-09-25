@@ -1033,6 +1033,7 @@ if sys.version_info >= (3, 12):
         typing.TypeAliasType,
     )
 
+
 def get_inputs_devices(
     inputs: collections.abc.Sequence[object],
     model: torch.fx.GraphModule,
@@ -1046,6 +1047,7 @@ def get_inputs_devices(
     return [
         i for i in devices if (isinstance(i, torch.device) and i.type != "meta")
     ] + [None]
+
 
 def is_typing(value: Any) -> bool:
     # _Final catches most of typing classes:
