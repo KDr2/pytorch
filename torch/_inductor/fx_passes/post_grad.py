@@ -68,6 +68,10 @@ from .split_cat import POST_GRAD_PATTERNS
 _T = TypeVar("_T")
 _P = ParamSpec("_P")
 
+PatternMatcherPass = functools.partial(
+    PatternMatcherPass, subsystem="post_grad_passes"
+)
+
 log = logging.getLogger(__name__)
 aten = torch.ops.aten
 prims = torch.ops.prims

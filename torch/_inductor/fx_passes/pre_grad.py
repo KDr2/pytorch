@@ -1,5 +1,6 @@
 # mypy: allow-untyped-defs
 import copy
+import functools
 import itertools
 import logging
 import types
@@ -31,6 +32,13 @@ from .group_batch_fusion import group_batch_fusion_passes, PRE_GRAD_FUSIONS
 from .misc_patterns import numpy_compat_normalization
 from .split_cat import PRE_GRAD_PATTERNS
 
+
+PatternMatcherPass = functools.partial(
+    PatternMatcherPass, subsystem="pre_grad_passes"
+)
+GraphTransformObserver = functools.partial(
+    GraphTransformObserver, subsystem="pre_grad_passes"
+)
 
 log = logging.getLogger(__name__)
 

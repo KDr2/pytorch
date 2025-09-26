@@ -39,6 +39,10 @@ from .decompose_mem_bound_mm import check_device
 from .replace_random import replace_random_passes
 
 
+PatternMatcherPass = functools.partial(
+    PatternMatcherPass, subsystem="joint_graph_passes"
+)
+
 log = logging.getLogger(__name__)
 patterns = PatternMatcherPass()
 aten = torch.ops.aten
