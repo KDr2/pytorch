@@ -6,7 +6,10 @@ from torch.utils._ordered_set import OrderedSet
 
 def _end_ptr(tensor: torch.Tensor) -> int:
     if tensor.nelement():
-        stop = tensor.view(-1)[-1].data_ptr() + tensor.element_size()
+        if tensor.is_contiguous():
+            return tensor.view(-1)[-1].data_ptr() + tensor.element_size()
+        else:
+            stop = tensor.reshape(-1)[-1].data_ptr() + tensor.element_size()
     else:
         stop = tensor.data_ptr()
     return stop
@@ -79,6 +82,9 @@ def get_complete(
         tensor_property = get_tensor_properties(name_tuple)
         if tensor_property.is_complete():
             return name_tuple
+
+    if len(group) == 1:
+        return name_tuple
 
     raise RuntimeError("No complete tensor found in the group!")
 

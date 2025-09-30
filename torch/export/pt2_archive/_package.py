@@ -32,6 +32,7 @@ from torch.export._tree_utils import reorder_kwargs
 from torch.export.pt2_archive._package_weights import (
     get_complete,
     group_weights,
+    TensorProperties,
     Weights,
 )
 from torch.export.pt2_archive.constants import (
@@ -361,47 +362,73 @@ def _get_raw_tensor_bytes(value: torch.Tensor) -> bytes:
     return value_bytes
 
 
+def _should_use_pickle(t: torch.Tensor) -> bool:
+    return _is_tensor_subclass(t) and not _is_fake_tensor(t)
+
+
 def _package_state_dict(
     exported_program: ExportedProgram,
     archive_writer: PT2ArchiveWriter,
     pickle_protocol: int = DEFAULT_PICKLE_PROTOCOL,
 ) -> schema.PayloadConfig:
     weights_config: dict[str, schema.PayloadMeta] = {}
-    storage_map: dict[torch.UntypedStorage, str] = {}
 
-    idx = archive_writer.count_prefix(os.path.join(WEIGHTS_DIR, WEIGHT_FILENAME_PREFIX))
+    pickled_weights: list[tuple[str, torch.Tensor]] = []
+    raw_weights: dict[str, tuple[torch.Tensor, TensorProperties]] = {}
+
     for weight_fqn, weight_tensor in exported_program.state_dict.items():
         assert isinstance(weight_tensor, torch.Tensor), (
             "only torch.Tensor is allowed in state_dict"
         )
-        path_name = f"{WEIGHT_FILENAME_PREFIX}{idx}"
-        is_param = isinstance(weight_tensor, torch.nn.Parameter)
-        # use pickle for non-fake tensor subclasses
-        use_pickle = _is_tensor_subclass(weight_tensor) and not _is_fake_tensor(
-            weight_tensor
-        )
-        archive_path = os.path.join(WEIGHTS_DIR, path_name)
-        if use_pickle:
-            buffer = io.BytesIO()
-            torch.save(weight_tensor, buffer, pickle_protocol=pickle_protocol)
-            archive_writer.write_bytes(archive_path, buffer.getvalue())
-            idx += 1
+        if _should_use_pickle(weight_tensor):
+            pickled_weights.append((weight_fqn, weight_tensor))
         else:
-            tensor_storage = weight_tensor.untyped_storage()
-            if tensor_storage not in storage_map:
-                storage_map[tensor_storage] = path_name
-                tensor_bytes = _get_raw_tensor_bytes(weight_tensor)
-                archive_writer.write_bytes(archive_path, tensor_bytes)
-                idx += 1
-            else:
-                path_name = storage_map[tensor_storage]
+            raw_weights[weight_fqn] = (weight_tensor, TensorProperties(weight_tensor))
+
+    idx = archive_writer.count_prefix(os.path.join(WEIGHTS_DIR, WEIGHT_FILENAME_PREFIX))
+
+    for weight_fqn, weight_tensor in pickled_weights:
+        path_name = f"{WEIGHT_FILENAME_PREFIX}{idx}"
+        archive_path = os.path.join(WEIGHTS_DIR, path_name)
+        buffer = io.BytesIO()
+        torch.save(weight_tensor, buffer, pickle_protocol=pickle_protocol)
+        archive_writer.write_bytes(archive_path, buffer.getvalue())
 
         weights_config[weight_fqn] = schema.PayloadMeta(
             path_name=path_name,
-            is_param=is_param,
-            use_pickle=use_pickle,
+            is_param=isinstance(weight_tensor, torch.nn.Parameter),
+            use_pickle=True,
             tensor_meta=serialize_tensor_meta(weight_tensor),
         )
+        idx += 1
+
+    # Handle raw tensors with proper storage deduplication using existing logic
+    if raw_weights:
+        weights_dict = {"model": Weights(raw_weights)}
+        storage_groups = group_weights(weights_dict)
+
+        for group in storage_groups:
+            # Find the complete tensor that covers all others in this storage group
+            model_name, complete_weight_name = get_complete(group, weights_dict)
+            complete_tensor, _ = weights_dict[model_name].get_weight(
+                complete_weight_name
+            )
+
+            path_name = f"{WEIGHT_FILENAME_PREFIX}{idx}"
+            archive_path = os.path.join(WEIGHTS_DIR, path_name)
+            tensor_bytes = _get_raw_tensor_bytes(complete_tensor)
+            archive_writer.write_bytes(archive_path, tensor_bytes)
+            idx += 1
+
+            # Create PayloadMeta for all tensors in this storage group
+            for _, weight_fqn in group:
+                weight_tensor, _ = weights_dict["model"].get_weight(weight_fqn)
+                weights_config[weight_fqn] = schema.PayloadMeta(
+                    path_name=path_name,
+                    is_param=isinstance(weight_tensor, torch.nn.Parameter),
+                    use_pickle=False,
+                    tensor_meta=serialize_tensor_meta(weight_tensor),
+                )
 
     return schema.PayloadConfig(config=weights_config)
 
@@ -412,7 +439,25 @@ def _package_constants(
     pickle_protocol: int = DEFAULT_PICKLE_PROTOCOL,
 ) -> schema.PayloadConfig:
     constants_config: dict[str, schema.PayloadMeta] = {}
-    storage_map: dict[torch.UntypedStorage, str] = {}
+
+    # Separate different types of constants for proper handling
+    pickled_constants: list[tuple[str, torch.Tensor]] = []
+    raw_constants: dict[str, tuple[torch.Tensor, TensorProperties]] = {}
+    custom_objects: list[tuple[str, torch._C.ScriptObject]] = []
+
+    # First pass: categorize constants
+    for constant_fqn, constant in exported_program.constants.items():
+        if isinstance(constant, torch.Tensor):
+            if _should_use_pickle(constant):
+                pickled_constants.append((constant_fqn, constant))
+            else:
+                raw_constants[constant_fqn] = (constant, TensorProperties(constant))
+
+        elif isinstance(constant, torch._C.ScriptObject):
+            custom_objects.append((constant_fqn, constant))
+
+        else:
+            raise RuntimeError(f"Unsupported constant type: {type(constant)}")
 
     tensor_idx = archive_writer.count_prefix(
         os.path.join(CONSTANTS_DIR, TENSOR_CONSTANT_FILENAME_PREFIX)
@@ -421,50 +466,59 @@ def _package_constants(
         os.path.join(CONSTANTS_DIR, CUSTOM_OBJ_FILENAME_PREFIX)
     )
 
-    for constant_fqn, constant in exported_program.constants.items():
-        if isinstance(constant, torch.Tensor):
-            use_pickle = _is_tensor_subclass(constant) and not _is_fake_tensor(constant)
+    for constant_fqn, constant in pickled_constants:
+        path_name = f"{TENSOR_CONSTANT_FILENAME_PREFIX}{tensor_idx}"
+        archive_path = os.path.join(CONSTANTS_DIR, path_name)
+        buffer = io.BytesIO()
+        torch.save(constant, buffer, pickle_protocol=pickle_protocol)
+        archive_writer.write_bytes(archive_path, buffer.getvalue())
+
+        constants_config[constant_fqn] = schema.PayloadMeta(
+            path_name=path_name,
+            is_param=False,
+            use_pickle=True,
+            tensor_meta=serialize_tensor_meta(constant),
+        )
+        tensor_idx += 1
+
+    if raw_constants:
+        weights_dict = {"model": Weights(raw_constants)}
+        storage_groups = group_weights(weights_dict)
+
+        for group in storage_groups:
+            model_name, complete_constant_name = get_complete(group, weights_dict)
+            complete_tensor, _ = weights_dict[model_name].get_weight(
+                complete_constant_name
+            )
+
             path_name = f"{TENSOR_CONSTANT_FILENAME_PREFIX}{tensor_idx}"
             archive_path = os.path.join(CONSTANTS_DIR, path_name)
-            if use_pickle:
-                buffer = io.BytesIO()
-                torch.save(constant, buffer, pickle_protocol=pickle_protocol)
-                archive_writer.write_bytes(archive_path, buffer.getvalue())
-                tensor_idx += 1
-            else:
-                # Only save once when tensors share the same storage
-                tensor_storage = constant.untyped_storage()
-                if tensor_storage not in storage_map:
-                    storage_map[tensor_storage] = path_name
-                    tensor_bytes = _get_raw_tensor_bytes(constant)
-                    archive_writer.write_bytes(archive_path, tensor_bytes)
-                    tensor_idx += 1
-                else:
-                    path_name = storage_map[tensor_storage]
+            tensor_bytes = _get_raw_tensor_bytes(complete_tensor)
+            archive_writer.write_bytes(archive_path, tensor_bytes)
+            tensor_idx += 1
 
-            constants_config[constant_fqn] = schema.PayloadMeta(
-                path_name=path_name,
-                is_param=False,
-                use_pickle=use_pickle,
-                tensor_meta=serialize_tensor_meta(constant),
-            )
+            for _, constant_fqn in group:
+                constant_tensor, _ = weights_dict["model"].get_weight(constant_fqn)
+                constants_config[constant_fqn] = schema.PayloadMeta(
+                    path_name=path_name,
+                    is_param=False,
+                    use_pickle=False,
+                    tensor_meta=serialize_tensor_meta(constant_tensor),
+                )
 
-        elif isinstance(constant, torch._C.ScriptObject):
-            # use pickle for custom objects
-            path_name = f"{CUSTOM_OBJ_FILENAME_PREFIX}{custom_obj_idx}"
-            custom_obj_idx += 1
-            constants_config[constant_fqn] = schema.PayloadMeta(
-                path_name=path_name,
-                is_param=False,
-                use_pickle=True,
-                tensor_meta=None,
-            )
-            archive_path = os.path.join(CONSTANTS_DIR, path_name)
-            custom_obj_bytes = torch._C._pickle_save(constant)
-            archive_writer.write_bytes(archive_path, custom_obj_bytes)
+    for constant_fqn, constant in custom_objects:
+        path_name = f"{CUSTOM_OBJ_FILENAME_PREFIX}{custom_obj_idx}"
+        archive_path = os.path.join(CONSTANTS_DIR, path_name)
+        custom_obj_bytes = torch._C._pickle_save(constant)
+        archive_writer.write_bytes(archive_path, custom_obj_bytes)
 
-        else:
-            raise RuntimeError(f"Unsupported constant type: {type(constant)}")
+        constants_config[constant_fqn] = schema.PayloadMeta(
+            path_name=path_name,
+            is_param=False,
+            use_pickle=True,
+            tensor_meta=None,
+        )
+        custom_obj_idx += 1
 
     return schema.PayloadConfig(config=constants_config)
 
