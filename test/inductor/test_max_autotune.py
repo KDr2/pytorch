@@ -48,6 +48,7 @@ from torch._inductor.template_heuristics.triton import (
 from torch.testing._internal.common_cuda import PLATFORM_SUPPORTS_FP8
 from torch.testing._internal.common_utils import (
     instantiate_parametrized_tests,
+    IS_B200,
     IS_WINDOWS,
     parametrize,
     TEST_WITH_ROCM,
@@ -799,6 +800,7 @@ class TestMaxAutotune(TestCase):
     @unittest.skipIf(
         not has_triton_tma_device(), "Need device-side TMA support in Triton"
     )
+    @unittest.skipIf(IS_B200, "B200 doesn't support sm carveout")
     @parametrize("carveout", (None, 0, 27))
     @parametrize("op", ("mm", "scaled_mm"))
     def test_honor_sm_carveout_with_triton_tma(self, carveout, op: str):

@@ -1354,6 +1354,24 @@ IS_X86 = platform.machine() in ('x86_64', 'i386')
 IS_ARM64 = platform.machine() in ('arm64', 'aarch64')
 IS_S390X = platform.machine() == "s390x"
 
+def get_nvidia_gpu_model() -> str:
+    """
+    Retrieves the model of the NVIDIA GPU being used.
+    Will return the name of the first GPU listed.
+    Returns:
+        str: The model of the NVIDIA GPU or empty str if not found.
+    """
+    try:
+        model = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader,nounits"]
+        )
+        return model.decode().strip().split("\n")[0]
+    except OSError:
+        log.warning("nvidia-smi not found. Returning empty str.")
+        return ""
+
+IS_B200 = torch.version.cuda is not None and get_nvidia_gpu_model() == "NVIDIA B200"
+
 def is_avx512_vnni_supported():
     if sys.platform != 'linux':
         return False
