@@ -38,26 +38,26 @@ at::Tensor miopen_convolution(
   TORCH_CHECK(false, "miopen_convolution: ATen not compiled with MIOpen support");
 }
 
-at::Tensor miopen_convolution_backward_input(
+static at::Tensor miopen_convolution_backward_input(
     IntArrayRef input_size, const at::Tensor& grad_output, const at::Tensor& weight,
     IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int64_t groups,
     bool benchmark, bool deterministic) {
   TORCH_CHECK(false, "miopen_convolution_backward_input: ATen not compiled with MIOpen support");
 }
 
-at::Tensor miopen_convolution_backward_weight(
+static at::Tensor miopen_convolution_backward_weight(
     IntArrayRef weight_size, const at::Tensor& grad_output, const at::Tensor& input,
     IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int64_t groups,
     bool benchmark, bool deterministic) {
   TORCH_CHECK(false, "miopen_convolution_backward_weight: ATen not compiled with MIOpen support");
 }
 
-at::Tensor miopen_convolution_backward_bias(
+static at::Tensor miopen_convolution_backward_bias(
     const at::Tensor& grad_output) {
   TORCH_CHECK(false, "miopen_convolution_backward_bias: ATen not compiled with MIOpen support");
 }
 
-std::tuple<at::Tensor,at::Tensor,at::Tensor> miopen_convolution_backward(
+static std::tuple<at::Tensor,at::Tensor,at::Tensor> miopen_convolution_backward(
     const at::Tensor& input, const at::Tensor& grad_output, const at::Tensor& weight,
     IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int64_t groups,
     bool benchmark, bool deterministic, std::array<bool,3> output_mask) {
@@ -71,21 +71,21 @@ at::Tensor miopen_convolution_transpose(
   TORCH_CHECK(false, "miopen_convolution_transpose: ATen not compiled with MIOpen support");
 }
 
-at::Tensor miopen_convolution_transpose_backward_input(
+static at::Tensor miopen_convolution_transpose_backward_input(
     const at::Tensor& grad_output, const at::Tensor& weight,
     IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation,
     int64_t groups, bool benchmark, bool deterministic) {
   TORCH_CHECK(false, "miopen_convolution_transpose_backward: ATen not compiled with MIOpen support");
 }
 
-at::Tensor miopen_convolution_transpose_backward_weight(
+static at::Tensor miopen_convolution_transpose_backward_weight(
     IntArrayRef weight_size, const at::Tensor& grad_output, const at::Tensor& input,
     IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int64_t groups,
     bool benchmark, bool deterministic) {
   TORCH_CHECK(false, "miopen_convolution_transpose_backward_weight: ATen not compiled with MIOpen support");
 }
 
-std::tuple<at::Tensor,at::Tensor,at::Tensor> miopen_convolution_transpose_backward(
+static std::tuple<at::Tensor,at::Tensor,at::Tensor> miopen_convolution_transpose_backward(
     const at::Tensor& input, const at::Tensor& grad_output, const at::Tensor& weight,
     IntArrayRef padding, IntArrayRef output_padding, IntArrayRef stride, IntArrayRef dilation, int64_t groups,
     bool benchmark, bool deterministic, std::array<bool,3> output_mask) {
@@ -99,21 +99,21 @@ at::Tensor miopen_depthwise_convolution(
   TORCH_CHECK(false, "miopen_depthwise_convolution: ATen not compiled with MIOpen support");
 }
 
-at::Tensor miopen_depthwise_convolution_backward_input(
+static at::Tensor miopen_depthwise_convolution_backward_input(
     IntArrayRef input_size, const at::Tensor& grad_output, const at::Tensor& weight,
     IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int64_t groups,
     bool benchmark, bool deterministic) {
   TORCH_CHECK(false, "miopen_depthwise_convolution_backward_input: ATen not compiled with MIOpen support");
 }
 
-at::Tensor miopen_depthwise_convolution_backward_weight(
+static at::Tensor miopen_depthwise_convolution_backward_weight(
     IntArrayRef weight_size, const at::Tensor& grad_output, const at::Tensor& input,
     IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int64_t groups,
     bool benchmark, bool deterministic) {
   TORCH_CHECK(false, "miopen_depthwise_convolution_backward_weight: ATen not compiled with MIOpen support");
 }
 
-std::tuple<at::Tensor,at::Tensor,at::Tensor> miopen_depthwise_convolution_backward(
+static std::tuple<at::Tensor,at::Tensor,at::Tensor> miopen_depthwise_convolution_backward(
     const at::Tensor& input, const at::Tensor& grad_output, const at::Tensor& weight,
     IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int64_t groups,
     bool benchmark, bool deterministic, std::array<bool,3> output_mask) {

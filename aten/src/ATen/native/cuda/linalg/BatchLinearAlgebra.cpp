@@ -1223,7 +1223,7 @@ TORCH_CHECK(false, "cholesky_solve: MAGMA library not found in "
 #endif
 }
 
-Tensor _cholesky_solve_helper_cuda_magma(const Tensor& self, const Tensor& A, bool upper) {
+static Tensor _cholesky_solve_helper_cuda_magma(const Tensor& self, const Tensor& A, bool upper) {
   int64_t info = 0;
   auto self_working_copy = cloneBatchedColumnMajor(self);
   auto A_working_copy = cloneBatchedColumnMajor(A);
@@ -1236,7 +1236,7 @@ Tensor _cholesky_solve_helper_cuda_magma(const Tensor& self, const Tensor& A, bo
 
 // Todo: cusolverDn<T>potrsBatched only supports nrhs == 1 and does not have good performance.
 //     Batched cholesky_solve is dispatched to magma.
-Tensor _cholesky_solve_helper_cuda(const Tensor& self, const Tensor& A, bool upper) {
+static Tensor _cholesky_solve_helper_cuda(const Tensor& self, const Tensor& A, bool upper) {
 #if defined(USE_LINALG_SOLVER)
   auto preferred_backend = at::globalContext().linalgPreferredBackend();
   switch (preferred_backend) {
@@ -1316,7 +1316,7 @@ static void apply_cholesky(const Tensor& self, bool upper, const Tensor& info) {
 #endif
 }
 
-void cholesky_helper_magma(const Tensor& input, bool upper, const Tensor& info) {
+static void cholesky_helper_magma(const Tensor& input, bool upper, const Tensor& info) {
   Tensor result = input;
   if (input.dim() > 2) {
     // MAGMA's batched cholesky operator has an off-by-one error causing IMA
@@ -1421,14 +1421,14 @@ static void apply_cholesky_inverse(Tensor& input, Tensor& infos, bool upper) {
 }
 
 // This is a type dispatching helper function for 'apply_cholesky_inverse'
-Tensor& cholesky_inverse_kernel_impl_magma(Tensor &result, Tensor& infos, bool upper) {
+static Tensor& cholesky_inverse_kernel_impl_magma(Tensor &result, Tensor& infos, bool upper) {
   AT_DISPATCH_FLOATING_AND_COMPLEX_TYPES(result.scalar_type(), "cholesky_inverse_out_cuda", [&]{
     apply_cholesky_inverse<scalar_t>(result, infos, upper);
   });
   return result;
 }
 
-Tensor& cholesky_inverse_kernel_impl(Tensor &result, Tensor& infos, bool upper) {
+static Tensor& cholesky_inverse_kernel_impl(Tensor &result, Tensor& infos, bool upper) {
   // This function calculates the inverse matrix in-place
   // result should be in column major order and contain matrices to invert
   // the content of result is overwritten by 'apply_cholesky_inverse'
@@ -1730,13 +1730,13 @@ TORCH_CHECK(false, "triangular_solve: MAGMA library not found in "
 #endif
 }
 
-void triangular_solve_batched_magma(const Tensor& A, const Tensor& B, bool left, bool upper, TransposeType transpose, bool unitriangular) {
+static void triangular_solve_batched_magma(const Tensor& A, const Tensor& B, bool left, bool upper, TransposeType transpose, bool unitriangular) {
   AT_DISPATCH_FLOATING_AND_COMPLEX_TYPES(A.scalar_type(), "triangular_solve_cuda", [&]{
     apply_triangular_solve_batched_magma<scalar_t>(A, B, left, upper, transpose, unitriangular);
   });
 }
 
-void triangular_solve_kernel(const Tensor& A, const Tensor& B, bool left, bool upper, TransposeType transpose, bool unitriangular) {
+static void triangular_solve_kernel(const Tensor& A, const Tensor& B, bool left, bool upper, TransposeType transpose, bool unitriangular) {
   // For batches smaller than 8 and matrix sizes larger than 64x64 cuBLAS forloop is faster than batched version
   if (batchCount(A) <= 8 && A.size(-1) >= 64) {
     triangular_solve_cublas(A, B, left, upper, transpose, unitriangular);
@@ -1758,7 +1758,7 @@ REGISTER_CUDA_DISPATCH(triangular_solve_stub, &triangular_solve_kernel)
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ orgqr ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Tensor& orgqr_kernel_impl(Tensor& result, const Tensor& tau) {
+static Tensor& orgqr_kernel_impl(Tensor& result, const Tensor& tau) {
   // TODO: It is possible to implement efficient batched orgqr for small tau (tau.size(-1) <= 32)
   // using MAGMA, however it fails on Windows because of some illegal memory reads inside MAGMA.
   // See discussions in https://github.com/pytorch/pytorch/pull/51348 for comparison of cuSOLVER-MAGMA
@@ -1774,7 +1774,7 @@ Tensor& orgqr_kernel_impl(Tensor& result, const Tensor& tau) {
 
 REGISTER_CUDA_DISPATCH(orgqr_stub, &orgqr_kernel_impl)
 
-void ormqr_kernel(const Tensor& input, const Tensor& tau, const Tensor& other, bool left, bool transpose) {
+static void ormqr_kernel(const Tensor& input, const Tensor& tau, const Tensor& other, bool left, bool transpose) {
 #ifdef USE_LINALG_SOLVER
   ormqr_cusolver(input, tau, other, left, transpose);
 #else
@@ -1827,13 +1827,13 @@ static void apply_geqrf(const Tensor& input, const Tensor& tau) {
 }
 
 // This is a type dispatching helper function for 'apply_geqrf'
-void geqrf_magma(const Tensor& input, const Tensor& tau) {
+static void geqrf_magma(const Tensor& input, const Tensor& tau) {
   AT_DISPATCH_FLOATING_AND_COMPLEX_TYPES(input.scalar_type(), "geqrf_magma", [&]{
     apply_geqrf<scalar_t>(input, tau);
   });
 }
 
-void geqrf_kernel(const Tensor& input, const Tensor& tau) {
+static void geqrf_kernel(const Tensor& input, const Tensor& tau) {
 #ifdef USE_LINALG_SOLVER
   auto geqrf_cusolver_backend = [](const Tensor& input, const Tensor& tau) {
       // For the benchmarks see
@@ -1946,7 +1946,7 @@ static void apply_magma_eigh(const Tensor& values, const Tensor& vectors, const 
 
 // This is a type dispatch function for 'apply_magma_eigh'
 // For small inputs result is computed on CPU
-void linalg_eigh_magma(const Tensor& eigenvalues, const Tensor& eigenvectors, const Tensor& infos, bool upper, bool compute_eigenvectors) {
+static void linalg_eigh_magma(const Tensor& eigenvalues, const Tensor& eigenvectors, const Tensor& infos, bool upper, bool compute_eigenvectors) {
   // MAGMA just calls LAPACK for eigenvectors.size(-1) <= 128
   // See https://bitbucket.org/icl/magma/src/e6fdca447bd402693e8b0b950a898b6879bbcc41/src/zheevd_gpu.cpp?at=master#lines-258
   // in addition lda is ignored breaking 0x0 inputs
@@ -1979,7 +1979,7 @@ void linalg_eigh_magma(const Tensor& eigenvalues, const Tensor& eigenvectors, co
   }
 }
 
-void linalg_eigh_kernel(const Tensor& eigenvalues, const Tensor& eigenvectors, const Tensor& infos, bool upper, bool compute_eigenvectors) {
+static void linalg_eigh_kernel(const Tensor& eigenvalues, const Tensor& eigenvectors, const Tensor& infos, bool upper, bool compute_eigenvectors) {
 #if defined(USE_LINALG_SOLVER)
   auto preferred_backend = at::globalContext().linalgPreferredBackend();
   switch (preferred_backend) {
@@ -2006,7 +2006,7 @@ This is an in-place routine, content of 'input', 'values', 'vectors' is overwrit
 For more information see MAGMA's documentation for GEEV routine.
 */
 template <typename scalar_t>
-void apply_linalg_eig(Tensor& values, Tensor& vectors, Tensor& input, Tensor& infos, bool compute_eigenvectors) {
+static void apply_linalg_eig(Tensor& values, Tensor& vectors, Tensor& input, Tensor& infos, bool compute_eigenvectors) {
 #if !AT_MAGMA_ENABLED()
 TORCH_CHECK(false, "Calling torch.linalg.eig on a CUDA tensor requires compiling PyTorch with MAGMA. "
                    "Either transfer the tensor to the CPU before calling torch.linalg.eig or recompile with MAGMA.");
@@ -2064,7 +2064,7 @@ TORCH_CHECK(false, "Calling torch.linalg.eig on a CUDA tensor requires compiling
 }
 
 // This is a type dispatching helper function for 'apply_linalg_eig'
-void linalg_eig_kernel(Tensor& eigenvalues, Tensor& eigenvectors, Tensor& infos, const Tensor& input, bool compute_eigenvectors) {
+static void linalg_eig_kernel(Tensor& eigenvalues, Tensor& eigenvectors, Tensor& infos, const Tensor& input, bool compute_eigenvectors) {
   // This function calculates the non-symmetric eigendecomposition in-place
   // tensors should be in batched column major memory format
   // the content of eigenvalues, eigenvectors and infos is overwritten by 'apply_linalg_eig'
@@ -2155,7 +2155,7 @@ TORCH_CHECK(false, "linalg.svd: MAGMA library not found in "
 #endif
 }
 
-void svd_magma(const Tensor& A,
+static void svd_magma(const Tensor& A,
                const bool full_matrices,
                const bool compute_uv,
                const Tensor& U,
@@ -2195,7 +2195,7 @@ void svd_magma(const Tensor& A,
   info.copy_(info, /*non_blocking*/true);
 }
 
-void svd_kernel(const Tensor& A,
+static void svd_kernel(const Tensor& A,
                 const bool full_matrices,
                 const bool compute_uv,
                 const std::optional<std::string_view>& driver,
@@ -2379,7 +2379,7 @@ static void lu_solve_looped_magma(const Tensor& LU, const Tensor& pivots, const 
   });
 }
 
-c10::MaybeOwned<Tensor> maybe_expand_lu(const Tensor& B, const Tensor& LU) {
+static c10::MaybeOwned<Tensor> maybe_expand_lu(const Tensor& B, const Tensor& LU) {
   // B and LU have the same number of dimensions
   if (batchCount(B) != batchCount(LU)) {
         auto n = B.dim();
@@ -2392,7 +2392,7 @@ c10::MaybeOwned<Tensor> maybe_expand_lu(const Tensor& B, const Tensor& LU) {
   }
 }
 
-c10::MaybeOwned<Tensor> maybe_expand_pivots(const Tensor& B, const Tensor& pivots) {
+static c10::MaybeOwned<Tensor> maybe_expand_pivots(const Tensor& B, const Tensor& pivots) {
   // B and pivots have the same number of dimensions
   if (batchCount(B) != batchCount(pivots.unsqueeze(-1))) {
     auto expand_shape = DimVector(B.sizes().slice(0, B.dim() - 2));
@@ -2609,13 +2609,13 @@ static void apply_gels(const Tensor& a, Tensor& b, Tensor& infos) {
 #endif
 }
 
-void gels_magma(const Tensor& a, Tensor& b, Tensor& infos) {
+static void gels_magma(const Tensor& a, Tensor& b, Tensor& infos) {
   AT_DISPATCH_FLOATING_AND_COMPLEX_TYPES(a.scalar_type(), "gels_magma", [&] {
     apply_gels<scalar_t>(a, b, infos);
   });
 }
 
-void linalg_lstsq_gels(const Tensor& A, const Tensor& B, const Tensor& /*infos*/) {
+static void linalg_lstsq_gels(const Tensor& A, const Tensor& B, const Tensor& /*infos*/) {
   // The steps for using the QR decomposition for solving least squares problems
   // are outlined here https://en.wikipedia.org/wiki/QR_decomposition#Using_for_solution_to_linear_inverse_problems
   auto m = A.size(-2);
@@ -2698,7 +2698,7 @@ void linalg_lstsq_gels(const Tensor& A, const Tensor& B, const Tensor& /*infos*/
   }
 }
 
-void gels_looped(const Tensor& a, Tensor& b, Tensor& infos) {
+static void gels_looped(const Tensor& a, Tensor& b, Tensor& infos) {
 #if defined(USE_LINALG_SOLVER)
   auto preferred_backend = at::globalContext().linalgPreferredBackend();
   switch (preferred_backend) {
@@ -2716,7 +2716,7 @@ void gels_looped(const Tensor& a, Tensor& b, Tensor& infos) {
 #endif
 }
 
-void lstsq_kernel(const Tensor& a, Tensor& b, Tensor& /*rank*/, Tensor& /*singular_values*/, Tensor& infos, double /*rcond*/, std::string /*driver_name*/)  {
+static void lstsq_kernel(const Tensor& a, Tensor& b, Tensor& /*rank*/, Tensor& /*singular_values*/, Tensor& infos, double /*rcond*/, std::string /*driver_name*/)  {
   auto m = a.size(-2);
   auto n = a.size(-1);
 
@@ -2753,7 +2753,7 @@ REGISTER_CUDA_DISPATCH(lstsq_stub, &lstsq_kernel)
 
 
 #if defined(BUILD_LAZY_CUDA_LINALG)
-struct DispatchInitializer {
+static struct DispatchInitializer {
   DispatchInitializer() {
     cuda::detail::LinalgDispatch disp{_cholesky_solve_helper_cuda};
     cuda::detail::registerLinalgDispatch(disp);
