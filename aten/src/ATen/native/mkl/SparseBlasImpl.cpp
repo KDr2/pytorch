@@ -373,59 +373,59 @@ void addmm_out_sparse_csr(
     if (mat2.layout() == kSparseCsr) {
       if (result.layout() == kStrided) {
         // TODO: Add native CSC support via cuSPARSE if supported.
-        return addmm_dense_result(
+        addmm_dense_result(
             mat2.transpose(0, 1).to_sparse_csr(),
             mat1.transpose(0, 1),
             beta,
             alpha,
-            result.transpose(0, 1));
+            result.transpose(0, 1)); return;
       }
     }
     if (mat2.layout() == kSparseCsc) {
       if (result.layout() == kStrided) {
-        return addmm_dense_result(
+        addmm_dense_result(
             mat2.transpose(-2, -1),
             mat1.transpose(-2, -1),
             beta,
             alpha,
-            result.transpose(-2, -1));
+            result.transpose(-2, -1)); return;
       }
     }
     if (mat2.layout() == kSparseBsc) {
       if (result.layout() == kStrided) {
-        return addmm_dense_result(
+        addmm_dense_result(
             mat2.transpose(-2, -1),
             mat1.transpose(-2, -1),
             beta,
             alpha,
-            result.transpose(-2, -1));
+            result.transpose(-2, -1)); return;
       }
     }
   }
   if (mat1.layout() == kSparseCsr) {
     if (mat2.layout() == kStrided) {
       if (result.layout() == kStrided) {
-        return addmm_dense_result(mat1, mat2, beta, alpha, result);
+        addmm_dense_result(mat1, mat2, beta, alpha, result); return;
       }
     }
     if (mat2.layout() == kSparseCsr) {
       if (result.layout() == kStrided) {
-        return addmm_sparse_input_dense_result(mat1, mat2, beta, alpha, result);
+        addmm_sparse_input_dense_result(mat1, mat2, beta, alpha, result); return;
       }
       if (result.layout() == kSparseCsr) {
-        return addmm_sparse_result(mat1, mat2, beta, alpha, result);
+        addmm_sparse_result(mat1, mat2, beta, alpha, result); return;
       }
     }
     if (mat2.layout() == kSparseCsc) {
       if (result.layout() == kStrided) {
         // TODO: CSR @ CSC kernel would be very fast due to format alignment
-        return addmm_sparse_input_dense_result(
-            mat1, mat2.to_sparse_csr(), beta, alpha, result);
+        addmm_sparse_input_dense_result(
+            mat1, mat2.to_sparse_csr(), beta, alpha, result); return;
       }
       if (result.layout() == kSparseCsr) {
         // TODO: CSR @ CSC kernel would be very fast due to format alignment
-        return addmm_sparse_result(
-            mat1, mat2.to_sparse_csr(), beta, alpha, result);
+        addmm_sparse_result(
+            mat1, mat2.to_sparse_csr(), beta, alpha, result); return;
       }
     }
   }
@@ -433,45 +433,45 @@ void addmm_out_sparse_csr(
     if (mat2.layout() == kStrided) {
       if (result.layout() == kStrided) {
         // TODO: avoid csc->csr conversion with native csc support
-        return addmm_dense_result(
-            mat1.to_sparse_csr(), mat2, beta, alpha, result);
+        addmm_dense_result(
+            mat1.to_sparse_csr(), mat2, beta, alpha, result); return;
       }
     }
     if (mat2.layout() == kSparseCsr) {
       if (result.layout() == kSparseCsr) {
         // TODO: avoid csc->csr conversion with native csc support
-        return addmm_sparse_result(
-            mat1.to_sparse_csr(), mat2, beta, alpha, result);
+        addmm_sparse_result(
+            mat1.to_sparse_csr(), mat2, beta, alpha, result); return;
       }
     }
     if (mat2.layout() == kSparseCsc) {
       if (result.layout() == kStrided) {
-        return addmm_sparse_input_dense_result(
+        addmm_sparse_input_dense_result(
             mat2.transpose(-2, -1),
             mat1.transpose(-2, -1),
             beta,
             alpha,
-            result.transpose(-2, -1));
+            result.transpose(-2, -1)); return;
       }
       if (result.layout() == kSparseCsr) {
         // TODO avoid csc->csr
-        return addmm_sparse_result(
-            mat1.to_sparse_csr(), mat2.to_sparse_csr(), beta, alpha, result);
+        addmm_sparse_result(
+            mat1.to_sparse_csr(), mat2.to_sparse_csr(), beta, alpha, result); return;
       }
       if (result.layout() == kSparseCsc) {
-        return addmm_sparse_result(
+        addmm_sparse_result(
             mat2.transpose(-2, -1),
             mat1.transpose(-2, -1),
             beta,
             alpha,
-            result.transpose(-2, -1));
+            result.transpose(-2, -1)); return;
       }
     }
   }
   if (mat1.layout() == kSparseBsr) {
     if (mat2.layout() == kStrided) {
       if (result.layout() == kStrided) {
-        return addmm_dense_result(mat1, mat2, beta, alpha, result);
+        addmm_dense_result(mat1, mat2, beta, alpha, result); return;
       }
     }
   }
