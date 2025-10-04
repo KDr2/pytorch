@@ -5,9 +5,6 @@
 
 namespace c10 {
 
-template<class T> decltype(auto) getTypePtr();
-std::string toString(const Type& type);
-
 template<class T>
 List<T>::List(c10::intrusive_ptr<c10::detail::ListImpl>&& elements)
 : impl_(std::move(elements)) {}
