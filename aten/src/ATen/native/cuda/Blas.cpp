@@ -270,7 +270,7 @@ cuda::blas::GEMMAndBiasActivationEpilogue activation_to_gemm_and_blas_arg(Activa
   }
 }
 
-static bool getDisableAddmmCudaLt() {
+bool getDisableAddmmCudaLt() {
     static const auto env_value = c10::utils::get_env("DISABLE_ADDMM_CUDA_LT");
     if (env_value == "1") {
       return true;
@@ -294,7 +294,7 @@ static bool isSupportedHipLtROCmArch(int index) {
 #endif
 
 template <typename scalar_t>
-static void launchTunableGemmAndBias(cublasCommonArgs &args, const Scalar& alpha, const scalar_t* bias, cuda::blas::GEMMAndBiasActivationEpilogue activation) {
+void launchTunableGemmAndBias(cublasCommonArgs &args, const Scalar& alpha, const scalar_t* bias, cuda::blas::GEMMAndBiasActivationEpilogue activation) {
   bool transa_ = ((args.transa != 'n') && (args.transa != 'N'));
   bool transb_ = ((args.transb != 'n') && (args.transb != 'N'));
   at::cuda::tunable::GemmAndBiasParams<scalar_t> params;
