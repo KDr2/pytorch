@@ -44,6 +44,6 @@ class DynamicCounterBackendIf {
 };
 
 void C10_API
-    registerDynamicCounterBackend(std::unique_ptr<DynamicCounterBackendIf>);
+    registerDynamicCounterBackend(std::unique_ptr<DynamicCounterBackendIf> /*backend*/);
 } // namespace detail
 } // namespace c10::monitor

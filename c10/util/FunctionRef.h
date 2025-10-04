@@ -53,11 +53,11 @@ class function_ref<Ret(Params...)> {
       // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
       Callable&& callable,
       std::enable_if_t<
-          !std::is_same_v<std::remove_reference_t<Callable>, function_ref>>* =
+          !std::is_same_v<std::remove_reference_t<Callable>, function_ref>>*  /*unused*/=
           nullptr,
       std::enable_if_t<std::is_convertible_v<
           typename std::invoke_result_t<Callable, Params...>,
-          Ret>>* = nullptr)
+          Ret>>*  /*unused*/= nullptr)
       : callback(callback_fn<std::remove_reference_t<Callable>>),
         callable(reinterpret_cast<intptr_t>(&callable)) {}
 
