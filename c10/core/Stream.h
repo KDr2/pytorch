@@ -89,7 +89,8 @@ class C10_API Stream final {
   /// NOT the same as the current stream; default stream is a fixed stream
   /// that never changes, whereas the current stream may be changed by
   /// StreamGuard.
-  explicit Stream(Default /*unused*/, Device device) : device_(device), id_(0) {}
+  explicit Stream(Default /*unused*/, Device device)
+      : device_(device), id_(0) {}
 
   bool operator==(const Stream& other) const noexcept {
     return this->device_ == other.device_ && this->id_ == other.id_;

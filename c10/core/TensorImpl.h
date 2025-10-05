@@ -359,7 +359,7 @@ struct C10_API VariableVersion {
   // https://cplusplus.github.io/LWG/issue2334.
   VariableVersion(uint32_t version)
       : version_counter_(c10::make_intrusive<VersionCounter>(version)) {}
-  VariableVersion(Disabled  /*unused*/= DISABLED) {}
+  VariableVersion(Disabled /*unused*/ = DISABLED) {}
 
   bool enabled() const {
     return version_counter_;

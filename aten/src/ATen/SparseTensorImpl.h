@@ -46,7 +46,9 @@ struct TORCH_API SparseTensorImpl : public TensorImpl {
 
  public:
   // Public for now...
-  explicit SparseTensorImpl(at::DispatchKeySet /*key_set*/, const caffe2::TypeMeta /*data_type*/);
+  explicit SparseTensorImpl(
+      at::DispatchKeySet /*key_set*/,
+      const caffe2::TypeMeta /*data_type*/);
 
   void release_resources() override;
 

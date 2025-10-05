@@ -593,7 +593,9 @@ constexpr uint16_t full_backend_mask =
 C10_API const char* toString(DispatchKey /*t*/);
 C10_API const char* toString(BackendComponent /*t*/);
 C10_API std::ostream& operator<<(std::ostream& /*str*/, DispatchKey /*rhs*/);
-C10_API std::ostream& operator<<(std::ostream& /*str*/, BackendComponent /*rhs*/);
+C10_API std::ostream& operator<<(
+    std::ostream& /*str*/,
+    BackendComponent /*rhs*/);
 
 C10_API DispatchKey getAutogradKeyFromBackend(BackendComponent k);
 

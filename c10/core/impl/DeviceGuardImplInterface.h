@@ -118,8 +118,9 @@ struct C10_API DeviceGuardImplInterface {
   /**
    * Get a stream from the global pool for a given device.
    */
-  virtual Stream getStreamFromGlobalPool(Device /*unused*/, bool isHighPriority = false)
-      const {
+  virtual Stream getStreamFromGlobalPool(
+      Device /*unused*/,
+      bool isHighPriority = false) const {
     (void)isHighPriority; // Suppress unused variable warning
     TORCH_CHECK(false, "Backend doesn't support acquiring a stream from pool.")
   }
@@ -228,8 +229,9 @@ struct C10_API DeviceGuardImplInterface {
    * being used on the given stream, and that it should thus avoid recycling the
    * DataPtr until all work on that stream is done.
    */
-  virtual void recordDataPtrOnStream(const c10::DataPtr& /*unused*/, const Stream& /*unused*/) const {
-  }
+  virtual void recordDataPtrOnStream(
+      const c10::DataPtr& /*unused*/,
+      const Stream& /*unused*/) const {}
 
   /**
    * Fetch the elapsed time between two recorded events.
@@ -344,7 +346,9 @@ extern C10_API std::array<
 
 class C10_API DeviceGuardImplRegistrar {
  public:
-  DeviceGuardImplRegistrar(DeviceType /*type*/, const DeviceGuardImplInterface* /*impl*/);
+  DeviceGuardImplRegistrar(
+      DeviceType /*type*/,
+      const DeviceGuardImplInterface* /*impl*/);
 };
 
 #define C10_REGISTER_GUARD_IMPL(DevType, DeviceGuardImpl)              \

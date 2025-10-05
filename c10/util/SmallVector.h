@@ -563,8 +563,8 @@ class SmallVectorTemplateBase<T, true> : public SmallVectorTemplateCommon<T> {
       T1* I,
       T1* E,
       T2* Dest,
-      std::enable_if_t<std::is_same_v<std::remove_const_t<T1>, T2>>*  /*unused*/=
-          nullptr) {
+      std::enable_if_t<std::is_same_v<std::remove_const_t<T1>, T2>>* /*unused*/
+      = nullptr) {
     // Use memcpy for PODs iterated by pointers (which includes SmallVector
     // iterators): std::uninitialized_copy optimizes to memmove, but we can
     // use memcpy here. Note that I and E are iterators and thus might be
