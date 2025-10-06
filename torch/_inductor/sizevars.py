@@ -453,9 +453,17 @@ class SizeVarAllocator:
     # Similar to the functions guard_or_false/guard_or_true in symbolic_shapes.py
     # but operates on sympy expressions instead of symnodes. see Note [guard_or_].
     def guard_or_false(self, left):
+        import torch.fx.experimental._config as exp_config
+
+        if exp_config.backed_size_oblivious:
+            return False
         return self.evaluate_expr(left, fallback_value=False)
 
     def guard_or_true(self, left):
+        import torch.fx.experimental._config as exp_config
+
+        if exp_config.backed_size_oblivious:
+            return True
         return self.evaluate_expr(left, fallback_value=True)
 
     # The evaluate functions evaluate some symbolic sympy expression
