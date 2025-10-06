@@ -1246,7 +1246,8 @@ static PyObject* THPModule_setAllowFP16ReductionCuBLAS(
         THPUtils_typename(allow_splitk_obj));
     allow_splitk = allow_splitk_obj == Py_True;
   }
-  at::globalContext().setAllowFP16ReductionCuBLAS(allow_reduction, allow_splitk);
+  at::globalContext().setAllowFP16ReductionCuBLAS(
+      allow_reduction, allow_splitk);
   Py_RETURN_NONE;
   END_HANDLE_TH_ERRORS
 }
@@ -1257,8 +1258,8 @@ static PyObject* THPModule_allowFP16ReductionCuBLAS(
   auto option = at::globalContext().allowFP16ReductionCuBLAS();
   bool allow_reduced_precision =
       option == at::CuBLASReductionOption::AllowReducedPrecisionWithSplitK;
-  bool allow_splitk =
-      option != at::CuBLASReductionOption::DisallowReducedPrecisionDisallowSplitK;
+  bool allow_splitk = option !=
+      at::CuBLASReductionOption::DisallowReducedPrecisionDisallowSplitK;
   PyObject* result = PyTuple_New(2);
   PyObject* allow_reduced_precision_obj =
       allow_reduced_precision ? Py_True : Py_False;
@@ -1294,7 +1295,8 @@ static PyObject* THPModule_setAllowBF16ReductionCuBLAS(
         THPUtils_typename(allow_splitk_obj));
     allow_splitk = allow_splitk_obj == Py_True;
   }
-  at::globalContext().setAllowBF16ReductionCuBLAS(allow_reduction, allow_splitk);
+  at::globalContext().setAllowBF16ReductionCuBLAS(
+      allow_reduction, allow_splitk);
   Py_RETURN_NONE;
   END_HANDLE_TH_ERRORS
 }
@@ -1305,8 +1307,8 @@ static PyObject* THPModule_allowBF16ReductionCuBLAS(
   auto option = at::globalContext().allowBF16ReductionCuBLAS();
   bool allow_reduced_precision =
       option == at::CuBLASReductionOption::AllowReducedPrecisionWithSplitK;
-  bool allow_splitk =
-      option != at::CuBLASReductionOption::DisallowReducedPrecisionDisallowSplitK;
+  bool allow_splitk = option !=
+      at::CuBLASReductionOption::DisallowReducedPrecisionDisallowSplitK;
   PyObject* result = PyTuple_New(2);
   PyObject* allow_reduced_precision_obj =
       allow_reduced_precision ? Py_True : Py_False;
