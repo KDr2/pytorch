@@ -1320,18 +1320,11 @@ def maybe_inline_graph_saved_tensors_hooks(
     bw_module.recompile()
 
 
-def aot_stage2_autograd(
+def aot_stage2a_partition(
     aot_state: AOTState,
     aot_graph_capture: AOTGraphCapture,
-) -> DispatchReturn:
-    """
-    Autograd logic. Generates a joint graph, partitions it, manipulates the input with various wrappers,
-    and returns a wrapped torch.autograd.Function with a forward and backward.
-    """
-
-    wrappers = aot_graph_capture.wrappers
+):
     fx_g = aot_graph_capture.graph_module
-    flat_args = aot_state.flat_args
     joint_inputs = aot_graph_capture.updated_flat_args
     maybe_subclass_meta = aot_graph_capture.maybe_subclass_meta
     aot_config = aot_state.aot_config
@@ -1647,6 +1640,52 @@ def aot_stage2_autograd(
                 payload_fn=lambda: bw_module_str,
             )
 
+    return (
+        disable_amp,
+        joint_graph_str,
+        inner_meta,
+        fw_module,
+        bw_module,
+        fw_module_str,
+        bw_module_str,
+        rng_states,
+        num_fw_outs_saved_for_bw,
+        num_symints_saved_for_bw,
+        _indices_of_inps_to_detach,
+    )
+
+
+def aot_stage2_autograd(
+    aot_state: AOTState,
+    aot_graph_capture: AOTGraphCapture,
+) -> DispatchReturn:
+    """
+    Autograd logic. Generates a joint graph, partitions it, manipulates the input with various wrappers,
+    and returns a wrapped torch.autograd.Function with a forward and backward.
+    """
+
+    (
+        disable_amp,
+        joint_graph_str,
+        inner_meta,
+        fw_module,
+        bw_module,
+        fw_module_str,
+        bw_module_str,
+        rng_states,
+        num_fw_outs_saved_for_bw,
+        num_symints_saved_for_bw,
+        _indices_of_inps_to_detach,
+    ) = aot_stage2a_partition(aot_state, aot_graph_capture)
+
+    wrappers = aot_graph_capture.wrappers
+    flat_args = aot_state.flat_args
+    joint_inputs = aot_graph_capture.updated_flat_args
+    maybe_subclass_meta = aot_graph_capture.maybe_subclass_meta
+    aot_config = aot_state.aot_config
+    fw_metadata = aot_state.fw_metadata
+
+    with torch.no_grad():
         # AMP is already traced out in joint graph. we do not wish to reapply it accidentally
         # in the compiler.
         with track_graph_compiling(aot_config, "forward"), torch._C._DisableAutocast():
