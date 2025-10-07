@@ -4315,6 +4315,8 @@ def get_and_maybe_log_recompilation_reasons(
     Logs the recompilation reason if `recompiles` logging is enabled.
     Raises a RecompileError if `config.error_on_recompile` is enabled.
     """
+    from torch._dynamo.pgo import _log_size_mismatch_recompile
+
     reasons = []
     while cache_entry is not None:
         reason = get_guard_fail_reason(
@@ -4366,6 +4368,8 @@ def get_and_maybe_log_recompilation_reasons(
         },
         payload_fn=lambda: reasons,
     )
+    if any("size mismatch at index" in r for r in reasons):
+        _log_size_mismatch_recompile()
 
     return reasons
 
