@@ -934,10 +934,14 @@ class CachingAutotuner(KernelInterface):
 
             return do_bench_using_profiling(kernel_call, warmup=10, rep=40)
 
-        if self.device_props.type == "cpu":
-            return benchmarker.benchmark_cpu(kernel_call)
-
-        return benchmarker.benchmark_gpu(kernel_call, rep=40)
+        benchmark_kwargs = {"rep": 40} if self.device_props.type == "cuda" else {}
+        return benchmarker.benchmark(
+            kernel_call,
+            fn_args=tuple(),
+            fn_kwargs={},
+            device=self.device_props.type,
+            **benchmark_kwargs,
+        )
 
     def copy_args_to_cpu_if_needed(self, *args, **kwargs):
         """
