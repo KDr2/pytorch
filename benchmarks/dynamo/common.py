@@ -11,10 +11,12 @@ import dataclasses
 import functools
 import gc
 import importlib
+import inspect
 import itertools
 import json
 import logging
 import os
+import pickle
 import platform
 import random
 import shutil
@@ -26,11 +28,12 @@ import time
 import weakref
 from contextlib import contextmanager
 from typing import Any, NamedTuple, Optional, overload, TYPE_CHECKING, TypeVar
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
 import psutil
+import sympy
 import yaml
 from scipy.stats import gmean, ttest_ind
 from tqdm.auto import tqdm, trange
@@ -43,6 +46,7 @@ import torch.distributed
 import torch.multiprocessing as mp
 from torch._C import _has_cuda as HAS_CUDA, _has_xpu as HAS_XPU
 from torch._C._nativert import PyModelRunner
+from torch._dynamo.aot_compile import SerializableCallable
 from torch._dynamo.profiler import fx_insert_profiling, Profiler
 from torch._dynamo.testing import (
     dummy_fx_compile,
@@ -64,6 +68,7 @@ import torch._functorch.config
 from torch._functorch.aot_autograd import set_model_name
 from torch._inductor import config as inductor_config, metrics
 from torch._subclasses.fake_tensor import FakeTensorMode
+from torch.fx._graph_pickler import GraphPickler, Options
 from torch.utils import _pytree as pytree
 from torch.utils._pytree import tree_map, tree_map_only
 
@@ -1540,6 +1545,71 @@ def export(model, example_inputs):
     return opt_export
 
 
+class CustomCompiledFunction(SerializableCallable):
+    def __init__(self, gm: torch.fx.GraphModule, example_inputs: list[torch.Tensor]):
+        self.gm = gm
+        self.example_inputs = example_inputs
+
+    @classmethod
+    def serialize_compile_artifacts(cls, fn) -> bytes:
+        state = fn.__dict__.copy()
+        graph_reducer_override = GraphPickler.reducer_override
+
+        def _graph_reducer_override(self, obj):
+            if (
+                inspect.isclass(obj)
+                and issubclass(obj, sympy.Function)
+                and hasattr(obj, "_torch_unpickler")
+            ):
+                return obj._torch_unpickler, (obj._torch_handler_name,)
+            if isinstance(obj, FakeTensorMode):
+                return type(None), ()
+            return graph_reducer_override(self, obj)
+
+        with patch.object(GraphPickler, "reducer_override", _graph_reducer_override):
+            state["gm"] = GraphPickler.dumps(state["gm"], Options(ops_filter=None))
+        return pickle.dumps(state)
+
+    @classmethod
+    def deserialize_compile_artifacts(cls, data: bytes):
+        state = pickle.loads(data)
+        fake_mode = torch._subclasses.FakeTensorMode()
+        state["gm"] = GraphPickler.loads(state["gm"], fake_mode)
+        state["gm"].recompile()
+        return cls(**state)
+
+    def __call__(self, *args, **kwargs):
+        return self.gm(*args, **kwargs)
+
+
+def aot_precompile(model, example_inputs):
+    def backend(gm, example_inputs):
+        return CustomCompiledFunction(gm, example_inputs)
+
+    example_args, example_kwargs = _normalize_bench_inputs(example_inputs)
+
+    with torch._dynamo.config.patch("enable_aot_compile", True):
+        compiled_fn = torch.compile(
+            model,
+            fullgraph=True,
+            backend=backend,
+            options={"guard_filter_fn": lambda guards: [False for _ in guards]},
+        ).forward.aot_compile((example_args, example_kwargs))
+
+        save_path = "./model.pt"
+        compiled_fn.save_compiled_function(save_path)
+
+        def opt_aot_precompile(_, example_inputs):
+            example_args, example_kwargs = _normalize_bench_inputs(example_inputs)
+            torch._dynamo.reset()
+            with torch.compiler.set_stance("fail_on_recompile"):
+                with open(save_path, "rb") as f:
+                    compiled_fn = torch.compiler.load_compiled_function(f)
+                    return compiled_fn(*example_args, **example_kwargs)
+
+        return opt_aot_precompile
+
+
 def export_nativert(model, example_inputs):
     optimized = NativeRTCache.load(model, example_inputs)
 
@@ -2325,6 +2395,7 @@ class BenchmarkRunner:
                     or self.args.export_aot_inductor
                     or self.args.export_nativert
                     or self.args.torchscript_jit_trace
+                    or self.args.aot_precompile
                 ):
                     # apply export on module directly
                     # no need for n iterations
@@ -3512,6 +3583,11 @@ def parse_args(args=None):
         help="Measure pass rate with Export+AOTInductor",
     )
     group.add_argument(
+        "--aot-precompile",
+        action="store_true",
+        help="Measure pass rate with AOT Precompile",
+    )
+    group.add_argument(
         "--export-nativert",
         action="store_true",
         help="Measure pass rate with Export+NativeRT",
@@ -3954,6 +4030,10 @@ def run(runner, args, original_dir=None):
         optimize_ctx = export
         experiment = speedup_experiment
         output_filename = "export.csv"
+    elif args.aot_precompile:
+        optimize_ctx = aot_precompile
+        experiment = speedup_experiment
+        output_filename = "aot_precompile.csv"
     elif args.export_nativert:
         optimize_ctx = export_nativert
         experiment = speedup_experiment
