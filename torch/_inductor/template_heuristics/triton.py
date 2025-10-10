@@ -2173,18 +2173,10 @@ class CUDAScaledTMAMainLoopScalingTemplateConfigHeuristic(
 
             # TODO (jananisriram): find a way to calculate MIN_BLOCK_TILE_* using
             #   BLOCK_* and TILE_SIZE_A/B (rather than hardcoding 128/32/16)
-            template_kwargs["MIN_BLOCK_TILE_AM"] = min(
-                template_kwargs["BLOCK_M"], 128
-            )
-            template_kwargs["MIN_BLOCK_TILE_AK"] = min(
-                template_kwargs["BLOCK_K"], 128
-            )
-            template_kwargs["MIN_BLOCK_TILE_BK"] = min(
-                template_kwargs["BLOCK_K"], 128
-            )
-            template_kwargs["MIN_BLOCK_TILE_BN"] = min(
-                template_kwargs["BLOCK_N"], 128
-            )
+            template_kwargs["MIN_BLOCK_TILE_AM"] = min(template_kwargs["BLOCK_M"], 128)
+            template_kwargs["MIN_BLOCK_TILE_AK"] = min(template_kwargs["BLOCK_K"], 128)
+            template_kwargs["MIN_BLOCK_TILE_BK"] = min(template_kwargs["BLOCK_K"], 128)
+            template_kwargs["MIN_BLOCK_TILE_BN"] = min(template_kwargs["BLOCK_N"], 128)
 
             yield template_kwargs
 

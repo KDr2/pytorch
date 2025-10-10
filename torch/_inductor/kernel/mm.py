@@ -1482,6 +1482,7 @@ scaling_pairs = [
     (ScalingType.TensorWise, ScalingType.TensorWise),
     (ScalingType.RowWise, ScalingType.RowWise),
     (ScalingType.BlockWise1x128, ScalingType.BlockWise128x128),
+    (ScalingType.BlockWise1x128, ScalingType.BlockWise1x128),
 ]
 
 
@@ -1500,10 +1501,14 @@ def _is_rowwise_scaling(sz: Any, transpose: bool) -> bool:
     return V.graph.sizevars.statically_known_equals(sz[idx], 1)
 
 
-def _is_blockwise1x128_scaling(sz: Any, tensor_sz: Any) -> bool:
+def _is_blockwise1x128_scaling(sz: Any, tensor_sz: Any, transpose: bool) -> bool:
+    lhs = 1 if transpose else 0
+    rhs = 0 if transpose else 1
     return V.graph.sizevars.statically_known_equals(
-        sz[0], tensor_sz[0]
-    ) and V.graph.sizevars.statically_known_equals(sz[1], ceildiv(tensor_sz[1], 128))
+        sz[lhs], tensor_sz[lhs]
+    ) and V.graph.sizevars.statically_known_equals(
+        sz[rhs], ceildiv(tensor_sz[rhs], 128)
+    )
 
 
 def _is_blockwise128x128_scaling(sz: Any, tensor_sz: Any) -> bool:
@@ -1524,7 +1529,7 @@ def is_desired_scaling(
         case ScalingType.RowWise:
             return _is_rowwise_scaling(scale_size, transpose)
         case ScalingType.BlockWise1x128:
-            return _is_blockwise1x128_scaling(scale_size, t.get_size())
+            return _is_blockwise1x128_scaling(scale_size, t.get_size(), transpose)
         case ScalingType.BlockWise128x128:
             return _is_blockwise128x128_scaling(scale_size, t.get_size())
         case _:
