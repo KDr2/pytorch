@@ -911,7 +911,7 @@ class TestTorchDeviceType(TestCase):
 
         # Checks jitted Python warning
         def warn_fn():
-            warnings.warn("Warning!")
+            warnings.warn("Warning!", stacklevel=2)
 
         # The jit mimics an eager-mode Python warning in this case
         with warnings.catch_warnings(record=True) as w:

@@ -3687,7 +3687,7 @@ class FuncTorchHigherOrderOpTests(torch._dynamo.test_case.TestCase):
                 "Interpreter stack is not empty. Test should have called "
                 "'torch._C._functorch._vmap_decrement_nesting()'"
             )
-            warnings.warn(msg)
+            warnings.warn(msg, stacklevel=2)
 
     def _compile_check(self, fn, inputs, fullgraph=True, graph_idx=0):
         backend = EagerAndRecordGraphs()
