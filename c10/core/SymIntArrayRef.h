@@ -86,4 +86,12 @@ inline SymIntArrayRef fromIntArrayRefSlow(IntArrayRef array_ref) {
       reinterpret_cast<const SymInt*>(array_ref.data()), array_ref.size());
 }
 
+inline c10::SymBool sym_equals(SymIntArrayRef LHS, SymIntArrayRef RHS) {
+  c10::SymBool result = sym_eq(LHS.size(), RHS.size());
+  for (size_t i = 0; i < RHS.size(); ++i) {
+    result = result.sym_and(sym_eq(LHS[i], RHS[i]));
+  }
+  return result;
+}
+
 } // namespace c10
