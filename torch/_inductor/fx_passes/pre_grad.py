@@ -171,7 +171,10 @@ def lazy_init():
     from . import efficient_conv_bn_eval, split_cat  # noqa: F401
 
     if config.is_fbcode():
-        from . import fb  # type: ignore[attr-defined]  # noqa: F401
+        from . import (  # type: ignore[attr-defined]  # noqa: F401
+            fb,
+            kernel_optimization,
+        )
 
 
 def _get_pass_name_func(p):
