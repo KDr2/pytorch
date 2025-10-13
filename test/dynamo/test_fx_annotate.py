@@ -18,17 +18,6 @@ def checkpoint_wrapper(fn):
 
 
 class AnnotateTests(torch._dynamo.test_case.TestCase):
-    # TODO - should not need this because we should turn this on in Dynamo but
-    # for some reasons, test fail.
-    def setUp(self):
-        super().setUp()
-        self.cm = torch.fx.traceback.preserve_node_meta()
-        self.cm.__enter__()
-
-    def tearDown(self):
-        super().tearDown()
-        self.cm.__exit__(None, None, None)
-
     def test_annotations(self):
         class Mod(torch.nn.Module):
             def forward(self, x):
@@ -227,18 +216,16 @@ class AnnotateTests(torch._dynamo.test_case.TestCase):
 ('call_function', 'getitem', {'compile_inductor': 0})
 ('call_function', 'getitem_1', {'compile_inductor': 0})
 ('call_function', 'detach_1', {'compile_inductor': 0})
-('call_function', 'detach_4', {'compile_inductor': 0})
-('call_function', 'detach_5', {'compile_inductor': 0})""",  # noqa: B950
+('call_function', 'detach_3', {'compile_inductor': 0})""",  # noqa: B950
         )
         self.assertExpectedInline(
             str(bw_metadata),
             """\
 ('placeholder', 'getitem', {'compile_inductor': 0})
-('placeholder', 'detach_5', {'compile_inductor': 0})
+('placeholder', 'detach_3', {'compile_inductor': 0})
 ('call_function', 'zeros', {'compile_inductor': 0})
 ('call_function', 'detach', {'compile_inductor': 0})
 ('call_function', 'detach_2', {'compile_inductor': 0})
-('call_function', 'detach_3', {'compile_inductor': 0})
 ('get_attr', 'fw_graph0', {'compile_inductor': 0})
 [('placeholder', 'arg0_1', {'compile_inductor': 0}), ('placeholder', 'arg1_1', {'compile_inductor': 0}), ('placeholder', 'arg2_1', {'compile_inductor': 0}), ('placeholder', 'arg3_1', {'compile_inductor': 0}), ('placeholder', 'arg4_1', {'compile_inductor': 0}), ('call_function', 'mul', {'compile_inductor': 0}), ('output', 'output', {'compile_inductor': 0})]
 ('get_attr', 'joint_graph0', {'compile_inductor': 0})
