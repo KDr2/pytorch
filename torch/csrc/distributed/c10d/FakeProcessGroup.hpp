@@ -3,6 +3,12 @@
 #include <torch/csrc/distributed/c10d/Backend.hpp>
 #include <torch/csrc/utils.h>
 
+// Forward declaration so friend template matches
+namespace c10 {
+template <class TTarget, class NullType, class... Args>
+intrusive_ptr<TTarget, NullType> make_intrusive(Args&&...);
+}
+
 namespace c10d {
 
 class FakeWork : public Work {
