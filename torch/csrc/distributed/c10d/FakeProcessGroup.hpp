@@ -237,6 +237,8 @@ class FakeProcessGroup : public Backend {
   }
 
  private:
+  // Allow make_intrusive to access the private constructor
+  friend c10::intrusive_ptr<FakeProcessGroup> c10::make_intrusive<FakeProcessGroup, int, int, c10::intrusive_ptr<Options>>(int, int, c10::intrusive_ptr<Options>);
   // Private constructor used by official APIs
   FakeProcessGroup(int rank, int size, c10::intrusive_ptr<Options> options)
       : Backend(rank, size), options_(std::move(options)) {}
