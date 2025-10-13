@@ -1,13 +1,6 @@
 #pragma once
-
 #include <torch/csrc/distributed/c10d/Backend.hpp>
 #include <torch/csrc/utils.h>
-
-// Forward declaration so friend template matches
-namespace c10 {
-template <class TTarget, class NullType, class... Args>
-intrusive_ptr<TTarget, NullType> make_intrusive(Args&&...);
-}
 
 namespace c10d {
 
@@ -242,15 +235,12 @@ class FakeProcessGroup : public Backend {
     return c10::make_intrusive<FakeWork>();
   }
 
- private:
-  // Allow make_intrusive to access the private constructor
-  template <class TTarget, class NullType, class... Args>
-  friend c10::intrusive_ptr<TTarget, NullType> c10::make_intrusive(Args&&...);
   // Private constructor used by official APIs
   FakeProcessGroup(int rank, int size, c10::intrusive_ptr<Options> options)
       : Backend(rank, size), options_(std::move(options)) {}
   c10::intrusive_ptr<Options> options_;
 
+ private:
   void checkCollectiveError() {
     TORCH_CHECK(
         !options_ || !options_->error_on_collective,
