@@ -5703,6 +5703,7 @@ class TestPagedAttention(InductorTestCase):
     ):
         compiled_error = (golden_out - compiled_out).abs().mean()
         ref_error = (golden_out - ref_out).abs().mean()
+        print("mooooooooo", compiled_error, ref_error)
         if torch.isnan(compiled_error).any() or torch.isnan(ref_error).any():
             self.assertTrue(False, "Output/Grad with NaN")
         if compiled_error > ref_error * fudge_factor:

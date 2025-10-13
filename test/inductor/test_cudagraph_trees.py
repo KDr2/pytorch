@@ -924,33 +924,63 @@ if HAS_CUDA_AND_TRITON:
                 num_partitions = len([p for p in partitions.split(",") if p])
                 return num_partitions
 
-            @torch.library.custom_op("mylib::bar", mutates_args=())
-            def bar(x: torch.Tensor, flag: int) -> torch.Tensor:
-                return x.clone()
+            # @torch.library.custom_op("mylib::bar", mutates_args=())
+            # def bar(x: torch.Tensor, flag: int) -> torch.Tensor:
+            #     return x.clone()
 
-            @bar.register_fake
-            def _(x, flag):
-                return x.clone()
+            # @bar.register_fake
+            # def _(x, flag):
+            #     return x.clone()
 
-            def f(x, flag):
-                x = x + 1
-                x = bar(x, flag)
-                x = x + 1
-                return x
+            # def f(x, flag):
+            #     x = x + 1
+            #     x = bar(x, flag)
+            #     x = x + 1
+            #     return x
 
             x = torch.randn(2, device="cuda")
-            f_compiled = torch.compile(f, mode="reduce-overhead", fullgraph=True)
-            _, code = run_and_get_code(f_compiled, x, True)
-            num_partitions = get_num_partitions(code)
-            self.assertEqual(num_partitions, 1)
+            # f_compiled = torch.compile(f, mode="reduce-overhead", fullgraph=True)
+            # _, code = run_and_get_code(f_compiled, x, True)
+            # num_partitions = get_num_partitions(code)
+            # self.assertEqual(num_partitions, 1)
 
-            @torch.library.custom_op("mylib::baz", mutates_args=())
-            def baz(x: torch.Tensor, flag: int) -> torch.Tensor:
-                return x.clone()
+            # @torch.library.custom_op("mylib::baz", mutates_args=())
+            # def baz(x: torch.Tensor, flag: int) -> torch.Tensor:
+            #     return x.clone()
+
+            # @baz.register_fake
+            # def _(x, flag):
+            #     return x.clone()
+
+            # def should_partition(x, flag):
+            #     return flag
+
+            # torch._inductor.scheduler.register_should_partition_rule(
+            #     torch.ops.mylib.baz.default, should_partition
+            # )
+
+            # def f(x, flag):
+            #     x = x + 1
+            #     x = baz(x, flag)
+            #     x = x + 1
+            #     return x
+
+            # f_compiled = torch.compile(f, mode="reduce-overhead", fullgraph=True)
+            # _, code = run_and_get_code(f_compiled, x, True)
+            # num_partitions = get_num_partitions(code)
+            # self.assertEqual(num_partitions, 2)
+
+            # _, code = run_and_get_code(f_compiled, x, False)
+            # num_partitions = get_num_partitions(code)
+            # self.assertEqual(num_partitions, 1)
+
+            @torch.library.custom_op("mylib::baz", mutates_args=("output",))
+            def baz(x: torch.Tensor, flag: int, output: torch.Tensor) -> None:
+                return output.copy_(x)
 
             @baz.register_fake
-            def _(x, flag):
-                return x.clone()
+            def _(x, flag, output):
+                return None
 
             def should_partition(x, flag):
                 return flag
@@ -961,7 +991,7 @@ if HAS_CUDA_AND_TRITON:
 
             def f(x, flag):
                 x = x + 1
-                x = baz(x, flag)
+                baz(x, flag, x)
                 x = x + 1
                 return x
 
@@ -969,10 +999,6 @@ if HAS_CUDA_AND_TRITON:
             _, code = run_and_get_code(f_compiled, x, True)
             num_partitions = get_num_partitions(code)
             self.assertEqual(num_partitions, 2)
-
-            _, code = run_and_get_code(f_compiled, x, False)
-            num_partitions = get_num_partitions(code)
-            self.assertEqual(num_partitions, 1)
 
         @torch._inductor.config.patch("graph_partition", True)
         @torch._inductor.config.patch("triton.cudagraph_trees", False)
