@@ -85,7 +85,7 @@ template <typename DerivedOptimizerParamOptions>
 void serialize(
     serialize::InputArchive& archive,
     std::vector<
-        std::pair<std::vector<std::string>, std::unique_ptr<OptimizerOptions>>>&
+        std::pair<std::vector<std::string>, std::unique_ptr<OptimizerOptions>> /*unused*/>&
         param_groups) {
   torch::Tensor param_groups_size_tensor;
   archive.read("param_groups/size", param_groups_size_tensor);

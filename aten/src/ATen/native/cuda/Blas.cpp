@@ -4,7 +4,6 @@
 #include <c10/util/SmallVector.h>
 #include <c10/core/Scalar.h>
 #include <c10/core/ScalarType.h>
-#include <c10/util/Exception.h>
 #define TORCH_ASSERT_ONLY_METHOD_OPERATORS
 #include <ATen/core/Tensor.h>
 #include <ATen/core/NamedTensor.h>
@@ -2121,7 +2120,7 @@ _scaled_rowwise_rowwise(
   auto dprops = at::cuda::getCurrentDeviceProperties();
   if (((dprops->major < 9 || CUBLAS_VERSION < 120900 || cublasLtGetVersion() < 120900)
       // cuBLAS only supports tiled 1D factor layout for 1D block scaling, no 2D block scales
-      ||  (dprops->major == 10 && (scale_a.sizes().size() || scale_b.sizes().size())))) {
+      ||  (dprops->major == 10 && (!scale_a.sizes().empty() || !scale_b.sizes().empty())))) {
     TORCH_CHECK(out.dtype() == kBFloat16, "Only bf16 high precision output types are supported for row-wise scaling.");
     at::cuda::detail::f8f8bf16_rowwise(
         mat_a,
@@ -2392,7 +2391,7 @@ _scaled_mm_cuda_v2_out(
   // Check if the input matrix sizes can be multiplied
   // - if optional contraction dims are provided, use those
   //   -- mostly for < 1B formats (i.e. nvfp4x2) where cheap .t() is not available.
-  if (contraction_dim.size() > 0) {
+  if (!contraction_dim.empty()) {
     TORCH_CHECK_VALUE(contraction_dim.size() == 2, "contraction_dim must have exactly 2 elements");
     auto mat_a_dim = contraction_dim[0];
     auto mat_b_dim = contraction_dim[1];

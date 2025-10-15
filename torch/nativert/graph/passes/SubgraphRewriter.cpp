@@ -266,7 +266,7 @@ bool SubgraphRewriter::run(
     const auto& pattern_graph = stringToGraph(pattern);
     const auto& replacement_graph = stringToGraph(replacement);
     mutated |= runForPattern(
-        graph, *pattern_graph.get(), *replacement_graph.get(), filters);
+        graph, *pattern_graph, *replacement_graph, filters);
   }
   return mutated;
 }

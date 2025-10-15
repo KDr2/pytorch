@@ -14,7 +14,7 @@ inline std::vector<int64_t> _interp_output_size(
     std::tuple<
         Tensor,
         std::optional<std::vector<int64_t>>,
-        std::optional<std::vector<double>>,
+        std::optional<std::vector<double> /*unused*/>,
         std::optional<bool>> closed_over_args) {
   auto [input, size, scale_factor, recompute_scale_factor] =
       std::move(closed_over_args);

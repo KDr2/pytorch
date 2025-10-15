@@ -70,7 +70,7 @@ struct ContiguousLayoutBuffer {
   size_t size_{0};
 
   // the dataptr returned by the allocator
-  at::DataPtr data_ptr_{};
+  at::DataPtr data_ptr_;
 };
 
 struct ContiguousStorageImplBuffer {
