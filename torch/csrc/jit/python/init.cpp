@@ -1455,7 +1455,8 @@ void initJITBindings(PyObject* module) {
       .def(
           "write_record_metadata",
           [](PyTorchStreamWriter& self, const std::string& name, size_t size) {
-            return self.writeRecord(name, nullptr, size);
+            self.writeRecord(name, nullptr, size);
+            return;
           })
       .def(
           "write_record",
@@ -1465,7 +1466,8 @@ void initJITBindings(PyObject* module) {
              size_t size) {
             // Since we don't know where the data come from, we cannot
             // release the GIL in this overload
-            return self.writeRecord(name, data, size);
+            self.writeRecord(name, data, size);
+            return;
           })
       .def(
           "write_record",
@@ -1479,7 +1481,8 @@ void initJITBindings(PyObject* module) {
             // https://github.com/python/cpython/blob/e2a3e4b7488aff6fdc704a0f258bc315e96c1d6e/Objects/stringlib/join.h#L67
             const char* data_str = PyBytes_AsString(data.ptr());
             py::gil_scoped_release release;
-            return self.writeRecord(name, data_str, size);
+            self.writeRecord(name, data_str, size);
+            return;
           })
       .def(
           "write_record",
@@ -1489,8 +1492,9 @@ void initJITBindings(PyObject* module) {
              size_t size) {
             // Reading Tensor data is always ok without the GIL held
             py::gil_scoped_release release;
-            return self.writeRecord(
+            self.writeRecord(
                 name, reinterpret_cast<const char*>(data.data()), size);
+            return;
           })
       .def(
           "write_record",
@@ -1501,8 +1505,8 @@ void initJITBindings(PyObject* module) {
             TORCH_WARN_ONCE(
                 "write_record(): Passing Storage by data pointer is deprecated and will be an error in ",
                 "the future, please pass the Storage object instead.");
-            return self.writeRecord(
-                name, reinterpret_cast<const char*>(data), size);
+            self.writeRecord(name, reinterpret_cast<const char*>(data), size);
+            return;
           })
       .def("write_end_of_file", &PyTorchStreamWriter::writeEndOfFile)
       .def("set_min_version", &PyTorchStreamWriter::setMinVersion)
@@ -1684,7 +1688,8 @@ void initJITBindings(PyObject* module) {
           [](DeserializationStorageContext& self,
              const std::string& name,
              const at::Tensor& tensor) {
-            return self.addStorage(name, tensor.storage());
+            self.addStorage(name, tensor.storage());
+            return;
           })
       .def("has_storage", &DeserializationStorageContext::hasStorage);
 

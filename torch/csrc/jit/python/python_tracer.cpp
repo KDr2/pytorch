@@ -265,7 +265,8 @@ void initPythonTracerBindings(PyObject* module) {
     return getValueTrace(var);
   });
   m.def("_set_value_trace", [](const Variable& var, Value* value) {
-    return setValueTrace(var, value);
+    setValueTrace(var, value);
+    return;
   });
   m.def("_tracer_set_get_unique_name_fn", [](const py::function& func) {
     const auto& tracing_state = getTracingState();

@@ -987,7 +987,8 @@ This class does not support ``__members__`` property.)");
   module.def(
       "_set_allow_inflight_collective_as_graph_input",
       [](bool value) {
-        return ::c10d::set_allow_inflight_collective_as_graph_input(value);
+        ::c10d::set_allow_inflight_collective_as_graph_input(value);
+        return;
       },
       py::arg("value"));
 
@@ -999,13 +1000,15 @@ This class does not support ``__members__`` property.)");
   module.def(
       "_unregister_process_group",
       [](const std::string& group_name) {
-        return ::c10d::unregister_process_group(group_name);
+        ::c10d::unregister_process_group(group_name);
+        return;
       },
       py::arg("group_name"));
 
   // Remove all process groups from the native registry
   module.def("_unregister_all_process_groups", []() {
-    return ::c10d::unregister_all_process_groups();
+    ::c10d::unregister_all_process_groups();
+    return;
   });
 
 #ifdef USE_NVSHMEM
