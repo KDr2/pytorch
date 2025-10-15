@@ -259,7 +259,7 @@ void initPythonTracerBindings(PyObject* module) {
       py::arg("argument_names") = std::vector<std::string>());
   m.def("_get_tracing_state", []() { return getTracingState(); });
   m.def("_set_tracing_state", [](std::shared_ptr<TracingState> state) {
-    return setTracingState(std::move(state));
+    setTracingState(std::move(state));
   });
   m.def("_get_value_trace", [](const Variable& var) {
     return getValueTrace(var);

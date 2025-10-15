@@ -575,7 +575,7 @@ void initDispatchBindings(PyObject* module) {
     auto op = c10::Dispatcher::singleton().findOp(torch::jit::parseName(name));
     if (!op) {
     } else {
-      return op->checkInvariants();
+      op->checkInvariants();
     }
   });
 

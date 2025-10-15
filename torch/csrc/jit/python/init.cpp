@@ -288,20 +288,20 @@ void initJITBindings(PyObject* module) {
       .def(
           "_jit_pass_replace_old_ops_with_upgraders",
           [](std::shared_ptr<Graph>& g) {
-            return ReplaceOldOperatorsWithUpgraders(g);
+            ReplaceOldOperatorsWithUpgraders(g);
           })
       .def(
           "_jit_pass_dce",
           [](std::shared_ptr<Graph>& g) {
-            return EliminateDeadCode(g->block()); // overload resolution
+            EliminateDeadCode(g->block()); // overload resolution
           })
       .def(
           "_jit_pass_dce_graph",
-          [](std::shared_ptr<Graph>& g) { return EliminateDeadCode(g); })
+          [](std::shared_ptr<Graph>& g) { EliminateDeadCode(g); })
       .def(
           "_jit_pass_dce_allow_deleting_nodes_with_side_effects",
           [](std::shared_ptr<Graph>& g) {
-            return EliminateDeadCode(
+            EliminateDeadCode(
                 g->block(),
                 true,
                 DCESideEffectPolicy::
@@ -316,7 +316,7 @@ void initJITBindings(PyObject* module) {
       .def(
           "_jit_pass_fuse_quantized_add_relu",
           [](std::shared_ptr<Graph>& g) {
-            return FuseQuantizedAddRelu(g); // overload resolution
+            FuseQuantizedAddRelu(g); // overload resolution
           })
       .def(
           "_jit_pass_insert_observers",
@@ -390,13 +390,13 @@ void initJITBindings(PyObject* module) {
           py::arg("quant_type_int") = 1)
       .def(
           "_jit_pass_insert_prepack_unpack",
-          [](std::shared_ptr<Graph>& g) { return InsertPrepackUnpack(g); })
+          [](std::shared_ptr<Graph>& g) { InsertPrepackUnpack(g); })
       .def(
           "_jit_pass_insert_prepack_unpack",
-          [](Module& module) { return InsertPrepackUnpack(module); })
+          [](Module& module) { InsertPrepackUnpack(module); })
       .def(
           "_jit_pass_quant_fusion",
-          [](std::shared_ptr<Graph>& g) { return QuantFusion(g); })
+          [](std::shared_ptr<Graph>& g) { QuantFusion(g); })
       .def(
           "_jit_pass_fold_convbn",
           [](Module& module) { return FoldConvBatchNorm(module); })
@@ -501,10 +501,10 @@ void initJITBindings(PyObject* module) {
       .def("_jit_pass_propagate_device", DeviceTypePropagation)
       .def(
           "_jit_pass_remove_inplace_ops",
-          [](const std::shared_ptr<Graph>& g) { return RemoveInplaceOps(g); })
+          [](const std::shared_ptr<Graph>& g) { RemoveInplaceOps(g); })
       .def(
           "_jit_pass_create_functional_graphs",
-          [](std::shared_ptr<Graph>& g) { return CreateFunctionalGraphs(g); })
+          [](std::shared_ptr<Graph>& g) { CreateFunctionalGraphs(g); })
       .def(
           "_jit_pass_remove_mutation",
           [](std::shared_ptr<Graph>& g) {
@@ -523,7 +523,7 @@ void initJITBindings(PyObject* module) {
           })
       .def(
           "_jit_pass_inline_functional_graphs",
-          [](std::shared_ptr<Graph>& g) { return InlineFunctionalGraphs(g); })
+          [](std::shared_ptr<Graph>& g) { InlineFunctionalGraphs(g); })
       .def(
           "_jit_pass_peephole",
           [](const std::shared_ptr<Graph>& g, bool disable_shape_peepholes) {
@@ -1038,36 +1038,36 @@ void initJITBindings(PyObject* module) {
           })
       .def(
           "_jit_pass_remove_dropout",
-          [](script::Module& module) { return removeDropout(module); })
+          [](script::Module& module) { removeDropout(module); })
       .def(
           "_jit_pass_refine_tuple_types",
-          [](std::shared_ptr<Graph>& graph) { return RefineTupleTypes(graph); })
+          [](std::shared_ptr<Graph>& graph) { RefineTupleTypes(graph); })
       .def(
           "_jit_pass_transform_conv1d_to_conv2d",
           [](std::shared_ptr<Graph>& graph) {
-            return transformConv1dToConv2d(graph);
+            transformConv1dToConv2d(graph);
           })
       .def(
           "_jit_pass_transform_conv1d_to_conv2d",
           [](script::Module& module) {
-            return transformConv1dToConv2d(module);
+            transformConv1dToConv2d(module);
           })
       .def(
           "_jit_pass_insert_prepacked_ops",
           [](std::shared_ptr<Graph>& graph) {
-            return insertPrePackedOps(graph);
+            insertPrePackedOps(graph);
           })
       .def(
           "_jit_pass_insert_prepacked_ops",
-          [](script::Module& module) { return insertPrePackedOps(module); })
+          [](script::Module& module) { insertPrePackedOps(module); })
       .def(
           "_jit_pass_fuse_clamp_w_prepacked_linear_conv",
           [](script::Module& module) {
-            return fusePrePackedLinearConvWithClamp(module);
+            fusePrePackedLinearConvWithClamp(module);
           })
       .def(
           "_jit_pass_fold_prepacking_ops",
-          [](script::Module& module) { return FoldPrePackingOps(module); })
+          [](script::Module& module) { FoldPrePackingOps(module); })
       .def(
           "_jit_pass_optimize_for_mobile",
           [](script::Module& module,
@@ -1092,22 +1092,22 @@ void initJITBindings(PyObject* module) {
       .def(
           "_jit_pass_vulkan_insert_prepacked_ops",
           [](std::shared_ptr<Graph>& graph) {
-            return vulkanInsertPrePackedOps(graph);
+            vulkanInsertPrePackedOps(graph);
           })
       .def(
           "_jit_pass_vulkan_insert_prepacked_ops",
           [](script::Module& module) {
-            return vulkanInsertPrePackedOps(module);
+            vulkanInsertPrePackedOps(module);
           })
       .def(
           "_jit_pass_vulkan_fuse_clamp_w_prepacked_conv",
           [](script::Module& module) {
-            return vulkanFusePrePackedConvWithClamp(module);
+            vulkanFusePrePackedConvWithClamp(module);
           })
       .def(
           "_jit_pass_vulkan_fold_prepacking_ops",
           [](script::Module& module) {
-            return vulkanFoldPrePackingOps(module);
+            vulkanFoldPrePackingOps(module);
           })
       .def(
           "_jit_pass_vulkan_optimize_for_mobile",
@@ -1120,21 +1120,21 @@ void initJITBindings(PyObject* module) {
       .def(
           "_jit_pass_metal_insert_prepacked_ops",
           [](std::shared_ptr<Graph>& graph) {
-            return metalInsertPrePackedOps(graph);
+            metalInsertPrePackedOps(graph);
           })
       .def(
           "_jit_pass_metal_insert_prepacked_ops",
           [](script::Module& module) {
-            return metalInsertPrePackedOps(module);
+            metalInsertPrePackedOps(module);
           })
       .def(
           "_jit_pass_metal_fuse_clamp_w_prepacked_conv",
           [](script::Module& module) {
-            return metalFusePrePackedConvWithClamp(module);
+            metalFusePrePackedConvWithClamp(module);
           })
       .def(
           "_jit_pass_metal_fold_prepacking_ops",
-          [](script::Module& module) { return metalFoldPrePackingOps(module); })
+          [](script::Module& module) { metalFoldPrePackingOps(module); })
       .def(
           "_jit_pass_metal_optimize_for_mobile",
           [](script::Module& module,

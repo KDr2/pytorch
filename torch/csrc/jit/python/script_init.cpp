@@ -2492,7 +2492,7 @@ void initJitScriptBindings(PyObject* module) {
       [](const torch::jit::mobile::Module& module,
          const std::string& filename,
          const ExtraFilesMap& _extra_files = ExtraFilesMap()) {
-        return torch::jit::save_mobile_module(module, filename, _extra_files);
+        torch::jit::save_mobile_module(module, filename, _extra_files);
       });
   m.def(
       "_save_jit_module",
