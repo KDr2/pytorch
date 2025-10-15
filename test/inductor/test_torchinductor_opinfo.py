@@ -284,7 +284,6 @@ inductor_expected_failures_single_sample["xpu"] = {
     "torch.ops.aten._flash_attention_forward": {f16},
     "torch.ops.aten._efficient_attention_forward": {f16, f32},
     "to_sparse": {f32, f64},
-    "linalg.eig": {f32, f64},
     ("linalg.pinv", "singular"): {f64},
     # could not create a primitive
     "addmv": {f64},
