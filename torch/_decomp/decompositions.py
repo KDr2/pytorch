@@ -10,7 +10,7 @@ from contextlib import nullcontext
 from enum import Enum
 from functools import partial, reduce
 from itertools import chain, product
-from typing import Any, cast, Optional, Union, Tuple
+from typing import Any, Callable, cast, Optional, Union
 
 import torch
 import torch._meta_registrations
@@ -38,6 +38,11 @@ from torch.utils._pytree import tree_map
 
 
 DispatchKey = torch._C.DispatchKey  # type: ignore[attr-defined]
+
+
+_LINEAR_CROSS_ENTROPY_NAIVE: Optional[Callable[..., Tensor]] = getattr(
+    F, "_linear_cross_entropy_naive", None
+)
 
 # None of these functions are publicly accessible; get at them
 # from torch._decomps
@@ -671,13 +676,26 @@ def linear_cross_entropy(
     logits_flat = aten.reshape.default(logits, [-1, logits.size(-1)])
     target_flat = aten.reshape.default(target, [-1])
     if target.dtype.is_floating_point:
-        # Fallback to the unfused reference for probability targets.
-        return torch.nn.functional._linear_cross_entropy_naive(
+        if _LINEAR_CROSS_ENTROPY_NAIVE is None:
+            raise RuntimeError(
+                "linear_cross_entropy decomposition requires "
+                "torch.nn.functional._linear_cross_entropy_naive"
+            )
+
+        reduction_str = (
+            "mean"
+            if reduction == Reduction.MEAN.value
+            else "sum"
+            if reduction == Reduction.SUM.value
+            else "none"
+        )
+
+        return _LINEAR_CROSS_ENTROPY_NAIVE(  # type: ignore[misc]
             input,
             weight,
             target,
             bias,
-            "mean" if reduction == Reduction.MEAN.value else "sum" if reduction == Reduction.SUM.value else "none",
+            reduction_str,
             ignore_index,
             label_smoothing,
         )
@@ -706,20 +724,33 @@ def linear_cross_entropy_backward(
     ignore_index: int = -100,
     label_smoothing: float = 0.0,
     chunking_strategy: str = "auto",
-) -> Tuple[Tensor, Tensor, Optional[Tensor]]:
+) -> tuple[Tensor, Tensor, Optional[Tensor]]:
     logits = aten.linear.default(input, weight, bias)
     logits_flat = aten.reshape.default(logits, [-1, logits.size(-1)])
     input_flat = aten.reshape.default(input, [-1, input.size(-1)])
     target_flat = aten.reshape.default(target, [-1])
 
     if target.dtype.is_floating_point:
-        # Forward decomposition falls back to the naive path, so reuse it in backward.
-        ref = torch.nn.functional._linear_cross_entropy_naive(
+        if _LINEAR_CROSS_ENTROPY_NAIVE is None:
+            raise RuntimeError(
+                "linear_cross_entropy decomposition requires "
+                "torch.nn.functional._linear_cross_entropy_naive"
+            )
+
+        reduction_str = (
+            "mean"
+            if reduction == Reduction.MEAN.value
+            else "sum"
+            if reduction == Reduction.SUM.value
+            else "none"
+        )
+
+        ref = _LINEAR_CROSS_ENTROPY_NAIVE(  # type: ignore[misc]
             input,
             weight,
             target,
             bias,
-            "mean" if reduction == Reduction.MEAN.value else "sum" if reduction == Reduction.SUM.value else "none",
+            reduction_str,
             ignore_index,
             label_smoothing,
         )
@@ -730,13 +761,13 @@ def linear_cross_entropy_backward(
             retain_graph=True,
             allow_unused=True,
         )
-        grad_input = grad_inputs[0] if grad_inputs[0] is not None else torch.zeros_like(input)
-        grad_weight = grad_inputs[1] if grad_inputs[1] is not None else torch.zeros_like(weight)
-        grad_bias: Optional[Tensor]
-        if bias is not None:
-            grad_bias = grad_inputs[2]
-        else:
-            grad_bias = None
+        grad_input = (
+            grad_inputs[0] if grad_inputs[0] is not None else torch.zeros_like(input)
+        )
+        grad_weight = (
+            grad_inputs[1] if grad_inputs[1] is not None else torch.zeros_like(weight)
+        )
+        grad_bias = grad_inputs[2] if bias is not None else None
         return grad_input, grad_weight, grad_bias
 
     target_indices = aten.to.dtype(target_flat, torch.long)
@@ -744,7 +775,9 @@ def linear_cross_entropy_backward(
     vocab_size = weight.size(0)
     prob = aten.softmax.default(logits_flat, -1)
     valid_mask = aten.ne(target_indices, ignore_index)
-    safe_targets = aten.where(valid_mask, target_indices, aten.zeros_like(target_indices))
+    safe_targets = aten.where(
+        valid_mask, target_indices, aten.zeros_like(target_indices)
+    )
     target_one_hot = aten.zeros_like(prob)
     target_one_hot = aten.scatter.value(
         target_one_hot,
@@ -779,13 +812,12 @@ def linear_cross_entropy_backward(
     grad_input_flat = aten.mm(grad_logits, weight)
     grad_input = aten.reshape.default(grad_input_flat, input.shape)
     grad_weight = aten.mm(aten.transpose(grad_logits, 0, 1), input_flat)
-    grad_bias: Optional[Tensor]
     if bias is not None:
-        grad_bias = aten.sum.dim_IntList(grad_logits, [0])
+        grad_bias_result: Optional[Tensor] = aten.sum.dim_IntList(grad_logits, [0])
     else:
-        grad_bias = None
+        grad_bias_result = None
 
-    return grad_input, grad_weight, grad_bias
+    return grad_input, grad_weight, grad_bias_result
 
 
 @register_decomposition(aten.soft_margin_loss)
