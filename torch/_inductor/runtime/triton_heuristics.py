@@ -1,4 +1,3 @@
-# mypy: allow-untyped-defs
 from __future__ import annotations
 
 import builtins
@@ -73,6 +72,14 @@ from .triton_compat import (
     triton,
 )
 from .triton_helpers import get_constexprs
+
+
+class InductorConfig(Config):
+    """Inductor-specific Triton config with additional control flags"""
+
+    def __init__(self, *args, dynamic_scale_rblock=True, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.dynamic_scale_rblock = dynamic_scale_rblock
 
 
 class InductorConfig(Config):
@@ -1566,9 +1573,8 @@ class StaticTritonCompileResult(CompileResult[StaticallyLaunchedCudaKernel]):
             return None
 
         def check_can_launch() -> StaticallyLaunchedCudaKernel:
-            if triton_meta.get("device_type") != "cuda":
-                # Only cuda kernels
-                raise CannotStaticallyLaunchKernel("Non-cuda device")
+            if triton_meta.get("device_type", None) not in ("cuda","hip"):
+                raise CannotStaticallyLaunchKernel("Non-cuda/hip device")
 
             if torch._inductor.config.cpp_wrapper:
                 # If we're running with cpp wrapper, it doesn't
@@ -1593,11 +1599,11 @@ class StaticTritonCompileResult(CompileResult[StaticallyLaunchedCudaKernel]):
                 raise CannotStaticallyLaunchKernel(
                     "static launch does not support launch attributes"
                 )
-
+            binary_ext = "hsaco" if triton_meta.get("device_type",None) == "hip" else "cubin"
             cubin_location = os.path.join(
                 triton_cache_dir(triton_meta.get("device", 0)),
                 triton_hash_to_path_key(kernel.hash),
-                f"{kernel.src.fn.__name__}.cubin",
+                f"{kernel.src.fn.__name__}.{binary_ext}",
             )
 
             if not os.path.exists(cubin_location):
