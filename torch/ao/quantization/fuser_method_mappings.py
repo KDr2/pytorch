@@ -306,7 +306,7 @@ def get_fuser_method_new(
     op_patterns = _get_valid_patterns(op_pattern)
     fuser_method = None
     for op_pattern in op_patterns:
-        fuser_method = fuser_method_mapping.get(op_pattern, None)
+        fuser_method = fuser_method_mapping.get(op_pattern)
         if fuser_method is not None:
             break
     if fuser_method is None:
