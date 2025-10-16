@@ -294,7 +294,7 @@ if __name__ == "__main__":
     if override_package_version is not None:
         version = override_package_version
         build_vars += (
-            f"BUILD_TEST=0 PYTORCH_BUILD_VERSION={version} PYTORCH_BUILD_NUMBER=1 "
+            f"BUILD_TEST=1 PYTORCH_BUILD_VERSION={version} PYTORCH_BUILD_NUMBER=1 "
         )
     elif branch in ["nightly", "main"]:
         build_date = (
@@ -306,11 +306,11 @@ if __name__ == "__main__":
             check_output(["cat", "version.txt"], cwd="/pytorch").decode().strip()[:-2]
         )
         if enable_cuda:
-            build_vars += f"BUILD_TEST=0 PYTORCH_BUILD_VERSION={version}.dev{build_date}+{desired_cuda} PYTORCH_BUILD_NUMBER=1 "
+            build_vars += f"BUILD_TEST=1 PYTORCH_BUILD_VERSION={version}.dev{build_date}+{desired_cuda} PYTORCH_BUILD_NUMBER=1 "
         else:
-            build_vars += f"BUILD_TEST=0 PYTORCH_BUILD_VERSION={version}.dev{build_date} PYTORCH_BUILD_NUMBER=1 "
+            build_vars += f"BUILD_TEST=1 PYTORCH_BUILD_VERSION={version}.dev{build_date} PYTORCH_BUILD_NUMBER=1 "
     elif branch.startswith(("v1.", "v2.")):
-        build_vars += f"BUILD_TEST=0 PYTORCH_BUILD_VERSION={branch[1 : branch.find('-')]} PYTORCH_BUILD_NUMBER=1 "
+        build_vars += f"BUILD_TEST=1 PYTORCH_BUILD_VERSION={branch[1 : branch.find('-')]} PYTORCH_BUILD_NUMBER=1 "
 
     if enable_mkldnn:
         print("build pytorch with mkldnn+acl backend")
