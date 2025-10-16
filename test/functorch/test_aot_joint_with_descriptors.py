@@ -922,6 +922,42 @@ class inner_f(torch.nn.Module):
             in custom_metadata
         )
 
+    def test_custom_op_stack_trace(self):
+        @torch.library.custom_op("my_lib::foo", mutates_args={})
+        def foo(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+            return x + y
+
+        @foo.register_fake
+        def foo_fake_impl(x, y):
+            return torch.empty_like(x)
+
+        def foo_setup_context(ctx, inputs, output):
+            pass
+
+        def foo_backward(ctx, grad_output):
+            return grad_output, grad_output
+
+        foo.register_autograd(foo_backward, setup_context=foo_setup_context)
+
+        class CustomOpModule(torch.nn.Module):
+            def forward(self, x, y):
+                return foo(x, y)
+
+        model = CustomOpModule()
+        inputs = (torch.randn(4, 3), torch.randn(4, 3))
+
+        gm = graph_capture(model, inputs, with_export=True)
+
+        foo_node = None
+        for node in gm.graph.nodes:
+            if node.op == "call_function" and node.name == "foo":
+                foo_node = node
+                break
+
+        self.assertTrue(foo_node is not None)
+        self.assertTrue("return foo(x, y)" in foo_node.meta.get("stack_trace", None))
+        self.assertFalse("self._opoverload" in foo_node.meta.get("stack_trace", None))
+
 
 if __name__ == "__main__":
     run_tests()
