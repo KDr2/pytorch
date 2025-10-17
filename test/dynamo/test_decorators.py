@@ -2067,6 +2067,40 @@ class DecoratorTests(torch._dynamo.test_case.TestCase):
         with self.assertRaises(Unsupported):
             outer_f2(inp)
 
+    def test_disable_recursive_flags(self):
+        class SimpleLinear(torch.nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.layer0 = torch.nn.Linear(4, 4)
+
+            def forward(self, inp):
+                return self.layer0(torch.sigmoid(inp))
+
+        class SimpleModel(torch.nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.layer0 = SimpleLinear()
+                self.layer1 = torch.nn.Linear(4, 4)
+
+            def forward(self, inp):
+                z = self.layer0(torch.sin(inp))
+                return self.layer1(z)
+
+        for recursive_flag in [True, False]:
+            model = SimpleModel()
+
+            model.forward = torch._dynamo.disable(
+                model.forward,
+                recursive=recursive_flag,
+            )
+            self.assertEqual(
+                torch._dynamo.is_dynamo_disable_recursive(model.forward),
+                recursive_flag,
+            )
+
+            # check the model is compilable
+            torch.compile(model)
+
 
 if __name__ == "__main__":
     from torch._dynamo.test_case import run_tests
