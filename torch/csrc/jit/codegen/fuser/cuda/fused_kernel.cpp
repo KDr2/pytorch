@@ -2,8 +2,6 @@
 
 #include <torch/csrc/jit/codegen/fuser/compiler.h>
 
-#include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/CUDAGeneratorImpl.h>
 #include <ATen/cuda/nvrtc_stub/ATenNVRTC.h>
 #include <ATen/native/cuda/jit_utils.h>
@@ -11,12 +9,8 @@
 #include <c10/util/Exception.h>
 #include <torch/csrc/jit/resource_guard.h>
 
-#include <cuda_runtime.h>
-
 #include <algorithm>
 #include <cmath>
-#include <sstream>
-#include <stdexcept>
 #include <vector>
 
 namespace torch::jit::fuser::cuda {
