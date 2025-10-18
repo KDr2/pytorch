@@ -23,7 +23,6 @@ leak:unknown module
 leak:g++
 leak:conda-linux-gnu-ld
 leak:crypto
-leak:torch::detail::(anonymous namespace)::get_set_cached_attr
 leak:torch::jit::tensorexpr::TensorExprKernel::preAllocIntermediateBufs
 leak:optree
 leak:python
