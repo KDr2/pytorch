@@ -2227,7 +2227,6 @@ class TritonKernel(SIMDKernel[TritonCSEVariable]):
         TensorDescriptorOptions
     )
 
-
     def __init__(
         self,
         tiling: dict[str, sympy.Expr],
