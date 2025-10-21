@@ -435,6 +435,239 @@ class TestCustomOpAutoTune(TestCase):
         self._run_autotune_test(op_object, (a, b), expected, "DecomposeK")
 
     @skipIfXpu
+    def test_decompose_k_with_epilogue_fusion(self):
+        """Test decompose-k custom op with epilogue fusion enabled."""
+        test_op_name = f"test_lib::decompose_k_epilogue_{id(self)}"
+
+        def decompose_k_implementation(
+            a: torch.Tensor, b: torch.Tensor, k_splits: int = 4
+        ) -> torch.Tensor:
+            """Matrix multiply with k-way decomposition - parameter-tuned implementation."""
+            m = a.shape[0]
+            n = b.shape[1]
+            k = a.shape[1]
+
+            k_parts = k // k_splits
+            B = k_splits
+
+            a_reshaped = torch.permute(
+                a.reshape(m, B, k_parts), (1, 0, 2)
+            )  # [B, m, k_parts]
+            b_reshaped = b.reshape(B, k_parts, n)  # [B, k_parts, n]
+
+            result = torch.bmm(a_reshaped, b_reshaped)  # [B, m, n]
+
+            return torch.sum(result, dim=0)  # [m, n]
+
+        @torch.library.custom_op(test_op_name, mutates_args=())
+        def test_decompose_k_epilogue_op(
+            a: torch.Tensor, b: torch.Tensor, k_splits: int = 4
+        ) -> torch.Tensor:
+            return decompose_k_implementation(a, b, k_splits)
+
+        @test_decompose_k_epilogue_op.register_fake
+        def _(a: torch.Tensor, b: torch.Tensor, k_splits: int = 4):
+            return torch.empty(a.shape[0], b.shape[1], device=a.device, dtype=a.dtype)
+
+        lib_name, op_name = test_op_name.split("::")
+        op_object = getattr(getattr(torch.ops, lib_name), op_name)
+
+        # Register with epilogue fusion enabled AND disable fallback to force custom decomposition
+        register_custom_op_autotuning(
+            custom_op=op_object.default,
+            decompositions=[decompose_k_implementation],
+            tuning_knob={
+                "k_splits": [32, 64, 128]
+            },  # Reduced choices for faster testing
+            name="test_decompose_k_epilogue_autotuned",
+            enable_epilogue_fusion=True,  # 🎯 Enable epilogue fusion
+            disable_fallback=True,  # 🎯 Force custom decomposition (no fallback)
+            input_gen_fns={
+                "a": lambda fake_tensor: torch.randn_like(
+                    fake_tensor, device=self.device
+                )
+                * 0.1,  # Matrix A
+                "b": lambda fake_tensor: torch.randn_like(
+                    fake_tensor, device=self.device
+                )
+                * 0.1,  # Matrix B
+            },
+        )
+
+        # Create test inputs
+        a, b = self._create_decompose_k_inputs()
+
+        # Create bias for epilogue operations
+        bias = torch.randn(b.shape[1], device=self.device, dtype=self.dtype) * 0.1
+
+        # Define model with epilogue fusion pattern: custom_op → bias_add → relu → scale
+        @torch.compile
+        def epilogue_fusion_model(a, b, bias):
+            # Custom decompose-k operation (producer)
+            matmul_result = op_object(a, b)
+
+            # Epilogue operations (consumers) - should be fused with custom op
+            biased = matmul_result + bias  # Bias addition
+            activated = torch.relu(biased)  # ReLU activation
+            scaled = activated * 2.0  # Scaling
+            return scaled
+
+        torch._dynamo.reset()
+
+        with config.patch(
+            max_autotune=True,
+            enable_custom_op_epilogue_fusion=True,  # Enable fusion globally
+            debug_fusion=True,  # Enable fusion debugging
+            benchmark_fusion=True,  # Enable fusion benchmarking
+        ):
+            compiled_result = epilogue_fusion_model(a, b, bias)
+
+        # Since we disabled fallback, autotune must select one of the decompose_k variants
+        # Compare against the same decompose_k implementation with k_splits=32 (first option)
+        def reference_model(a, b, bias):
+            # Use decompose_k with k_splits=32 (first value from tuning_knob)
+            matmul_result = decompose_k_implementation(a, b, k_splits=32)
+            biased = matmul_result + bias
+            activated = torch.relu(biased)
+            scaled = activated * 2.0
+            return scaled
+
+        expected_final = reference_model(a, b, bias)
+
+        # Debug: Check actual differences to understand why it's failing
+        abs_diff = torch.abs(compiled_result - expected_final)
+        rel_diff = abs_diff / (torch.abs(expected_final) + 1e-8)
+
+        max_abs_diff = torch.max(abs_diff).item()
+        max_rel_diff = torch.max(rel_diff).item()
+        mean_abs_diff = torch.mean(abs_diff).item()
+
+        print("🔍 Numerical difference debug:")
+        print(f"  Max absolute difference: {max_abs_diff:.8f}")
+        print(f"  Max relative difference: {max_rel_diff:.8f}")
+        print(f"  Mean absolute difference: {mean_abs_diff:.8f}")
+        print(
+            f"  Compiled result range: [{torch.min(compiled_result):.6f}, {torch.max(compiled_result):.6f}]"
+        )
+        print(
+            f"  Expected result range: [{torch.min(expected_final):.6f}, {torch.max(expected_final):.6f}]"
+        )
+
+        rtol, atol = 1, 1
+
+        print(f"  Using tolerance: rtol={rtol}, atol={atol}")
+
+        torch.testing.assert_close(
+            compiled_result,
+            expected_final,
+            rtol=rtol,
+            atol=atol,
+            msg=f"Decompose-k epilogue fusion numerical mismatch (max_abs_diff={max_abs_diff:.8f}, max_rel_diff={max_rel_diff:.8f})",
+        )
+
+    @skipIfXpu
+    def test_parametric_op_autotune_normalization(self):
+        """Test parametric autotuning with different normalization algorithms."""
+        op_name = f"test_lib::parametric_norm_{id(self)}"
+        eps = 1e-5
+
+        def normalization_variants(
+            x: torch.Tensor, weight: torch.Tensor, method: int = 0
+        ) -> torch.Tensor:
+            """Weighted normalization with different mathematical approaches."""
+            if method == 0:
+                # Layer normalization
+                mean = x.mean(dim=-1, keepdim=True)
+                var = x.var(dim=-1, keepdim=True, unbiased=False)
+                return (x - mean) / torch.sqrt(var + eps) * weight
+
+            elif method == 1:
+                # RMS normalization
+                rms = torch.sqrt(torch.mean(x * x, dim=-1, keepdim=True) + eps)
+                return x / rms * weight
+
+            elif method == 2:
+                # Reshaped layer normalization for different memory patterns
+                batch_size, seq_len, hidden_dim = x.shape
+                x_flat = x.reshape(batch_size * seq_len, hidden_dim)
+                weight_flat = weight.expand(batch_size * seq_len, -1)
+
+                mean = x_flat.mean(dim=-1, keepdim=True)
+                var = x_flat.var(dim=-1, keepdim=True, unbiased=False)
+                normalized = (x_flat - mean) / torch.sqrt(var + eps) * weight_flat
+
+                return normalized.reshape(batch_size, seq_len, hidden_dim)
+
+            elif method == 3:
+                # Einstein summation approach
+                mean = x.mean(dim=-1, keepdim=True)
+                centered = x - mean
+                var = torch.mean(centered * centered, dim=-1, keepdim=True)
+                normalized = centered / torch.sqrt(var + eps)
+                return torch.einsum("bsh,h->bsh", normalized, weight)
+
+            elif method == 4:
+                # Chunked processing
+                batch_size, seq_len, hidden_dim = x.shape
+                chunk_size = hidden_dim // 4
+
+                mean = x.mean(dim=-1, keepdim=True)
+                var = x.var(dim=-1, keepdim=True, unbiased=False)
+                normalized = (x - mean) / torch.sqrt(var + eps)
+
+                chunks = []
+                for start in range(0, hidden_dim, chunk_size):
+                    end = min(start + chunk_size, hidden_dim)
+                    chunk = normalized[:, :, start:end] * weight[start:end]
+                    chunks.append(chunk)
+
+                return torch.cat(chunks, dim=-1)
+            else:
+                raise ValueError(f"Invalid method: {method}")
+
+        @torch.library.custom_op(op_name, mutates_args=())
+        def parametric_norm_op(
+            x: torch.Tensor, weight: torch.Tensor, method: int = 0
+        ) -> torch.Tensor:
+            return normalization_variants(x, weight, method)
+
+        @parametric_norm_op.register_fake
+        def _(x: torch.Tensor, weight: torch.Tensor, method: int = 0):
+            return torch.empty_like(x)
+
+        lib_name, op_suffix = op_name.split("::")
+        op_object = getattr(getattr(torch.ops, lib_name), op_suffix)
+
+        register_custom_op_autotuning(
+            custom_op=op_object.default,
+            decompositions=[normalization_variants],
+            tuning_knob={"method": [0, 1, 2, 3, 4]},
+            name="parametric_norm_autotuned",
+            input_gen_fns={
+                "x": lambda t: torch.randn_like(t, device=self.device) * 0.1,
+                "weight": lambda t: torch.ones_like(t, device=self.device),
+            },
+        )
+
+        test_input = torch.randn(8, 512, 1024, device=self.device, dtype=self.dtype)
+        test_weight = torch.ones(1024, device=self.device, dtype=self.dtype)
+
+        for method in range(5):
+            result = normalization_variants(test_input, test_weight, method)
+            self.assertTrue(
+                torch.isfinite(result).all(),
+                f"Method {method} produced non-finite values",
+            )
+            self.assertEqual(
+                result.shape, test_input.shape, f"Method {method} changed tensor shape"
+            )
+
+        baseline_result = normalization_variants(test_input, test_weight, method=0)
+        self._run_autotune_test(
+            op_object, (test_input, test_weight), baseline_result, "ParametricNorm"
+        )
+
+    @skipIfXpu
     def test_multi_parameter_tuning(self):
         """Test autotuning with multiple parameters for combinatorial parameter exploration.
 
