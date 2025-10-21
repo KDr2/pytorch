@@ -80,6 +80,52 @@ class CustomOpConfig:
         return f"CustomOpConfig({decomp_name})"
 
 
+class CustomOpConfig:
+    """Config for custom op autotuning - similar to triton.Config.
+
+    Specifies decomposition function with parameter values.
+    Each config creates exactly one variant (no Cartesian product).
+
+    Args:
+        decomposition: Function to autotune
+        **params: Parameters passed to the function
+
+    Examples:
+        CustomOpConfig(attention_impl, head_dim=32, method='chunked')
+        CustomOpConfig(fallback_impl)
+    """
+
+    def __init__(self, decomposition: Callable[..., Any], **params: Any):
+        if not callable(decomposition):
+            raise TypeError(
+                f"decomposition must be callable, got {type(decomposition)}"
+            )
+
+        self.decomposition = decomposition
+        self.params = params
+
+        # Generate descriptive name
+        if self.params:
+            param_suffix = "_".join(f"{k}_{v}" for k, v in sorted(self.params.items()))
+            self.name = f"{decomposition.__name__}_{param_suffix}"
+        self.name = decomposition.__name__
+
+    def create_variant(self) -> Callable[..., Any]:
+        """Create callable with parameters pre-applied using functools.partial."""
+        if self.params:
+            variant = functools.partial(self.decomposition, **self.params)
+            variant.__name__ = self.name  # type: ignore[attr-defined]
+            return variant
+
+        return self.decomposition
+
+    def __repr__(self) -> str:
+        if self.params:
+            params_str = ", ".join(f"{k}={v}" for k, v in self.params.items())
+            return f"CustomOpConfig({self.decomposition.__name__}, {params_str})"
+        return f"CustomOpConfig({self.decomposition.__name__})"
+
+
 __all__ = [
     "autotune_custom_op",
     "register_custom_op_autotuning",
@@ -436,8 +482,6 @@ def register_custom_op_autotuning(
     name: Optional[str] = None,
     input_gen_fns: Optional[dict[str, Callable[[torch.Tensor], torch.Tensor]]] = None,
     enable_epilogue_fusion: bool = False,
-    enable_prologue_fusion: bool = False,
-    disable_fallback: bool = False,
 ) -> None:
     """Register custom op for autotuning with custom_op configs where each config
     specifies a decomposition implementation function with its parameter values.

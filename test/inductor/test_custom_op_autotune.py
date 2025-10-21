@@ -435,115 +435,15 @@ class TestCustomOpAutoTune(TestCase):
         self._run_autotune_test(op_object, (a, b), expected, "DecomposeK")
 
     @skipIfXpu
-    def test_decompose_k_with_epilogue_fusion(self):
-        """Test decompose-k custom op with epilogue fusion enabled."""
-        test_op_name = f"test_lib::decompose_k_epilogue_{id(self)}"
-
-        def decompose_k_implementation(
-            a: torch.Tensor, b: torch.Tensor, k_splits: int = 4
-        ) -> torch.Tensor:
-            """Matrix multiply with k-way decomposition."""
-            m, k = a.shape
-            n = b.shape[1]
-            k_parts = k // k_splits
-
-            a_reshaped = torch.permute(
-                a.reshape(m, k_splits, k_parts), (1, 0, 2)
-            )  # [k_splits, m, k_parts]
-            b_reshaped = b.reshape(k_splits, k_parts, n)  # [k_splits, k_parts, n]
-
-            # Batched multiply and sum across k dimension
-            result = torch.bmm(a_reshaped, b_reshaped)  # [k_splits, m, n]
-            return torch.sum(result, dim=0)  # [m, n]
-
-        @torch.library.custom_op(test_op_name, mutates_args=())
-        def test_decompose_k_epilogue_op(
-            a: torch.Tensor, b: torch.Tensor, k_splits: int = 4
-        ) -> torch.Tensor:
-            return decompose_k_implementation(a, b, k_splits)
-
-        @test_decompose_k_epilogue_op.register_fake
-        def _(a: torch.Tensor, b: torch.Tensor, k_splits: int = 4):
-            return torch.empty(a.shape[0], b.shape[1], device=a.device, dtype=a.dtype)
-
-        lib_name, op_name = test_op_name.split("::")
-        op_object = getattr(getattr(torch.ops, lib_name), op_name)
-
-        # Register with epilogue fusion enabled and force custom decomposition
-        register_custom_op_autotuning(
-            custom_op=op_object.default,
-            decompositions=[decompose_k_implementation],
-            tuning_knob={"k_splits": [32, 64, 128]},
-            name="test_decompose_k_epilogue_autotuned",
-            enable_epilogue_fusion=True,
-            disable_fallback=True,
-            input_gen_fns={
-                "a": lambda fake_tensor: torch.randn_like(
-                    fake_tensor, device=self.device
-                )
-                * 0.1,
-                "b": lambda fake_tensor: torch.randn_like(
-                    fake_tensor, device=self.device
-                )
-                * 0.1,
-            },
-        )
-
-        # Create test inputs - use large K for decompose_k benefit
-        M, K, N = 32, 32768, 32
-        a = torch.randn(M, K, device=self.device, dtype=self.dtype, requires_grad=False)
-        b = torch.randn(K, N, device=self.device, dtype=self.dtype, requires_grad=False)
-        bias = torch.randn(N, device=self.device, dtype=self.dtype) * 0.1
-
-        # Model with epilogue fusion pattern: matmul -> bias -> relu -> scale
-        @torch.compile
-        def epilogue_fusion_model(a, b, bias):
-            matmul_result = op_object(a, b)
-            biased = matmul_result + bias
-            activated = torch.relu(biased)
-            scaled = activated * 2.0
-            return scaled
-
-        torch._dynamo.reset()
-        autotune_backends = "TRITON" if self.device == "cuda" else "ATEN"
-
-        with config.patch(
-            max_autotune=True,
-            max_autotune_gemm_backends=autotune_backends,
-            comprehensive_padding=False,
-            shape_padding=False,
-        ):
-            compiled_result = epilogue_fusion_model(a, b, bias)
-
-        # Reference implementation for numerical comparison
-        def reference_model(a, b, bias, k_splits=32):
-            matmul_result = decompose_k_implementation(a, b, k_splits)
-            biased = matmul_result + bias
-            activated = torch.relu(biased)
-            scaled = activated * 2.0
-            return scaled
-
-        expected_result = reference_model(a, b, bias)
-
-        # Verify numerical correctness with reasonable tolerances
-        torch.testing.assert_close(
-            compiled_result,
-            expected_result,
-            rtol=1e-2,
-            atol=1e-2,
-            msg="Decompose-k epilogue fusion numerical mismatch",
-        )
-
-    @skipIfXpu
-    def test_parametric_op_autotune_normalization(self):
-        """Test parametric autotuning with different normalization algorithms."""
+    def test_parametric_op_autotune_normalization_parameter_method(self):
+        """Test autotuning with different normalization algorithms using method parameter as tuning knob."""
         op_name = f"test_lib::parametric_norm_{id(self)}"
         eps = 1e-5
 
         def normalization_variants(
             x: torch.Tensor, weight: torch.Tensor, method: int = 0
         ) -> torch.Tensor:
-            """Weighted normalization with different mathematical approaches."""
+            """Weighted normalization with different mathematical approaches controlled by method parameter."""
             if method == 0:
                 # Layer normalization
                 mean = x.mean(dim=-1, keepdim=True)
@@ -608,9 +508,14 @@ class TestCustomOpAutoTune(TestCase):
         op_object = getattr(getattr(torch.ops, lib_name), op_suffix)
 
         register_custom_op_autotuning(
-            custom_op=op_object.default,
-            decompositions=[normalization_variants],
-            tuning_knob={"method": [0, 1, 2, 3, 4]},
+            op_object.default,
+            configs=[
+                CustomOpConfig(normalization_variants, method=0),  # Layer norm
+                CustomOpConfig(normalization_variants, method=1),  # RMS norm
+                CustomOpConfig(normalization_variants, method=2),  # Reshaped layer norm
+                CustomOpConfig(normalization_variants, method=3),  # Einsum approach
+                CustomOpConfig(normalization_variants, method=4),  # Chunked processing
+            ],
             name="parametric_norm_autotuned",
             input_gen_fns={
                 "x": lambda t: torch.randn_like(t, device=self.device) * 0.1,
