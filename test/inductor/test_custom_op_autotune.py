@@ -395,13 +395,13 @@ class TestCustomOpAutoTune(TestCase):
             return torch.sum(result, dim=0)  # [m, n]
 
         @torch.library.custom_op(test_op_name, mutates_args=())
-        def test_decompose_k_epilogue_op(
+        def test_decompose_k_fusion_op(
             a: torch.Tensor, b: torch.Tensor, k_splits: int = 4
         ) -> torch.Tensor:
             """Matrix multiply with k-way decomposition - custom op using the decomposition."""
             return decompose_k_implementation(a, b, k_splits)
 
-        @test_decompose_k_epilogue_op.register_fake
+        @test_decompose_k_fusion_op.register_fake
         def _(a: torch.Tensor, b: torch.Tensor, k_splits: int = 4):
             return torch.empty(a.shape[0], b.shape[1], device=a.device, dtype=a.dtype)
 
@@ -417,9 +417,8 @@ class TestCustomOpAutoTune(TestCase):
                 CustomOpConfig(k_splits=128),
                 CustomOpConfig(k_splits=256),
             ],
-            name="test_decompose_k_epilogue_autotuned",
-            enable_epilogue_fusion=True,  # 🎯 Enable epilogue fusion
-            disable_fallback=True,  # 🎯 Force custom decomposition (no fallback)
+            name="test_decompose_k_fusion_autotuned",
+            enable_fusion=True,  # Enable fusion for better performance
             input_gen_fns={
                 "a": lambda fake_tensor: torch.randn_like(
                     fake_tensor, device=self.device
@@ -454,7 +453,7 @@ class TestCustomOpAutoTune(TestCase):
 
         with config.patch(
             max_autotune=True,
-            enable_custom_op_epilogue_fusion=True,  # Enable fusion globally
+            enable_custom_op_inline_fusion=True,  # Enable fusion globally
             debug_fusion=True,  # Enable fusion debugging
             benchmark_fusion=True,  # Enable fusion benchmarking
         ):

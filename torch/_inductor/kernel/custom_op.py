@@ -283,8 +283,6 @@ def autotune_custom_op(
         dict[str, Callable[[torch.Tensor], torch.Tensor]]
     ] = None,
     enable_epilogue_fusion: bool = False,
-    enable_prologue_fusion: bool = False,
-    disable_fallback: bool = False,
 ) -> Union[TensorBox, Any]:
     """Autotune custom operations by comparing multiple decomposition implementations.
 
@@ -293,7 +291,7 @@ def autotune_custom_op(
 
     This function generates multiple implementation choices for a custom operation and
     uses Inductor's autotuning system to select the best performing variant at runtime.
-    After selecting the best choice, optionally applies inline epilogue fusion.
+    After selecting the best choice, optionally applies inline fusion.
 
     Args:
         name: Unique identifier for the autotuning operation
@@ -304,7 +302,7 @@ def autotune_custom_op(
         user_input_gen_fns: Optional custom input generators for benchmarking.
                            Maps input indices to functions that take fake tensors
                            and return real tensors for performance measurement.
-        enable_epilogue_fusion: If True, apply inline epilogue fusion to the best choice
+        enable_epilogue_fusion: If True, apply inline fusion to the best choice
 
     Returns:
         IR node representing the optimized operation result
@@ -335,8 +333,8 @@ def autotune_custom_op(
         non_tensor_args=non_tensor_args,
     )
 
-    # Add default implementation as fallback (unless disabled)
-    if default_impl and hasattr(default_impl, "_op") and not disable_fallback:
+    # Add default implementation as fallback
+    if default_impl and hasattr(default_impl, "_op"):
         fallback_name = f"{name}_fallback_default"
         from torch._inductor.select_algorithm import extern_kernels
 
@@ -473,9 +471,7 @@ def register_custom_op_autotuning(
     configs: Union[list[CustomOpConfig], list[Callable[..., Any]]],
     name: Optional[str] = None,
     input_gen_fns: Optional[dict[str, Callable[[torch.Tensor], torch.Tensor]]] = None,
-    enable_epilogue_fusion: bool = False,
-    enable_prologue_fusion: bool = False,
-    disable_fallback: bool = False,
+    enable_fusion: bool = False,
 ) -> None:
     """Register custom op for autotuning with custom_op configs where each config
     specifies a decomposition implementation function with its parameter values.
@@ -485,6 +481,7 @@ def register_custom_op_autotuning(
         configs: List of CustomOpConfig objects or callable functions
         name: Operation name (default: "{op_name}_autotuned")
         input_gen_fns: Custom input generators for benchmarking
+        enable_fusion: Enable inlining and fusion for the best choice
 
     Examples:
         register_custom_op_autotuning(
@@ -498,7 +495,8 @@ def register_custom_op_autotuning(
                 "query": lambda fake: torch.randn_like(fake, device='cuda'),
                 "key": lambda fake: torch.randn_like(fake, device='cuda'),
                 "value": lambda fake: torch.randn_like(fake, device='cuda'),
-            }
+            },
+            enable_fusion=True
         )
     """
     if not isinstance(configs, (list, tuple)):
@@ -546,9 +544,7 @@ def register_custom_op_autotuning(
             non_tensor_args=non_tensor_args,
             default_impl=custom_op,
             user_input_gen_fns=input_gen_fns,
-            enable_epilogue_fusion=enable_epilogue_fusion,
-            enable_prologue_fusion=enable_prologue_fusion,
-            disable_fallback=disable_fallback,
+            enable_epilogue_fusion=enable_fusion,
         )
 
         validate_ir(result)
