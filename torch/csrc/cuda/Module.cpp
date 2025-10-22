@@ -366,7 +366,7 @@ PyObject* THCPModule_cudaJiteratorCompileAndLaunchKernel(
   }
 
   c10::SmallVector<at::Scalar> extra_args;
-  PyObject* key = nullptr;
+  PyObject const* key = nullptr;
   PyObject* value = nullptr;
   Py_ssize_t pos = 0;
   Py_BEGIN_CRITICAL_SECTION(kwargs_o);
@@ -703,7 +703,7 @@ PyObject* THCPModule_resetPeakHostMemoryStats(
 
 CapturedTraceback* getFromContext(
     const std::shared_ptr<c10::GatheredContext>& x) {
-  if (CapturedTraceback* sc = dynamic_cast<CapturedTraceback*>(x.get())) {
+  if (CapturedTraceback const* sc = dynamic_cast<CapturedTraceback*>(x.get())) {
     return sc;
   }
   TORCH_CHECK(
@@ -1344,7 +1344,7 @@ static void registerCudaPluggableAllocator(PyObject* module) {
 
   m.def("_has_Standard_Deleter", [](size_t storage_impl_ptr) {
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
-    c10::StorageImpl* storage_impl = (c10::StorageImpl*)storage_impl_ptr;
+    c10::StorageImpl const* storage_impl = (c10::StorageImpl*)storage_impl_ptr;
     auto alloc = c10::cuda::CUDACachingAllocator::get();
     return (storage_impl->data_ptr().get_deleter() == alloc->raw_deleter());
   });
@@ -1448,7 +1448,7 @@ static void registerCudaPluggableAllocator(PyObject* module) {
         std::vector<c10::StorageImpl*> ptrs;
         for (size_t ptr_int : stale_storages_ptr) {
           // NOLINTNEXTLINE(performance-no-int-to-ptr)
-          c10::StorageImpl* ptr = (c10::StorageImpl*)ptr_int;
+          c10::StorageImpl const* ptr = (c10::StorageImpl*)ptr_int;
           if (!ptr_set.count(ptr)) {
             ptrs.push_back(ptr);
             ptr_set.insert(ptr);
@@ -1464,7 +1464,7 @@ static void registerCudaPluggableAllocator(PyObject* module) {
         }
         std::unordered_set<void*> freed_pointer_set;
         size_t definite_freed_count = 0;
-        for (void* ptr : freed_pointers) {
+        for (void const* ptr : freed_pointers) {
           if (!allocd_set.count(ptr)) {
             definite_freed_count += 1;
           }
