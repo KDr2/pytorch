@@ -1100,7 +1100,6 @@ class FakeTensorTest(TestCase):
         self.assertEqual(out[2].dtype, eye.dtype)
 
 
-
 instantiate_parametrized_tests(FakeTensorTest)
 
 
