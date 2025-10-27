@@ -90,6 +90,7 @@ from torch.fx.experimental.symbolic_shapes import (
     StatelessSymbolicContext,
 )
 from torch.fx.graph import _PyTreeCodeGen, _PyTreeInfo
+from torch.fx import traceback as fx_traceback
 
 from . import config, convert_frame, distributed, external_utils, trace_rules, utils
 from .backends.registry import CompilerFn, lookup_backend
@@ -1126,7 +1127,12 @@ class DisableContext(_TorchDynamoContext):
             try:
                 _maybe_set_eval_frame(_callback_from_stance(self.callback))
                 try:
-                    return fn(*args, **kwargs)
+                    with fx_traceback.annotate({
+                        "_torchdynamo_disable": True,
+                        "_torchdynamo_disable_recursive": True,
+                        "_torchdynamo_disable_method": getattr(fn, "__name__", type(fn).__name__),
+                    }):
+                        return fn(*args, **kwargs)
                 finally:
                     set_eval_frame(None)
             finally:
