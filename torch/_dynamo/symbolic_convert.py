@@ -2688,7 +2688,7 @@ class InstructionTranslatorBase(
             new_code: types.CodeType = ContinueExecutionCache.lookup(
                 cur_tx.f_code,
                 cur_tx.lineno,
-                resume_inst.offset,
+                resume_inst.offset,  # type: ignore[arg-type]
                 tuple(b.target.offset for b in cur_tx.block_stack),
                 stack_len,
                 argnames,
