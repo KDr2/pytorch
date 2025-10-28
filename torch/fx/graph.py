@@ -227,6 +227,8 @@ class PythonCode:
     # Optional mapping from the forward function's line number to
     # node index.
     _lineno_map: Optional[dict[int, Optional[int]]]
+    # Optional mapping from node index to node metadata (including stack_trace)
+    _node_metadata: Optional[dict[int, dict[str, Any]]] = None
 
 
 def _format_target(base: str, target: str) -> str:
@@ -781,11 +783,20 @@ class CodeGen:
                 return
             raise NotImplementedError(f"node: {node.op} {node.target}")
 
+        node_metadata: dict[int, dict[str, Any]] = {}
         for i, node in enumerate(nodes):
             # NOTE: emit_node does not emit a string with newline. It depends
             # on delete_unused_values to append one
             if verbose:
                 append_stacktrace_summary(node)
+            # This metadata is used by profilers to add additional debugging
+            # information to the profiler result in post-processing
+            node_metadata[i] = {
+                "name": node.name,
+                "op": node.op,
+                "target": str(node.target),
+                "stack_trace": node.meta.get("stack_trace", None),
+            }
             # emit a counter comment to keep track of
             # node index, which will be deleted later
             # after going through _body_transformer
@@ -818,19 +829,7 @@ class CodeGen:
             expanded_def=expanded_def,
         )
 
-        # remove counter and generate lineno to node index mapping
-        lineno_map: dict[int, Optional[int]] = {}
-        prologue_len = prologue.count("\n") + 1
-        new_lines: list[str] = []
-        cur_idx = None
-        for line in "".join(body).split("\n"):
-            counter = _counter_regexp.search(line)
-            if counter is not None:
-                cur_idx = int(counter.group(1))
-            else:
-                lineno_map[len(new_lines) + prologue_len] = cur_idx
-                new_lines.append(line)
-
+        new_lines: list[str] = "".join(body).split("\n")
         code = "\n".join(new_lines).lstrip("\n")
         code = "\n".join("    " + line for line in code.split("\n"))
 
@@ -839,7 +838,28 @@ class CodeGen:
 
 {prologue}
 {code}"""
-        return PythonCode(fn_code, globals_, _lineno_map=lineno_map)
+
+        # Build lineno_map using the counters and remove the counters from the final code
+        lineno_map: dict[int, Optional[int]] = {}
+        clean_lines: list[str] = []
+
+        cur_idx = None
+        current_lineno = 1
+        for line in fn_code.split("\n"):
+            counter = _counter_regexp.search(line)
+            if counter is not None:
+                # Found a counter, update current index but don't include this line
+                cur_idx = int(counter.group(1))
+            else:
+                # Map this line to the current node index
+                lineno_map[current_lineno] = cur_idx
+                clean_lines.append(line)
+                current_lineno += 1
+
+        # Update fn_code to the version without counters
+        fn_code = "\n".join(clean_lines)
+
+        return PythonCode(fn_code, globals_, _lineno_map=lineno_map, _node_metadata=node_metadata)
 
 
 # Ideally, we'd like to refactor all of the pytree logic into this codegen

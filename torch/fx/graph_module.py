@@ -91,23 +91,33 @@ class _EvalCacheLoader:
 _loader = _EvalCacheLoader()
 
 
-def _exec_with_source(src: str, globals: dict[str, Any], co_fields=None):
-    key = _loader.cache(src, globals, co_fields)
-    exec(compile(src, key, "exec"), globals)
+def _exec_with_source(src: str, globals: dict[str, Any], co_fields=None, filename=None):
+    if filename is not None:
+        # When filename is provided, use it directly for compilation
+        # This allows stack traces to reference the real file
+        key = filename
+        globals_copy = globals.copy()
+        globals_copy["__file__"] = key
+        globals_copy["__name__"] = key
+        linecache.lazycache(key, globals_copy)
+        exec(compile(src, key, "exec"), globals)
+    else:
+        key = _loader.cache(src, globals, co_fields)
+        exec(compile(src, key, "exec"), globals)
 
 
-def _forward_from_src(src: str, globals: dict[str, Any], co_fields=None):
+def _forward_from_src(src: str, globals: dict[str, Any], co_fields=None, filename=None):
     return _method_from_src(
-        method_name="forward", src=src, globals=globals, co_fields=co_fields
+        method_name="forward", src=src, globals=globals, co_fields=co_fields, filename=filename
     )
 
 
 def _method_from_src(
-    method_name: str, src: str, globals: dict[str, Any], co_fields=None
+    method_name: str, src: str, globals: dict[str, Any], co_fields=None, filename=None
 ) -> Callable:
     # avoid mutating the passed in dict
     globals_copy = globals.copy()
-    _exec_with_source(src, globals_copy, co_fields)
+    _exec_with_source(src, globals_copy, co_fields, filename)
     fn = globals_copy[method_name]
     del globals_copy[method_name]
     return fn
@@ -828,7 +838,44 @@ class {module_name}(torch.nn.Module):
 
         cls = type(self)
         co_fields = self._graph._co_fields if hasattr(self._graph, "_co_fields") else {}
-        cls.forward = _forward_from_src(self._code, python_code.globals, co_fields)
+
+        # When PYTORCH_FX_MEMORY_PROFILE_DEBUG is set, save code to file and use file-based execution
+        if os.environ.get("PYTORCH_FX_MEMORY_PROFILE_DEBUG", "0") == "1":
+            import tempfile
+            import pickle
+
+            # Create a temp directory for storing generated code
+            debug_dir = os.environ.get("PYTORCH_FX_DEBUG_DIR", tempfile.gettempdir())
+            os.makedirs(debug_dir, exist_ok=True)
+
+            # Generate a unique filename based on module class name and id
+            module_name = f"fx_generated_{cls.__name__}_{id(self)}"
+            code_file = os.path.join(debug_dir, f"{module_name}.py")
+            metadata_file = os.path.join(debug_dir, f"{module_name}_metadata.pkl")
+
+            # Save the generated code to file
+            with open(code_file, "w") as f:
+                f.write(self._code)
+
+            # Save metadata mapping (lineno_map and node_metadata)
+            metadata = {
+                "lineno_map": python_code._lineno_map,
+                "node_metadata": python_code._node_metadata,
+                "code_file": code_file,
+            }
+            with open(metadata_file, "wb") as f:
+                pickle.dump(metadata, f)
+
+            # Store metadata in the module for later use
+            self._fx_debug_metadata = metadata
+
+            # Use file-based execution with real filename
+            cls.forward = _forward_from_src(self._code, python_code.globals, co_fields, filename=code_file)
+
+            print(f"[FX Debug] Generated code saved to: {code_file}")
+            print(f"[FX Debug] Metadata saved to: {metadata_file}")
+        else:
+            cls.forward = _forward_from_src(self._code, python_code.globals, co_fields)
 
         # Determine whether this class explicitly defines a __call__ implementation
         # to wrap. If it does, save it in order to have wrapped_call invoke it.
