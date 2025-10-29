@@ -173,6 +173,24 @@ def split_const_subgraphs(
     else:
         mod_traced = module
 
+    def subgraph_has_impure_ops(module: torch.fx.GraphModule) -> bool:
+        """
+        Return True if a GraphModule type subgraph contains any impure op, else False.
+        """
+        assert isinstance(
+            module, torch.fx.GraphModule
+        ), "caller should only pass GraphModule to subgraph_has_impure_ops check"
+        for node in module.graph.nodes:
+            if node.op == "call_function" and node.is_impure():
+                return True
+            if (
+                node.op == "call_module"
+                and (submodule := module.get_submodule(node.target))
+                and isinstance(submodule, torch.fx.GraphModule)
+            ):
+                return subgraph_has_impure_ops(submodule)
+        return False
+
     # Build up a list of const_nodes, defined as nodes that are themselves
     # get_attrs, or have all get_attr or other constant node inputs.
     const_nodes: set[torch.fx.Node] = set()
@@ -200,6 +218,15 @@ def split_const_subgraphs(
 
         # Skip folding nodes that have symbolic fill_value
         if isinstance(node.kwargs.get("fill_value", None), sympy.Expr):
+            continue
+
+        # Skip folding subgraph if there exists impure ops
+        if (
+            node.op == "call_module"
+            and (submodule := module.get_submodule(node.target))
+            and isinstance(submodule, torch.fx.GraphModule)
+            and subgraph_has_impure_ops(submodule)
+        ):
             continue
 
         # Must be a constant foldable node at this point.
