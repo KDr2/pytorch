@@ -12,7 +12,7 @@ from torch.testing._internal.common_device_type import (
     skipCPUIf,
     skipGPUIf,
 )
-from torch.testing._internal.common_utils import parametrize
+from torch.testing._internal.common_utils import parametrize, skipIfXpu
 from torch.testing._internal.inductor_utils import HAS_GPU
 
 
@@ -501,6 +501,9 @@ class TestUnbackedSymints(InductorTestCase):
         expected = fn(*example_inputs)
         torch.testing.assert_close(actual, expected)
 
+    @skipIfXpu(
+        msg="NotImplementedError: The operator 'aten::_scaled_dot_product_flash_attention'"
+    )
     @skipGPUIf(not HAS_GPU, "requires gpu and triton")
     # @skipIfXpu(msg="_scaled_dot_product_flash_attention is not supported on XPU yet")
     @dynamo_config.patch({"capture_dynamic_output_shape_ops": True})
