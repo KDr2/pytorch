@@ -181,6 +181,7 @@ class _CacheIntf(ABC):
         fkey: Any = (
             (callee, params)
             if not custom_params_encoder
+            # pyrefly: ignore [invalid-param-spec]
             else (callee, custom_params_encoder(*params[0], **params[1]))
         )
         ikey: Any = context._isolation_key(
@@ -191,8 +192,10 @@ class _CacheIntf(ABC):
     def _make_dummy_record_wrapper(self, fn: Callable[P, R]) -> Callable[P, R]:
         @wraps(fn)
         def dummy_wrapper(*args: Any, **kwargs: Any) -> R:
+            # pyrefly: ignore [invalid-param-spec]
             return fn(*args, **kwargs)
 
+        # pyrefly: ignore [bad-return]
         return dummy_wrapper
 
     @abstractmethod
@@ -357,6 +360,7 @@ class _FastCacheIntf(_CacheIntf):
             callee_sub_dir: PathLike[str] = Path(callee)
             odc = impls._OnDiskCacheImpl(sub_dir=callee_sub_dir)
             self._callee_to_odc[callee] = odc
+        # pyrefly: ignore [unbound-name]
         return odc
 
     @override
@@ -548,6 +552,7 @@ class _DeterministicCacheIntf(_CacheIntf):
             callee_sub_dir: PathLike[str] = Path(callee)
             odc = impls._OnDiskCacheImpl(sub_dir=callee_sub_dir)
             self._callee_to_odc[callee] = odc
+        # pyrefly: ignore [unbound-name]
         return odc
 
     def _dump_imc_to_disk(self) -> Path | None:
