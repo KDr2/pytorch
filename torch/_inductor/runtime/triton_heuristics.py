@@ -1160,14 +1160,34 @@ class CachingAutotuner(KernelInterface):
             )
 
         from torch._inductor.codecache import CudaKernelParamCache
-
+        from torch._inductor import config
         bin_type = {"hip": "hsaco", "xpu": "spv"}.get(self.device_props.type, "cubin")
         binary = launcher.bin.asm[bin_type]
-        # Also store asm code which can be used for debugging and generating cpp package
-        asm_type = {"hip": "amdgcn", "cuda": "ptx", "xpu": "spv"}.get(
+        
+        # ROCm multi-arch: capture LLVM IR
+        # Everything else: capture architecture-specific assembly
+        if torch.version.hip and config.aot_inductor.emit_multi_arch_kernel:
+            asm_type = "ll"
+            asm = None
+
+            try:
+                for possible_key in ["llir", "llvm_ir", "ll", "llvm"]:
+                    asm = launcher.bin.asm.get(possible_key, None)
+                    if asm:
+                        log.info(f"Found LLVM IR under key '{possible_key}' for {key}")
+                        break
+
+                if not asm:
+                    log.warning(f"No LLVM IR found for {key}. Available keys: {list(launcher.bin.asm.keys())}")
+            
+            except Exception as e:
+                log.warning(f"Failed to capture LLVM IR for {key}: {e}")    
+
+        else:
+            asm_type = {"hip": "amdgcn", "cuda": "ptx", "xpu": "spv"}.get(
             self.device_props.type, None
         )
-        asm = launcher.bin.asm.get(asm_type, None)
+            asm = launcher.bin.asm.get(asm_type, None)
 
         CudaKernelParamCache.set(key, params, binary, bin_type, asm, asm_type)
         self.cuda_kernel_saved = True
