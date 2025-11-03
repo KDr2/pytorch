@@ -108,7 +108,7 @@ class TestReplicateRegisteredParams(FSDPTestMultiThread):
         """Tests the parameter registration after forward."""
         device = torch.device(device_type.type, 0)
         # Single Replicate group
-        for reshard_after_forward in (True, False, None):
+        for reshard_after_forward in (False,):
             torch.manual_seed(42)
             model = MLP(3, device)
             # Since seed is per process, not per thread, we broadcast to ensure
@@ -131,7 +131,7 @@ class TestReplicateRegisteredParams(FSDPTestMultiThread):
             self._assert_same_params(model.parameters(), ref_model.parameters())
 
         # Multiple Replicate groups
-        for reshard_after_forward in (True, False, None):
+        for reshard_after_forward in (False,):
             torch.manual_seed(42)
             model = nn.Sequential(MLP(3, device), MLP(3, device))
             for param in model.parameters():
@@ -405,12 +405,12 @@ class TestReplicate1DTrainingCore(FSDPTest):
         ref_optim = torch.optim.Adam(ref_model.parameters(), lr=1e-2)
         mesh = init_device_mesh(
             test_device_type,
-            (self.world_size, 1),
-            mesh_dim_names=("replicate", "shard"),
+            (self.world_size,),
+            mesh_dim_names=("replicate",),
         )
         fully_shard_fn = functools.partial(
             replicate,
-            device_mesh=mesh,
+            mesh=mesh,
             reshard_after_forward=reshard_after_forward,
             offload_policy=offload_policy,
         )
@@ -740,12 +740,12 @@ class TestReplicateTrainingCompose(FSDPTest):
         # Apply Replicate
         device_mesh = init_device_mesh(
             test_device_type,
-            (self.world_size, 1),
-            mesh_dim_names=("replicate", "shard"),
+            (self.world_size,),
+            mesh_dim_names=("replicate",),
         )
         fsdp_kwargs = {
             "reshard_after_forward": reshard_after_forward,
-            "device_mesh": device_mesh,
+            "mesh": device_mesh,
         }
         if module_grouping == "mem_eff":
             assert model_args.n_layers == 3
@@ -868,11 +868,11 @@ class TestReplicateGradientAccumulation(FSDPTest):
         with/without resharding after backward.
         """
 
-        shard_size, replicate_size = 1, self.world_size
+        replicate_size = self.world_size
         meshes = init_device_mesh(
             device_type.type,
-            (replicate_size, shard_size),
-            mesh_dim_names=("replicate", "shard"),
+            (replicate_size,),
+            mesh_dim_names=("replicate",),
         )
         self.run_subtests(
             {
@@ -928,7 +928,7 @@ class TestReplicateGradientAccumulation(FSDPTest):
         ref_model = copy.deepcopy(model).to(device_type)
         replicate_fn = functools.partial(
             replicate,
-            device_mesh=mesh,
+            mesh=mesh,
             reshard_after_forward=reshard_after_forward,
             offload_policy=offload_policy,
         )
@@ -1145,8 +1145,8 @@ class TestReplicateTPTraining(FSDPTest):
     def init_global_mesh(self) -> DeviceMesh:
         return init_device_mesh(
             device_type.type,
-            (2, 1, 2),
-            mesh_dim_names=("dp_replicate", "dp_shard", "tp"),
+            (2, 2),
+            mesh_dim_names=("dp_replicate", "tp"),
         )
 
     @skip_if_lt_x_gpu(8)
@@ -1170,7 +1170,7 @@ class TestReplicateTPTraining(FSDPTest):
         mlp_dim: int,
         foreach: bool,
     ):
-        dp_mesh, tp_mesh = global_mesh["dp_replicate", "dp_shard"], global_mesh["tp"]
+        dp_mesh, tp_mesh = global_mesh["dp_replicate"], global_mesh["tp"]
         dp_pg = dp_mesh._flatten().get_group()  # used for `replicate()`
 
         torch.manual_seed(42)
@@ -1197,8 +1197,8 @@ class TestReplicateTPTraining(FSDPTest):
                 continue
             if use_activation_checkpointing:
                 checkpoint(module)
-            replicate(module, device_mesh=dp_mesh)
-        replicate(model, device_mesh=dp_mesh)
+            replicate(module, mesh=dp_mesh)
+        replicate(model, mesh=dp_mesh)
 
         # Checking parameters match orig model is critical to validate .full_tensor correctly replicates the
         # strided-sharded layers.
@@ -1229,11 +1229,9 @@ class TestReplicateTPTraining(FSDPTest):
 
         for _, p in model.named_parameters():
             self.assertIsInstance(p, DTensor)
-            self.assertEqual(p.device_mesh.ndim, 3)
-            self.assertEqual(len(p.placements), 3)
-            self.assertEqual(
-                p.device_mesh.mesh_dim_names, ("dp_replicate", "dp_shard", "tp")
-            )
+            self.assertEqual(p.device_mesh.ndim, 2)
+            self.assertEqual(len(p.placements), 2)
+            self.assertEqual(p.device_mesh.mesh_dim_names, ("dp_replicate", "tp"))
 
 
 if __name__ == "__main__":

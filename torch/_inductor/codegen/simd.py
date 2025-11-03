@@ -1620,6 +1620,7 @@ class SIMDScheduling(BaseScheduling):
 
         split_size = _pick_split_size()
 
+        # pyrefly: ignore [bad-assignment]
         metrics.codegen_mix_order_reduction += 1
 
         assert V.graph.sizevars.statically_known_gt(
