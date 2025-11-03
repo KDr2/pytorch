@@ -13,6 +13,7 @@
 #include <string>
 #include <torch/library.h>
 #include <torch/csrc/autograd/custom_function.h>
+#include <ATen/core/grad_mode.h>
 
 #ifndef AT_PER_OPERATOR_HEADERS
 #include <ATen/Functions.h>
@@ -73,6 +74,18 @@ struct LinearCrossEntropyForwardResult {
   Tensor loss;
   std::optional<LinearCrossEntropySavedForBackward> saved;
 };
+
+static Tensor linear_cross_entropy_autograd_apply(
+    const Tensor& input,
+    const Tensor& linear_weight,
+    const Tensor& target,
+    const std::optional<Tensor>& linear_bias_opt,
+    int64_t reduction,
+    int64_t ignore_index,
+    double label_smoothing,
+    ChunkingStrategy strategy,
+    int64_t vocab_chunk_size,
+    int64_t batch_chunk_size);
 
 Tensor batch_chunking_cpu(
     const Tensor& input,
@@ -207,6 +220,25 @@ Tensor linear_cross_entropy_cpu(
 
   const int64_t vocab_chunk_size = vocab_chunk_size_opt.value_or(kDefaultVocabChunkSize);
   const int64_t batch_chunk_size = batch_chunk_size_opt.value_or(kDefaultBatchChunkSize);
+  const ChunkingStrategy strategy = select_chunking_strategy(chunking_strategy);
+
+  const bool needs_grad = at::GradMode::is_enabled() &&
+      (input.requires_grad() || linear_weight.requires_grad() ||
+       (linear_bias_opt.has_value() && linear_bias_opt->requires_grad()));
+
+  if (needs_grad) {
+    return linear_cross_entropy_autograd_apply(
+        input,
+        linear_weight,
+        target,
+        linear_bias_opt,
+        reduction,
+        ignore_index,
+        label_smoothing,
+        strategy,
+        vocab_chunk_size,
+        batch_chunk_size);
+  }
 
   auto result = linear_cross_entropy_forward_impl(
       input,
@@ -216,7 +248,7 @@ Tensor linear_cross_entropy_cpu(
       reduction,
       ignore_index,
       label_smoothing,
-      select_chunking_strategy(chunking_strategy),
+      strategy,
       vocab_chunk_size,
       batch_chunk_size,
       /*save_for_backward=*/false);
@@ -451,7 +483,6 @@ LinearCrossEntropyForwardResult linear_cross_entropy_forward_batch_chunking(
   }
 
   Tensor total_loss = at::zeros({}, input.options());
-  int64_t valid_count = 0;
 
   TORCH_CHECK(
       chunk_size > 0,
@@ -498,7 +529,6 @@ LinearCrossEntropyForwardResult linear_cross_entropy_forward_batch_chunking(
         ignore_index,
         label_smoothing);
 
-    valid_count += valid_mask_chunk.sum().item<int64_t>();
     if (reduction == Reduction::None) {
       auto dest = losses_buffer.narrow(0, start_idx, slice);
       dest.copy_(chunk_loss);
@@ -1045,7 +1075,7 @@ class LinearCrossEntropyAutogradFunction
 
 } // anonymous namespace
 
-static Tensor linear_cross_entropy_autograd_dispatch(
+static Tensor linear_cross_entropy_autograd_apply(
     const Tensor& input,
     const Tensor& linear_weight,
     const Tensor& target,
@@ -1053,30 +1083,21 @@ static Tensor linear_cross_entropy_autograd_dispatch(
     int64_t reduction,
     int64_t ignore_index,
     double label_smoothing,
-    c10::string_view chunking_strategy,
-    std::optional<int64_t> vocab_chunk_size_opt,
-    std::optional<int64_t> batch_chunk_size_opt) {
-
-  Tensor bias = linear_bias_opt.has_value() ? linear_bias_opt.value() : Tensor();
-  const int64_t vocab_chunk_size = vocab_chunk_size_opt.value_or(kDefaultVocabChunkSize);
-  const int64_t batch_chunk_size = batch_chunk_size_opt.value_or(kDefaultBatchChunkSize);
-  const int64_t strategy_code = static_cast<int64_t>(select_chunking_strategy(chunking_strategy));
-
+    ChunkingStrategy strategy,
+    int64_t vocab_chunk_size,
+    int64_t batch_chunk_size) {
+  Tensor bias_tensor = linear_bias_opt.has_value() ? linear_bias_opt.value() : Tensor();
   return LinearCrossEntropyAutogradFunction::apply(
       input,
       linear_weight,
       target,
-      bias,
+      bias_tensor,
       reduction,
       ignore_index,
       label_smoothing,
-      strategy_code,
+      static_cast<int64_t>(strategy),
       vocab_chunk_size,
       batch_chunk_size);
-}
-
-TORCH_LIBRARY_IMPL(aten, Autograd, m) {
-  m.impl("linear_cross_entropy", TORCH_FN(linear_cross_entropy_autograd_dispatch));
 }
 
 } // namespace at::native
