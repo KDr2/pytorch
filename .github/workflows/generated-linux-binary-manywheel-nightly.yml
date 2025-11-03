@@ -628,70 +628,23 @@ jobs:
     needs:
       - manywheel-py3_10-xpu-build
       - get-label-type
-    runs-on: linux.idc.xpu
-    timeout-minutes: 240
-    env:
+    uses: ./.github/workflows/_binary-test-linux.yml
+    with:
       PYTORCH_ROOT: /pytorch
       PACKAGE_TYPE: manywheel
       # TODO: This is a legacy variable that we eventually want to get rid of in
       #       favor of GPU_ARCH_VERSION
       DESIRED_CUDA: xpu
       GPU_ARCH_TYPE: xpu
-      SKIP_ALL_TESTS: 1
       DOCKER_IMAGE: manylinux2_28-builder
       DOCKER_IMAGE_TAG_PREFIX: xpu
       DESIRED_PYTHON: "3.10"
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - name: Setup XPU
-        uses: pytorch/pytorch/.github/actions/setup-xpu@main
-      - name: configure aws credentials
-        id: aws_creds
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::308535385114:role/gha_workflow_s3_and_ecr_read_only
-          aws-region: us-east-1
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-      - uses: actions/download-artifact@v4.1.7
-        name: Download Build Artifacts
-        with:
-          name: manywheel-py3_10-xpu
-          path: "${{ runner.temp }}/artifacts/"
-      - name: Checkout PyTorch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-          path: pytorch
-          show-progress: false
-      - name: Clean PyTorch checkout
-        run: |
-          # Remove any artifacts from the previous checkouts
-          git clean -fxd
-        working-directory: pytorch
-      - name: Calculate docker image
-        id: calculate-docker-image
-        uses: pytorch/test-infra/.github/actions/calculate-docker-image@main
-        with:
-          docker-registry: ${{ startsWith(github.event.ref, 'refs/tags/ciflow/') && '308535385114.dkr.ecr.us-east-1.amazonaws.com' || 'docker.io' }}
-          docker-image-name: manylinux2_28-builder
-          custom-tag-prefix: xpu
-          docker-build-dir: .ci/docker
-          working-directory: pytorch
-      - name: Pull Docker image
-        uses: pytorch/test-infra/.github/actions/pull-docker-image@main
-        with:
-          docker-image: ${{ steps.calculate-docker-image.outputs.docker-image }}
-      - name: Test Pytorch binary
-        uses: ./pytorch/.github/actions/test-pytorch-binary
-        env:
-          DOCKER_IMAGE: ${{ steps.calculate-docker-image.outputs.docker-image }}
-      - name: Teardown XPU
-        uses: ./.github/actions/teardown-xpu
+      build_name: manywheel-py3_10-xpu
+      build_environment: linux-binary-manywheel
+      runner_prefix: "${{ needs.get-label-type.outputs.label-type }}"
+      runs_on: linux.4xlarge
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
   manywheel-py3_10-xpu-upload:  # Uploading
     if: ${{ github.repository_owner == 'pytorch' }}
     permissions:
@@ -1294,70 +1247,23 @@ jobs:
     needs:
       - manywheel-py3_11-xpu-build
       - get-label-type
-    runs-on: linux.idc.xpu
-    timeout-minutes: 240
-    env:
+    uses: ./.github/workflows/_binary-test-linux.yml
+    with:
       PYTORCH_ROOT: /pytorch
       PACKAGE_TYPE: manywheel
       # TODO: This is a legacy variable that we eventually want to get rid of in
       #       favor of GPU_ARCH_VERSION
       DESIRED_CUDA: xpu
       GPU_ARCH_TYPE: xpu
-      SKIP_ALL_TESTS: 1
       DOCKER_IMAGE: manylinux2_28-builder
       DOCKER_IMAGE_TAG_PREFIX: xpu
       DESIRED_PYTHON: "3.11"
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - name: Setup XPU
-        uses: pytorch/pytorch/.github/actions/setup-xpu@main
-      - name: configure aws credentials
-        id: aws_creds
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::308535385114:role/gha_workflow_s3_and_ecr_read_only
-          aws-region: us-east-1
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-      - uses: actions/download-artifact@v4.1.7
-        name: Download Build Artifacts
-        with:
-          name: manywheel-py3_11-xpu
-          path: "${{ runner.temp }}/artifacts/"
-      - name: Checkout PyTorch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-          path: pytorch
-          show-progress: false
-      - name: Clean PyTorch checkout
-        run: |
-          # Remove any artifacts from the previous checkouts
-          git clean -fxd
-        working-directory: pytorch
-      - name: Calculate docker image
-        id: calculate-docker-image
-        uses: pytorch/test-infra/.github/actions/calculate-docker-image@main
-        with:
-          docker-registry: ${{ startsWith(github.event.ref, 'refs/tags/ciflow/') && '308535385114.dkr.ecr.us-east-1.amazonaws.com' || 'docker.io' }}
-          docker-image-name: manylinux2_28-builder
-          custom-tag-prefix: xpu
-          docker-build-dir: .ci/docker
-          working-directory: pytorch
-      - name: Pull Docker image
-        uses: pytorch/test-infra/.github/actions/pull-docker-image@main
-        with:
-          docker-image: ${{ steps.calculate-docker-image.outputs.docker-image }}
-      - name: Test Pytorch binary
-        uses: ./pytorch/.github/actions/test-pytorch-binary
-        env:
-          DOCKER_IMAGE: ${{ steps.calculate-docker-image.outputs.docker-image }}
-      - name: Teardown XPU
-        uses: ./.github/actions/teardown-xpu
+      build_name: manywheel-py3_11-xpu
+      build_environment: linux-binary-manywheel
+      runner_prefix: "${{ needs.get-label-type.outputs.label-type }}"
+      runs_on: linux.4xlarge
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
   manywheel-py3_11-xpu-upload:  # Uploading
     if: ${{ github.repository_owner == 'pytorch' }}
     permissions:
@@ -1960,70 +1866,23 @@ jobs:
     needs:
       - manywheel-py3_12-xpu-build
       - get-label-type
-    runs-on: linux.idc.xpu
-    timeout-minutes: 240
-    env:
+    uses: ./.github/workflows/_binary-test-linux.yml
+    with:
       PYTORCH_ROOT: /pytorch
       PACKAGE_TYPE: manywheel
       # TODO: This is a legacy variable that we eventually want to get rid of in
       #       favor of GPU_ARCH_VERSION
       DESIRED_CUDA: xpu
       GPU_ARCH_TYPE: xpu
-      SKIP_ALL_TESTS: 1
       DOCKER_IMAGE: manylinux2_28-builder
       DOCKER_IMAGE_TAG_PREFIX: xpu
       DESIRED_PYTHON: "3.12"
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - name: Setup XPU
-        uses: pytorch/pytorch/.github/actions/setup-xpu@main
-      - name: configure aws credentials
-        id: aws_creds
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::308535385114:role/gha_workflow_s3_and_ecr_read_only
-          aws-region: us-east-1
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-      - uses: actions/download-artifact@v4.1.7
-        name: Download Build Artifacts
-        with:
-          name: manywheel-py3_12-xpu
-          path: "${{ runner.temp }}/artifacts/"
-      - name: Checkout PyTorch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-          path: pytorch
-          show-progress: false
-      - name: Clean PyTorch checkout
-        run: |
-          # Remove any artifacts from the previous checkouts
-          git clean -fxd
-        working-directory: pytorch
-      - name: Calculate docker image
-        id: calculate-docker-image
-        uses: pytorch/test-infra/.github/actions/calculate-docker-image@main
-        with:
-          docker-registry: ${{ startsWith(github.event.ref, 'refs/tags/ciflow/') && '308535385114.dkr.ecr.us-east-1.amazonaws.com' || 'docker.io' }}
-          docker-image-name: manylinux2_28-builder
-          custom-tag-prefix: xpu
-          docker-build-dir: .ci/docker
-          working-directory: pytorch
-      - name: Pull Docker image
-        uses: pytorch/test-infra/.github/actions/pull-docker-image@main
-        with:
-          docker-image: ${{ steps.calculate-docker-image.outputs.docker-image }}
-      - name: Test Pytorch binary
-        uses: ./pytorch/.github/actions/test-pytorch-binary
-        env:
-          DOCKER_IMAGE: ${{ steps.calculate-docker-image.outputs.docker-image }}
-      - name: Teardown XPU
-        uses: ./.github/actions/teardown-xpu
+      build_name: manywheel-py3_12-xpu
+      build_environment: linux-binary-manywheel
+      runner_prefix: "${{ needs.get-label-type.outputs.label-type }}"
+      runs_on: linux.4xlarge
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
   manywheel-py3_12-xpu-upload:  # Uploading
     if: ${{ github.repository_owner == 'pytorch' }}
     permissions:
@@ -2626,70 +2485,23 @@ jobs:
     needs:
       - manywheel-py3_13-xpu-build
       - get-label-type
-    runs-on: linux.idc.xpu
-    timeout-minutes: 240
-    env:
+    uses: ./.github/workflows/_binary-test-linux.yml
+    with:
       PYTORCH_ROOT: /pytorch
       PACKAGE_TYPE: manywheel
       # TODO: This is a legacy variable that we eventually want to get rid of in
       #       favor of GPU_ARCH_VERSION
       DESIRED_CUDA: xpu
       GPU_ARCH_TYPE: xpu
-      SKIP_ALL_TESTS: 1
       DOCKER_IMAGE: manylinux2_28-builder
       DOCKER_IMAGE_TAG_PREFIX: xpu
       DESIRED_PYTHON: "3.13"
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - name: Setup XPU
-        uses: pytorch/pytorch/.github/actions/setup-xpu@main
-      - name: configure aws credentials
-        id: aws_creds
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::308535385114:role/gha_workflow_s3_and_ecr_read_only
-          aws-region: us-east-1
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-      - uses: actions/download-artifact@v4.1.7
-        name: Download Build Artifacts
-        with:
-          name: manywheel-py3_13-xpu
-          path: "${{ runner.temp }}/artifacts/"
-      - name: Checkout PyTorch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-          path: pytorch
-          show-progress: false
-      - name: Clean PyTorch checkout
-        run: |
-          # Remove any artifacts from the previous checkouts
-          git clean -fxd
-        working-directory: pytorch
-      - name: Calculate docker image
-        id: calculate-docker-image
-        uses: pytorch/test-infra/.github/actions/calculate-docker-image@main
-        with:
-          docker-registry: ${{ startsWith(github.event.ref, 'refs/tags/ciflow/') && '308535385114.dkr.ecr.us-east-1.amazonaws.com' || 'docker.io' }}
-          docker-image-name: manylinux2_28-builder
-          custom-tag-prefix: xpu
-          docker-build-dir: .ci/docker
-          working-directory: pytorch
-      - name: Pull Docker image
-        uses: pytorch/test-infra/.github/actions/pull-docker-image@main
-        with:
-          docker-image: ${{ steps.calculate-docker-image.outputs.docker-image }}
-      - name: Test Pytorch binary
-        uses: ./pytorch/.github/actions/test-pytorch-binary
-        env:
-          DOCKER_IMAGE: ${{ steps.calculate-docker-image.outputs.docker-image }}
-      - name: Teardown XPU
-        uses: ./.github/actions/teardown-xpu
+      build_name: manywheel-py3_13-xpu
+      build_environment: linux-binary-manywheel
+      runner_prefix: "${{ needs.get-label-type.outputs.label-type }}"
+      runs_on: linux.4xlarge
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
   manywheel-py3_13-xpu-upload:  # Uploading
     if: ${{ github.repository_owner == 'pytorch' }}
     permissions:
@@ -3292,70 +3104,23 @@ jobs:
     needs:
       - manywheel-py3_13t-xpu-build
       - get-label-type
-    runs-on: linux.idc.xpu
-    timeout-minutes: 240
-    env:
+    uses: ./.github/workflows/_binary-test-linux.yml
+    with:
       PYTORCH_ROOT: /pytorch
       PACKAGE_TYPE: manywheel
       # TODO: This is a legacy variable that we eventually want to get rid of in
       #       favor of GPU_ARCH_VERSION
       DESIRED_CUDA: xpu
       GPU_ARCH_TYPE: xpu
-      SKIP_ALL_TESTS: 1
       DOCKER_IMAGE: manylinux2_28-builder
       DOCKER_IMAGE_TAG_PREFIX: xpu
       DESIRED_PYTHON: "3.13t"
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - name: Setup XPU
-        uses: pytorch/pytorch/.github/actions/setup-xpu@main
-      - name: configure aws credentials
-        id: aws_creds
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::308535385114:role/gha_workflow_s3_and_ecr_read_only
-          aws-region: us-east-1
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-      - uses: actions/download-artifact@v4.1.7
-        name: Download Build Artifacts
-        with:
-          name: manywheel-py3_13t-xpu
-          path: "${{ runner.temp }}/artifacts/"
-      - name: Checkout PyTorch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-          path: pytorch
-          show-progress: false
-      - name: Clean PyTorch checkout
-        run: |
-          # Remove any artifacts from the previous checkouts
-          git clean -fxd
-        working-directory: pytorch
-      - name: Calculate docker image
-        id: calculate-docker-image
-        uses: pytorch/test-infra/.github/actions/calculate-docker-image@main
-        with:
-          docker-registry: ${{ startsWith(github.event.ref, 'refs/tags/ciflow/') && '308535385114.dkr.ecr.us-east-1.amazonaws.com' || 'docker.io' }}
-          docker-image-name: manylinux2_28-builder
-          custom-tag-prefix: xpu
-          docker-build-dir: .ci/docker
-          working-directory: pytorch
-      - name: Pull Docker image
-        uses: pytorch/test-infra/.github/actions/pull-docker-image@main
-        with:
-          docker-image: ${{ steps.calculate-docker-image.outputs.docker-image }}
-      - name: Test Pytorch binary
-        uses: ./pytorch/.github/actions/test-pytorch-binary
-        env:
-          DOCKER_IMAGE: ${{ steps.calculate-docker-image.outputs.docker-image }}
-      - name: Teardown XPU
-        uses: ./.github/actions/teardown-xpu
+      build_name: manywheel-py3_13t-xpu
+      build_environment: linux-binary-manywheel
+      runner_prefix: "${{ needs.get-label-type.outputs.label-type }}"
+      runs_on: linux.4xlarge
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
   manywheel-py3_13t-xpu-upload:  # Uploading
     if: ${{ github.repository_owner == 'pytorch' }}
     permissions:
@@ -3958,70 +3723,23 @@ jobs:
     needs:
       - manywheel-py3_14-xpu-build
       - get-label-type
-    runs-on: linux.idc.xpu
-    timeout-minutes: 240
-    env:
+    uses: ./.github/workflows/_binary-test-linux.yml
+    with:
       PYTORCH_ROOT: /pytorch
       PACKAGE_TYPE: manywheel
       # TODO: This is a legacy variable that we eventually want to get rid of in
       #       favor of GPU_ARCH_VERSION
       DESIRED_CUDA: xpu
       GPU_ARCH_TYPE: xpu
-      SKIP_ALL_TESTS: 1
       DOCKER_IMAGE: manylinux2_28-builder
       DOCKER_IMAGE_TAG_PREFIX: xpu
       DESIRED_PYTHON: "3.14"
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - name: Setup XPU
-        uses: pytorch/pytorch/.github/actions/setup-xpu@main
-      - name: configure aws credentials
-        id: aws_creds
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::308535385114:role/gha_workflow_s3_and_ecr_read_only
-          aws-region: us-east-1
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-      - uses: actions/download-artifact@v4.1.7
-        name: Download Build Artifacts
-        with:
-          name: manywheel-py3_14-xpu
-          path: "${{ runner.temp }}/artifacts/"
-      - name: Checkout PyTorch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-          path: pytorch
-          show-progress: false
-      - name: Clean PyTorch checkout
-        run: |
-          # Remove any artifacts from the previous checkouts
-          git clean -fxd
-        working-directory: pytorch
-      - name: Calculate docker image
-        id: calculate-docker-image
-        uses: pytorch/test-infra/.github/actions/calculate-docker-image@main
-        with:
-          docker-registry: ${{ startsWith(github.event.ref, 'refs/tags/ciflow/') && '308535385114.dkr.ecr.us-east-1.amazonaws.com' || 'docker.io' }}
-          docker-image-name: manylinux2_28-builder
-          custom-tag-prefix: xpu
-          docker-build-dir: .ci/docker
-          working-directory: pytorch
-      - name: Pull Docker image
-        uses: pytorch/test-infra/.github/actions/pull-docker-image@main
-        with:
-          docker-image: ${{ steps.calculate-docker-image.outputs.docker-image }}
-      - name: Test Pytorch binary
-        uses: ./pytorch/.github/actions/test-pytorch-binary
-        env:
-          DOCKER_IMAGE: ${{ steps.calculate-docker-image.outputs.docker-image }}
-      - name: Teardown XPU
-        uses: ./.github/actions/teardown-xpu
+      build_name: manywheel-py3_14-xpu
+      build_environment: linux-binary-manywheel
+      runner_prefix: "${{ needs.get-label-type.outputs.label-type }}"
+      runs_on: linux.4xlarge
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
   manywheel-py3_14-xpu-upload:  # Uploading
     if: ${{ github.repository_owner == 'pytorch' }}
     permissions:
@@ -4624,70 +4342,23 @@ jobs:
     needs:
       - manywheel-py3_14t-xpu-build
       - get-label-type
-    runs-on: linux.idc.xpu
-    timeout-minutes: 240
-    env:
+    uses: ./.github/workflows/_binary-test-linux.yml
+    with:
       PYTORCH_ROOT: /pytorch
       PACKAGE_TYPE: manywheel
       # TODO: This is a legacy variable that we eventually want to get rid of in
       #       favor of GPU_ARCH_VERSION
       DESIRED_CUDA: xpu
       GPU_ARCH_TYPE: xpu
-      SKIP_ALL_TESTS: 1
       DOCKER_IMAGE: manylinux2_28-builder
       DOCKER_IMAGE_TAG_PREFIX: xpu
       DESIRED_PYTHON: "3.14t"
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - name: Setup XPU
-        uses: pytorch/pytorch/.github/actions/setup-xpu@main
-      - name: configure aws credentials
-        id: aws_creds
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::308535385114:role/gha_workflow_s3_and_ecr_read_only
-          aws-region: us-east-1
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-      - uses: actions/download-artifact@v4.1.7
-        name: Download Build Artifacts
-        with:
-          name: manywheel-py3_14t-xpu
-          path: "${{ runner.temp }}/artifacts/"
-      - name: Checkout PyTorch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-          path: pytorch
-          show-progress: false
-      - name: Clean PyTorch checkout
-        run: |
-          # Remove any artifacts from the previous checkouts
-          git clean -fxd
-        working-directory: pytorch
-      - name: Calculate docker image
-        id: calculate-docker-image
-        uses: pytorch/test-infra/.github/actions/calculate-docker-image@main
-        with:
-          docker-registry: ${{ startsWith(github.event.ref, 'refs/tags/ciflow/') && '308535385114.dkr.ecr.us-east-1.amazonaws.com' || 'docker.io' }}
-          docker-image-name: manylinux2_28-builder
-          custom-tag-prefix: xpu
-          docker-build-dir: .ci/docker
-          working-directory: pytorch
-      - name: Pull Docker image
-        uses: pytorch/test-infra/.github/actions/pull-docker-image@main
-        with:
-          docker-image: ${{ steps.calculate-docker-image.outputs.docker-image }}
-      - name: Test Pytorch binary
-        uses: ./pytorch/.github/actions/test-pytorch-binary
-        env:
-          DOCKER_IMAGE: ${{ steps.calculate-docker-image.outputs.docker-image }}
-      - name: Teardown XPU
-        uses: ./.github/actions/teardown-xpu
+      build_name: manywheel-py3_14t-xpu
+      build_environment: linux-binary-manywheel
+      runner_prefix: "${{ needs.get-label-type.outputs.label-type }}"
+      runs_on: linux.4xlarge
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
   manywheel-py3_14t-xpu-upload:  # Uploading
     if: ${{ github.repository_owner == 'pytorch' }}
     permissions:
