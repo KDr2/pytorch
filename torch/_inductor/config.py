@@ -955,7 +955,7 @@ compile_threads: Optional[int] = None if is_fbcode() else decide_compile_threads
 
 # Whether to quiesce the Triton-compile subprocess pool at the end of each compilation.
 quiesce_async_compile_pool: bool = Config(
-    justknob="pytorch/inductor:quiesce_async_compile_pool",
+    justknob="pytorch/inductor:quiesce_async_compile_pool_no_aps_no_pyper",
     env_name_force="TORCHINDUCTOR_QUIESCE_ASYNC_COMPILE_POOL",
     default=False,
 )
