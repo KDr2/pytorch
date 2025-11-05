@@ -8246,6 +8246,7 @@ class ReproTestsDevice(torch._dynamo.test_case.TestCase):
         new_frame_count = torch._dynamo.utils.counters.get("frames", {}).get("ok", 0)
         assert new_frame_count == prev_frame_count, "linear() call caused a recompile"
 
+
 instantiate_parametrized_tests(ReproTests)
 
 devices = ["cuda", "hpu"]
