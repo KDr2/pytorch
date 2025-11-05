@@ -873,8 +873,8 @@ class MetaConverter(Generic[_TensorT]):
         Clears all weakref memos
         """
         self.tensor_memo.clear()
-        self.describer.lookup_tensor.clear()
-        self.describer.lookup_storage.clear()
+        # self.describer.lookup_tensor.clear()
+        # self.describer.lookup_storage.clear()
 
     # This function assumes that it's possible to do the conversion
     # NB: name here is used in a conventional way by Dynamo; it corresponds

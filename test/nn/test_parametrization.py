@@ -670,6 +670,7 @@ class TestNNParametrization(NNTestCase):
         # None of the operations above should have altered the weight
         self.assertFalse(parametrize.is_parametrized(module))
         self.assertEqual(module.weight, weight_init)
+        # breakpoint()
 
     @swap([True, False])
     def test_errors_parametrized_tensor_parametrization(self):
