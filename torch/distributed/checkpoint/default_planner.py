@@ -653,7 +653,7 @@ def _validate_global_plan(global_plan: list[SavePlan], metadata: Metadata) -> bo
 
         if len(chunks) > 1:
             dims = len(value.size)
-            sweep_dim = max(range(dims), key=lambda d: value.size[d]) if dims > 0 else 0
+            sweep_dim = max(range(dims), default=0, key=lambda d: value.size[d])
             sorted_indices = sorted(
                 range(len(chunks)),
                 key=lambda idx: (
