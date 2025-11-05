@@ -99,6 +99,7 @@ from .lists import (
     TupleIteratorVariable,
     TupleVariable,
 )
+from .user_defined import NewNamedTupleVariable
 from .misc import (
     AutogradFunctionContextVariable,
     AutogradFunctionVariable,
@@ -186,6 +187,7 @@ __all__ = [
     "ListIteratorVariable",
     "ListVariable",
     "NamedTupleVariable",
+    "NewNamedTupleVariable",
     "NestedUserFunctionVariable",
     "CellVariable",
     "NewGlobalVariable",
