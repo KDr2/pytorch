@@ -658,7 +658,7 @@ def _validate_global_plan(global_plan: list[SavePlan], metadata: Metadata) -> bo
                 range(len(chunks)),
                 key=lambda idx: (
                     chunks[idx].offsets[sweep_dim],
-                    *(chunks[idx].offsets[d] for d in range(dims))
+                    *(chunks[idx].offsets[d] for d in range(dims)),
                 ),
             )
             active: list[tuple[int, int]] = []
