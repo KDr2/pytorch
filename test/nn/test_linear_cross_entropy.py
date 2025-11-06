@@ -134,7 +134,7 @@ class TestLinearCrossEntropyCPU(TestCase):
             self.assertEqual(ref.shape, target.shape)
         self.assertEqual(fused, ref)
 
-    def test_forward_backward_matches_reference_auto(self) -> None:
+    def test_forward_backward_matches_reference_default(self) -> None:
         torch.manual_seed(0)
         input = torch.randn(2, 3, 32, requires_grad=True)
         weight = torch.randn(6000, 32, requires_grad=True)
@@ -177,13 +177,41 @@ class TestLinearCrossEntropyCPU(TestCase):
             chunking_strategy="batch",
         )
 
-    def test_auto_chunking_high_rank(self) -> None:
+    def test_batch_chunking_high_rank(self) -> None:
         torch.manual_seed(0)
         input = torch.randn(2, 3, 4, 5, 6)
         weight = torch.randn(8, 6)
         target = torch.randint(0, 8, (2, 3, 4, 5))
         self._compare_with_reference(
             input, weight, target, None, chunking_strategy="batch"
+        )
+
+    def test_vocab_chunk_size_override(self) -> None:
+        torch.manual_seed(0)
+        input = torch.randn(4, 16, requires_grad=True)
+        weight = torch.randn(5000, 16, requires_grad=True)
+        target = torch.randint(0, 5000, (4,))
+        self._compare_with_reference(
+            input,
+            weight,
+            target,
+            None,
+            chunking_strategy="vocab",
+            vocab_chunk_size=513,
+        )
+
+    def test_batch_chunk_size_override(self) -> None:
+        torch.manual_seed(0)
+        input = torch.randn(1800, 8, requires_grad=True)
+        weight = torch.randn(64, 8, requires_grad=True)
+        target = torch.randint(0, 64, (1800,))
+        self._compare_with_reference(
+            input,
+            weight,
+            target,
+            None,
+            chunking_strategy="batch",
+            batch_chunk_size=300,
         )
 
     def test_all_targets_ignored(self) -> None:

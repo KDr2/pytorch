@@ -6767,6 +6767,20 @@ def sample_inputs_linear_cross_entropy(op_info, device, dtype, requires_grad, **
         kwargs={"chunking_strategy": "vocab"},
     )
 
+    # Explicit vocab chunk size override to exercise schema kwargs.
+    vocab_chunk_override = 512
+    input_vocab_override = make_input((2, vocab_hidden))
+    weight_vocab_override = make_weight((vocab_size, vocab_hidden))
+    target_vocab_override = make_target((2,), low=0, high=vocab_size)
+    yield SampleInput(
+        input_vocab_override,
+        args=(weight_vocab_override, target_vocab_override),
+        kwargs={
+            "chunking_strategy": "vocab",
+            "vocab_chunk_size": vocab_chunk_override,
+        },
+    )
+
     # 3D input to trigger flattening logic (batch, sequence, hidden).
     seq_len = 5
     input_seq = make_input((3, seq_len, vocab_hidden))
@@ -6787,6 +6801,20 @@ def sample_inputs_linear_cross_entropy(op_info, device, dtype, requires_grad, **
         input_batch,
         args=(weight_batch, target_batch),
         kwargs={"chunking_strategy": "batch"},
+    )
+
+    # Explicit batch chunk size override.
+    batch_chunk_override = 256
+    input_batch_override = make_input((batch_size, batch_hidden))
+    weight_batch_override = make_weight((64, batch_hidden))
+    target_batch_override = make_target((batch_size,), low=0, high=64)
+    yield SampleInput(
+        input_batch_override,
+        args=(weight_batch_override, target_batch_override),
+        kwargs={
+            "chunking_strategy": "batch",
+            "batch_chunk_size": batch_chunk_override,
+        },
     )
 
     # 3D batch chunking (batch, seq, hidden) to exercise large flattened rows.
