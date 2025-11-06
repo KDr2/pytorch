@@ -1469,10 +1469,6 @@ def _compile(
             # they are benign and do not generate any new graphs.
             hooks.guard_export_fn(output.guards)
 
-        # Cleanup guards unless if in export, which will return guards
-        if not output.export:
-            output.tracing_context.guards_context.dynamo_guards.inner = set()
-
         return wrap_guarded_code(guarded_code), tracer_output
 
     metrics_context = get_metrics_context()
@@ -1786,6 +1782,15 @@ def _compile(
                     if tracer_output
                     else _get_error_on_graph_break()
                 )
+
+            # Cleanup guards unless if in export, which will return guards
+            # Make sure to to do this after collecting metrics
+            if (
+                tracer_output is not None
+                and tracer_output.output_graph is not None
+                and not tracer_output.output_graph.export
+            ):
+                tracer_output.output_graph.tracing_context.guards_context.dynamo_guards.inner = set()
 
 
 class ConvertFrame:
