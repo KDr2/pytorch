@@ -5,6 +5,7 @@ import dataclasses
 import io
 import logging
 import math
+import sys
 from bisect import bisect_right, insort
 from collections import ChainMap
 from typing import Any, cast, Optional, Union
@@ -667,7 +668,7 @@ def _validate_global_plan(global_plan: list[SavePlan], metadata: Metadata) -> bo
                 start = current.offsets[sweep_dim]
                 end = start + current.sizes[sweep_dim]
 
-                cutoff = bisect_right(active, (start, float("inf")))
+                cutoff = bisect_right(active, (start, sys.maxsize))
                 if cutoff:
                     del active[:cutoff]
 
