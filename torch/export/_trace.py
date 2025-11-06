@@ -292,13 +292,11 @@ def _extract_fake_inputs(gm, args, kwargs):
     else:
         fake_mode = FakeTensorMode(shape_env=ShapeEnv(), export=True)
 
-    count = 0
-
     def lookup_fake(x):
-        nonlocal count
-        val = fake_inps[count] if isinstance(x, (int, torch.Tensor)) else x
-        count += 1
-        return val
+        if isinstance(x, torch.Tensor):
+            return fake_mode.fake_tensor_converter._get_memo(x)
+        else:
+            return x
 
     fake_args = pytree.tree_map(lookup_fake, args)
     fake_kwargs = pytree.tree_map(lookup_fake, kwargs)
@@ -798,6 +796,16 @@ def _export_to_torch_ir(
         prefer_deferred_runtime_asserts_over_guards=prefer_deferred_runtime_asserts_over_guards,
     )
 
+    def use_legacy_dynamo_graph_capture() -> bool:
+        return bool(
+            constraints  # dynamic shape
+            or dynamic_shapes  # dynamic shape
+            or isinstance(f, torch.fx.GraphModule)  # retracing
+            or preserve_module_call_signature  # unflatten
+            or torch._functorch.config.fake_tensor_propagate_real_tensors  # draft
+            or torch._export.config.use_legacy_dynamo_graph_capture
+        )
+
     with torch._dynamo.config.patch(dataclasses.asdict(dynamo_cfg)):
         try:
             module_call_specs: dict[str, dict[str, pytree.TreeSpec]] = (
@@ -812,11 +820,20 @@ def _export_to_torch_ir(
                 if torch._export.config.use_new_tracer_experimental:
                     from torch._dynamo.functional_export import (
                         _dynamo_graph_capture_for_export,
+                        dynamo_graph_capture_for_export,
                     )
 
-                    gm_torch_level = _dynamo_graph_capture_for_export(
-                        f, constraints=constraints, dynamic_shapes=dynamic_shapes
-                    )(*args, **kwargs)
+                    if use_legacy_dynamo_graph_capture():
+                        dynamo_graph_capture = _dynamo_graph_capture_for_export(
+                            f, constraints=constraints, dynamic_shapes=dynamic_shapes
+                        )
+                    else:
+                        dynamo_graph_capture = dynamo_graph_capture_for_export(f)
+                    # We can't serialize entire fake mode yet, so this is to make sure
+                    # things like copy.deepcopy(ep.graph_module) not crash.
+                    # see test_export.py::test_custom_tag_metadata_re_export
+                    # Once we delete the old strict export, we can use
+                    gm_torch_level = dynamo_graph_capture(*args, **kwargs)
                     # We can't serialize entire fake mode yet, so this is to make sure
                     # things like copy.deepcopy(ep.graph_module) not crash.
                     # see test_export.py::test_custom_tag_metadata_re_export
@@ -1568,6 +1585,7 @@ def _strict_export(
     }
 
     tx = TracingContext(dynamo_fake_mode)
+    dynamo_fake_mode.allow_non_fake_inputs = True
     with dynamo_fake_mode, tracing(tx):
         aten_export_artifact = _to_aten_func(
             gm_torch_level,
@@ -1578,6 +1596,7 @@ def _strict_export(
             constant_attrs,
         )
 
+    dynamo_fake_mode.allow_non_fake_inputs = False
     # Decompose for readability.
     gm = aten_export_artifact.gm
     export_graph_signature = aten_export_artifact.sig
