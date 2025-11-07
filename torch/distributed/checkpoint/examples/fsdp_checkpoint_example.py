@@ -36,7 +36,7 @@ def init_model():
     return model, optim
 
 
-def print_params(stage, model_1, model_2, optim_1, optim_2):
+def print_params(stage, model_1, model_2, optim_1, optim_2) -> None:
     with FSDP.summon_full_params(model_1):
         with FSDP.summon_full_params(model_2):
             print(
@@ -56,7 +56,7 @@ def print_params(stage, model_1, model_2, optim_1, optim_2):
     )
 
 
-def run_fsdp_checkpoint_example(rank, world_size):
+def run_fsdp_checkpoint_example(rank, world_size) -> None:
     # Set up world pg
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "12355"
