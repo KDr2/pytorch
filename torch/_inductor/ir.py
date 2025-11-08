@@ -50,7 +50,7 @@ from torch._prims_common import (
     make_channels_last_strides_for,
     StrideType,
 )
-from torch._subclasses.fake_tensor import get_schema_info
+from torch._subclasses.fake_tensor import get_schema_info, unset_fake_temporarily
 from torch.fx.experimental.symbolic_shapes import (
     _remove_effect_token_unbacked_bindings,
     compute_unbacked_bindings,
@@ -6135,9 +6135,12 @@ class ExternKernel(InputsKernel):
         if isinstance(x, (Expr, sympy.logic.boolalg.Boolean, int)):
             return ShapeAsConstantBuffer(expr=x)
         if isinstance(x, Constant):
-            return V.graph.add_tensor_constant(
-                torch.tensor(x.value, dtype=x.get_dtype(), device=x.get_device())
-            )
+            # We need to unset fake mode, or else the torch.tensor() call will
+            # turn into a FakeTensor
+            with unset_fake_temporarily():
+                return V.graph.add_tensor_constant(
+                    torch.tensor(x.value, dtype=x.get_dtype(), device=x.get_device())
+                )
         if isinstance(x, ConstantBuffer):
             return x
         if isinstance(x, TensorBox):
