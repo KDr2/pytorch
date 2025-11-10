@@ -2659,7 +2659,6 @@ class Scheduler:
         # pyrefly: ignore [bad-assignment]
         metrics.ir_nodes_pre_fusion += len(self.nodes)
         from torch._inductor.debug import log_ir_post_fusion, log_ir_pre_fusion
-
         log_ir_pre_fusion(self.nodes)
         self.num_orig_nodes = len(self.nodes)
         self.create_foreach_nodes()
@@ -2715,11 +2714,17 @@ class Scheduler:
                 used_non_deterministic_runtime_estimations()
                 and config_comms.runtime_estimations_align_across_all_distributed_ranks
             ):
-                from .comms import (
-                    align_runtime_estimations_across_all_distributed_ranks,
-                )
+                has_collectives = False
+                for node in self.nodes:
+                    if is_collective(node):
+                        has_collectives=True
+                        break
+                if has_collectives:
+                    from .comms import (
+                        align_runtime_estimations_across_all_distributed_ranks,
+                    )
 
-                align_runtime_estimations_across_all_distributed_ranks(self.nodes)
+                    align_runtime_estimations_across_all_distributed_ranks(self.nodes)
 
             from torch._logging import trace_structured
 
