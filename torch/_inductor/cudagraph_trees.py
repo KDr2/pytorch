@@ -536,9 +536,14 @@ class StorageWeakRefWrapper:
         if self.extra_ref_check is not None and not self.extra_ref_check():
             return False
 
-        # if extra_ref_check is not None we expect an additional reference
         stor_count = torch._C._storage_Use_Count(self.ref.cdata)
-        return (stor_count - (self.extra_ref_check is not None)) == 0
+        if self.extra_ref_check is not None:
+            # if extra_ref_check is not None we expect two additional references:
+            #  - one from the Python storage object
+            #  - one from the cached Tensor
+            stor_count -= 2
+        assert stor_count >= 0
+        return stor_count == 0
 
     def __repr__(self) -> str:
         if self.ref is None or self.ref.expired():
