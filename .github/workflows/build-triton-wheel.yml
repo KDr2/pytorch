@@ -52,6 +52,7 @@ jobs:
       matrix:
         py_vers: [ "3.10", "3.11", "3.12", "3.13", "3.13t", "3.14", "3.14t" ]
         device: ["cuda", "rocm", "xpu", "aarch64"]
+        rocm_version: [""]
         docker-image: ["pytorch/manylinux2_28-builder:cpu"]
         include:
           - device: "rocm"
