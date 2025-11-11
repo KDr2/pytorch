@@ -34,12 +34,7 @@ from typing import TYPE_CHECKING
 import torch.nn
 
 from .. import graph_break_hints, trace_rules, variables
-from ..exc import (
-    raise_observed_exception,
-    unimplemented_v2,
-    UnspecializeRestartAnalysis,
-    Unsupported,
-)
+from ..exc import raise_observed_exception, unimplemented, UnspecializeRestartAnalysis
 from ..guards import GuardBuilder, install_guard
 from ..mutation_guard import GenerationTracker
 from ..source import (
@@ -62,11 +57,12 @@ from ..utils import (
     nnmodule_has_hooks,
     object_has_getattribute,
     proxy_args_kwargs,
+    raise_args_mismatch,
     set_example_value,
     unpatched_nn_module_call,
     unpatched_nn_module_call_impl,
 )
-from .base import typestr, ValueMutationNew, VariableTracker
+from .base import raise_type_error_exc, typestr, ValueMutationNew, VariableTracker
 from .functions import invoke_and_store_as_constant
 from .lazy import LazyVariableTracker
 from .lists import SliceVariable
@@ -262,7 +258,7 @@ class NNModuleVariable(VariableTracker):
         base = tx.output.get_submodule(self.module_key)
 
         if object_has_getattribute(base):
-            unimplemented_v2(
+            unimplemented(
                 gb_type="Custom __getattribute__ in nn.Module dict key check",
                 context=f"has_key_in_generic_dict {self} {key}",
                 explanation="Dynamo does not support checking key existence "
@@ -284,7 +280,7 @@ class NNModuleVariable(VariableTracker):
     def _custom_getattr_fallback(self, base, tx, name, obj_source):
         """Check for a __getattr__ and handle it specially if it is implemented"""
         if object_has_getattribute(base):
-            unimplemented_v2(
+            unimplemented(
                 gb_type="Custom __getattribute__ in nn.Module attribute access",
                 context=f"var_getattr {self} {name}",
                 explanation="Dynamo does not support checking key existence "
@@ -301,7 +297,7 @@ class NNModuleVariable(VariableTracker):
             return None
 
         if not isinstance(getattr_fn, types.FunctionType):
-            unimplemented_v2(
+            unimplemented(
                 gb_type="torch.nn.Module with a non-function custom __getattr__",
                 context=f"var_getattr {self} {name}",
                 explanation=(
@@ -335,7 +331,7 @@ class NNModuleVariable(VariableTracker):
             all_class_attribute_names.update(x.__dict__.keys())
 
         if not self.source:
-            unimplemented_v2(
+            unimplemented(
                 gb_type="getattr with no source",
                 context=f"var_getattr {self} {name}",
                 explanation="Dynamo does not know how to access an attribute "
@@ -422,7 +418,7 @@ class NNModuleVariable(VariableTracker):
                 # Support possibly common cases of class members
                 return VariableTracker.build(tx, subobj, NNModuleSource(source))
             else:
-                unimplemented_v2(
+                unimplemented(
                     gb_type="Unsupported nn.Module attribute type",
                     context=f"nn.Module subclass: {typestr(base)}, name: {name}, attribute type: {typestr(subobj)}",
                     explanation=f"Dynamo does not support tracing nn.Module attributes of type `{typestr(subobj)}`",
@@ -462,7 +458,13 @@ class NNModuleVariable(VariableTracker):
                 assert not is_lazy, (
                     "Expected lazy sequential isn't a valid combination?"
                 )
-                assert not kwargs
+                if kwargs:
+                    raise_args_mismatch(
+                        tx,
+                        "torch.nn.Module.Sequential",
+                        "0 kwargs",
+                        f"{len(kwargs)} kwargs",
+                    )
                 (arg,) = args
                 # TODO: Use named_children when it supports remove_duplicate=False.
                 for child_name, submod in mod._modules.items():
@@ -606,8 +608,16 @@ class NNModuleVariable(VariableTracker):
             return ConstantVariable.create(True)
 
         if name == "_get_item_by_idx":
-            assert args[1].is_python_constant()
-            assert isinstance(args[0], TupleVariable)
+            if not args[1].is_python_constant():
+                raise_type_error_exc(
+                    tx,
+                    f"``nn.Module`` {module}'s call method {name} requires a constant index argument",
+                )
+            if not isinstance(args[0], TupleVariable):
+                raise_type_error_exc(
+                    tx,
+                    f"``nn.Module`` {module}'s call method {name} requires a tuple as first argument",
+                )
             mod_var = args[0].items[args[1].value]
             if isinstance(mod_var, UnspecializedNNModuleVariable):
                 return mod_var
@@ -629,7 +639,7 @@ class NNModuleVariable(VariableTracker):
             if not all(
                 x.is_python_constant() for x in itertools.chain(args, kwargs.values())
             ):
-                unimplemented_v2(
+                unimplemented(
                     gb_type="non-const argument in nn.Module method",
                     context=f"call_method: {self} {name} {args} {kwargs}",
                     explanation="Dynamo does not support calling "
@@ -685,7 +695,13 @@ class NNModuleVariable(VariableTracker):
 
         if name == "named_children":
             tx.output.guard_on_key_order.add(AttrSource(self.source, "_modules"))
-            assert not (args or kwargs)
+            if args or kwargs:
+                raise_args_mismatch(
+                    tx,
+                    name,
+                    "0 args and 0 kwargs",
+                    f"{len(args)} args and {len(kwargs)} kwargs",
+                )
             result = []
             for name, submod in module.named_children():
                 result.append(named_embed(name, submod))
@@ -716,7 +732,13 @@ class NNModuleVariable(VariableTracker):
             return ListIteratorVariable(result, mutation_type=ValueMutationNew())
         elif name == "children":
             tx.output.guard_on_key_order.add(AttrSource(self.source, "_modules"))
-            assert not (args or kwargs)
+            if args or kwargs:
+                raise_args_mismatch(
+                    tx,
+                    name,
+                    "0 args and 0 kwargs",
+                    f"{len(args)} args and {len(kwargs)} kwargs",
+                )
             return wrap_values(module.named_children())
         elif name == "modules":
             tx.output.guard_on_key_order.add(AttrSource(self.source, "_modules"))
@@ -728,23 +750,51 @@ class NNModuleVariable(VariableTracker):
             tx.output.guard_on_key_order.add(AttrSource(self.source, "_buffers"))
             return wrap_values(module.named_buffers(**get_kwargs("recurse")))
         elif name == "keys":
-            assert not (args or kwargs)
+            if args or kwargs:
+                raise_args_mismatch(
+                    tx,
+                    name,
+                    "0 args and 0 kwargs",
+                    f"{len(args)} args and {len(kwargs)} kwargs",
+                )
             result = []
-            for name in module.keys():
+            for name in module:
                 result.append(ConstantVariable.create(name))
             return ListIteratorVariable(result, mutation_type=ValueMutationNew())
         elif name == "values":
-            assert not (args or kwargs)
+            if args or kwargs:
+                raise_args_mismatch(
+                    tx,
+                    name,
+                    "0 args and 0 kwargs",
+                    f"{len(args)} args and {len(kwargs)} kwargs",
+                )
             return wrap_values(module.items())
         elif name == "items":
-            assert not (args or kwargs)
+            if args or kwargs:
+                raise_args_mismatch(
+                    tx,
+                    name,
+                    "0 args and 0 kwargs",
+                    f"{len(args)} args and {len(kwargs)} kwargs",
+                )
             result = []
             for name, submod in module.items():
                 result.append(named_embed(name, submod))
             return ListIteratorVariable(result, mutation_type=ValueMutationNew())
         elif name == "__len__":
-            assert not (args or kwargs)
+            if args or kwargs:
+                raise_args_mismatch(
+                    tx,
+                    name,
+                    "0 args and 0 kwargs",
+                    f"{len(args)} args and {len(kwargs)} kwargs",
+                )
             return ConstantVariable.create(len(module))
+        elif name == "__iter__":
+            return ListIteratorVariable(
+                self.unpack_var_sequence(tx), mutation_type=ValueMutationNew()
+            )
         elif (
             name == "__contains__"
             and isinstance(module, (torch.nn.ModuleDict, torch.nn.ParameterDict))
@@ -755,7 +805,13 @@ class NNModuleVariable(VariableTracker):
                 args[0].as_python_constant() in module._modules
             )
         elif name == "__getitem__":
-            assert not kwargs and len(args) == 1
+            if kwargs or len(args) != 1:
+                raise_args_mismatch(
+                    tx,
+                    name,
+                    "1 args and 0 kwargs",
+                    f"{len(args)} args and {len(kwargs)} kwargs",
+                )
             builtin_supported = (
                 torch.nn.ModuleDict.__getitem__,
                 torch.nn.ModuleList.__getitem__,
@@ -765,9 +821,19 @@ class NNModuleVariable(VariableTracker):
             )
 
             if type(module).__getitem__ not in builtin_supported:
-                assert isinstance(args[0], variables.ConstantVariable), typestr(args[0])
-                key = args[0].as_python_constant()
-                assert isinstance(key, (str, int))
+                if not (
+                    isinstance(args[0], variables.ConstantVariable)
+                    and isinstance(args[0].as_python_constant(), (str, int))
+                ):
+                    unimplemented(
+                        gb_type="Invalid or non-const argument in nn.Module __getitem__",
+                        context=f"call_method: {self} {name} {args} {kwargs}",
+                        explanation="Dynamo does not support calling "
+                        f"method `{name}` of ``nn.Module`` {module} with a non-constant or non-(str, int) key.",
+                        hints=[
+                            "Use constant arguments of type str or int for __getitem__"
+                        ],
+                    )
                 fn = getattr(module, name).__func__
 
                 assert isinstance(fn, types.FunctionType)
@@ -822,7 +888,7 @@ class NNModuleVariable(VariableTracker):
             elif args[0].is_python_constant():
                 key = args[0].as_python_constant()
             else:
-                unimplemented_v2(
+                unimplemented(
                     gb_type="Unsupported key type for nn.Module.__getitem__",
                     context=f"call_method: {self} {name} {args} {kwargs}",
                     explanation="Dynamo does not support getitem on "
@@ -889,9 +955,14 @@ class UnspecializedNNModuleVariable(UserDefinedObjectVariable):
 
     def __init__(self, value, **kwargs) -> None:
         if type(value) is torch.jit._script.RecursiveScriptModule:
-            raise Unsupported(
-                "ScriptModules aren't supported in UnspecializedNNModuleVariable"
-                " because their .forward function isn't a static member of their type"
+            unimplemented(
+                gb_type="UnspecializedNNModuleVariable wrapped around ScriptModules unsupported",
+                context=str(value),
+                explanation="ScriptModules aren't supported in UnspecializedNNModuleVariable"
+                " because their .forward function isn't a static member of their type.",
+                hints=[
+                    *graph_break_hints.DIFFICULT,
+                ],
             )
         if "value_type" in kwargs:
             lazy_value_to_become = getattr(kwargs["value_type"], "cls_to_become", None)
@@ -1065,7 +1136,7 @@ class UnspecializedNNModuleVariable(UserDefinedObjectVariable):
                 hasattr(method, "__code__")
                 and id(method.__code__) in self._nn_module_method_ids()
             ):
-                unimplemented_v2(
+                unimplemented(
                     gb_type="UnspecializedNNModuleVariable missing method",
                     context=f"call_method: {self} {name} {args} {kwargs}",
                     explanation=f"Dynamo does not support tracing method {name} of nn.Module {self.value}",

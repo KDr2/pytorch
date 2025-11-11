@@ -14,7 +14,7 @@ import warnings
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
 from functools import partial
-from typing import Any, Optional
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -245,7 +245,8 @@ class UniformQuantizationObserverBase(ObserverBase):
         if reduce_range:
             warnings.warn(
                 "Please use quant_min and quant_max to specify the range for observers. \
-                    reduce_range will be deprecated in a future release of PyTorch."
+                    reduce_range will be deprecated in a future release of PyTorch.",
+                stacklevel=2,
             )
         self.reduce_range = reduce_range
         self.register_buffer("eps", torch.tensor([eps], **factory_kwargs))
@@ -281,12 +282,12 @@ class UniformQuantizationObserverBase(ObserverBase):
             )
         self.has_customized_qrange = (quant_min is not None) and (quant_max is not None)
         if self.has_customized_qrange:
-            # pyrefly: ignore  # bad-argument-type
+            # pyrefly: ignore [bad-argument-type]
             validate_qmin_qmax(quant_min, quant_max)
         self.quant_min, self.quant_max = calculate_qmin_qmax(
-            # pyrefly: ignore  # bad-argument-type
+            # pyrefly: ignore [bad-argument-type]
             quant_min,
-            # pyrefly: ignore  # bad-argument-type
+            # pyrefly: ignore [bad-argument-type]
             quant_max,
             self.has_customized_qrange,
             self.dtype,
@@ -830,7 +831,8 @@ class PerChannelMinMaxObserver(UniformQuantizationObserverBase):
                     self.max_val.resize_(val.shape)
                 else:
                     warnings.warn(
-                        f"Observer load_from_state_dict got unexpected name {name}"
+                        f"Observer load_from_state_dict got unexpected name {name}",
+                        stacklevel=2,
                     )
                 # For torchscript module we need to update the attributes here since we do not
                 # call the `_load_from_state_dict` function defined module.py
@@ -841,7 +843,8 @@ class PerChannelMinMaxObserver(UniformQuantizationObserverBase):
                         self.max_val.copy_(val)
                     else:
                         warnings.warn(
-                            f"Observer load_from_state_dict got unexpected name {name}"
+                            f"Observer load_from_state_dict got unexpected name {name}",
+                            stacklevel=2,
                         )
             elif strict:
                 missing_keys.append(key)
@@ -1212,7 +1215,7 @@ class HistogramObserver(UniformQuantizationObserverBase):
         boundaries_new_histogram = torch.linspace(
             update_min, update_max, self.bins + 1, device=update_min.device
         ).to(histogram.device)
-        # this maps the mid-poits of the histogram to the new histogram's space
+        # this maps the mid-points of the histogram to the new histogram's space
         bucket_assignments = (
             torch.bucketize(mid_points_histogram, boundaries_new_histogram, right=True)
             - 1
@@ -1292,7 +1295,9 @@ class HistogramObserver(UniformQuantizationObserverBase):
         # want to make our quantization range infinite
         # and in practice those values will be clamped
         if x_min == -torch.inf or x_max == torch.inf:
-            warnings.warn("torch.inf detected in input tensor, ignoring input")
+            warnings.warn(
+                "torch.inf detected in input tensor, ignoring input", stacklevel=2
+            )
             x = x[x.abs() != torch.inf]
             if x.numel() == 0:
                 return x_orig
@@ -1348,7 +1353,8 @@ class HistogramObserver(UniformQuantizationObserverBase):
         if is_uninitialized:
             warnings.warn(
                 "must run observer before calling calculate_qparams.\
-                                    Returning default scale and zero point "
+                                    Returning default scale and zero point ",
+                stacklevel=2,
             )
             return torch.tensor([1.0], device=self.min_val.device.type), torch.tensor(
                 [0], device=self.min_val.device.type
@@ -1513,7 +1519,8 @@ class PlaceholderObserver(ObserverBase):
             warnings.warn(
                 "Please use `is_dynamic` instead of `compute_dtype`. \
                     `compute_dtype` will be deprecated in a future release \
-                    of PyTorch."
+                    of PyTorch.",
+                stacklevel=2,
             )
 
     def forward(self, x):
@@ -1540,7 +1547,7 @@ class RecordingObserver(ObserverBase):
         reduce_range: Reduces the range of the quantized data type by 1 bit
     """
 
-    __annotations__ = {"tensor_val": list[Optional[torch.Tensor]]}
+    __annotations__ = {"tensor_val": list[torch.Tensor | None]}
 
     def __init__(self, dtype=torch.quint8):
         super().__init__(dtype=dtype, is_dynamic=False)
@@ -1831,13 +1838,13 @@ class AffineQuantizedObserverBase(ABC, torch.nn.Module):
         mapping_type: MappingType,
         target_dtype: torch.dtype,
         granularity: Granularity,
-        quant_min: Optional[int] = None,
-        quant_max: Optional[int] = None,
-        eps: Optional[float] = None,
-        scale_dtype: Optional[torch.dtype] = None,
-        zero_point_dtype: Optional[torch.dtype] = None,
+        quant_min: int | None = None,
+        quant_max: int | None = None,
+        eps: float | None = None,
+        scale_dtype: torch.dtype | None = None,
+        zero_point_dtype: torch.dtype | None = None,
         preserve_zero: bool = True,
-        zero_point_domain: Optional[ZeroPointDomain] = ZeroPointDomain.INT,
+        zero_point_domain: ZeroPointDomain | None = ZeroPointDomain.INT,
         # there could be some extra args that's ignored
         **kwargs,
     ):

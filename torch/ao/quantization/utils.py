@@ -9,7 +9,7 @@ import warnings
 from collections import OrderedDict
 from collections.abc import Callable
 from inspect import getfullargspec, signature
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import torch
 from torch.ao.quantization.quant_type import QuantType
@@ -24,7 +24,7 @@ else:
     from typing import TypeAliasType
 
     NodePattern = TypeAliasType(
-        "NodePattern", Union[tuple[Node, Node], tuple[Node, tuple[Node, Node]], Any]
+        "NodePattern", tuple[Node, Node] | tuple[Node, tuple[Node, Node]] | Any
     )
 
 
@@ -52,12 +52,10 @@ else:
 
     Pattern = TypeAliasType(
         "Pattern",
-        Union[
-            Callable,
-            tuple[Callable, Callable],
-            tuple[Callable, tuple[Callable, Callable]],
-            Any,
-        ],
+        Callable
+        | tuple[Callable, Callable]
+        | tuple[Callable, tuple[Callable, Callable]]
+        | Any,
     )
 
 
@@ -433,7 +431,8 @@ def check_min_max_valid(min_val: torch.Tensor, max_val: torch.Tensor) -> bool:
     if min_val.numel() == 0 or max_val.numel() == 0:
         warnings.warn(
             "must run observer before calling calculate_qparams. "
-            + "Returning default values."
+            + "Returning default values.",
+            stacklevel=2,
         )
         return False
 
@@ -441,7 +440,8 @@ def check_min_max_valid(min_val: torch.Tensor, max_val: torch.Tensor) -> bool:
         if min_val == float("inf") and max_val == float("-inf"):
             warnings.warn(
                 "must run observer before calling calculate_qparams. "
-                + "Returning default values."
+                + "Returning default values.",
+                stacklevel=2,
             )
 
             return False
@@ -546,7 +546,7 @@ def has_no_children_ignoring_parametrizations(module):
 
 def _get_path_of_module(
     root: torch.nn.Module, submodule: torch.nn.Module
-) -> Optional[str]:
+) -> str | None:
     """Get the path (fully qualified name) of a submodule
 
     Example::
@@ -814,7 +814,8 @@ def _assert_and_get_unique_device(module: torch.nn.Module) -> Any:
     """
     if {torch.device("cpu"), torch.device("meta")} == devices:
         warnings.warn(
-            "Both 'meta' and 'cpu' are present in the list of devices. Module can have one device. We Select 'cpu'."
+            "Both 'meta' and 'cpu' are present in the list of devices. Module can have one device. We Select 'cpu'.",
+            stacklevel=2,
         )
         devices = {torch.device("cpu")}
     ""
