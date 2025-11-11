@@ -566,7 +566,18 @@ inline std::vector<c10::SymInt> PythonArgs::symintlist(int i) {
   }
 
   PyObject* arg = args[i];
-  auto tuple = PyTuple_Check(arg);
+  bool tuple = PyTuple_Check(arg);
+  bool list = PyList_Check(arg);
+  if (!tuple && !list) {
+    // See https://github.com/pytorch/pytorch/issues/167562
+    TORCH_WARN(
+        "Expected a tuple or list for argument '",
+        signature.params[i].name,
+        "' but got ",
+        Py_TYPE(arg)->tp_name);
+    return std::vector<c10::SymInt>{};
+  }
+
   // NOLINTNEXTLINE(bugprone-branch-clone)
   const auto size2 = tuple ? PyTuple_GET_SIZE(arg) : PyList_GET_SIZE(arg);
   std::vector<c10::SymInt> res;
@@ -645,7 +656,17 @@ inline std::vector<int64_t> PythonArgs::intlistWithDefault(
   if (size1 > 0 && torch::is_dynint(py::handle(arg))) {
     return std::vector<int64_t>(size1, py::handle(arg).cast<int>());
   }
-  auto tuple = PyTuple_Check(arg);
+  bool tuple = PyTuple_Check(arg);
+  bool list = PyList_Check(arg);
+  if (!tuple && !list) {
+    // See https://github.com/pytorch/pytorch/issues/167562
+    TORCH_WARN(
+        "Expected a tuple or list for argument '",
+        signature.params[i].name,
+        "' but got ",
+        Py_TYPE(arg)->tp_name);
+    return std::vector<int64_t>{};
+  }
   // NOLINTNEXTLINE(bugprone-branch-clone)
   const auto size2 = tuple ? PyTuple_GET_SIZE(arg) : PyList_GET_SIZE(arg);
   std::vector<int64_t> res(size2);
