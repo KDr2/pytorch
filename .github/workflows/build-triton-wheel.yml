@@ -57,6 +57,12 @@ jobs:
           - device: "rocm"
             rocm_version: "7.1"
             runs_on: "${{ needs.get-label-type.outputs.label-type }}linux.4xlarge"
+          - device: "rocm"
+            rocm_version: "7.0"
+            runs_on: "${{ needs.get-label-type.outputs.label-type }}linux.4xlarge"
+          - device: "rocm"
+            rocm_version: "6.4"
+            runs_on: "${{ needs.get-label-type.outputs.label-type }}linux.4xlarge"
           - device: "cuda"
             rocm_version: ""
             runs_on: "${{ needs.get-label-type.outputs.label-type }}linux.4xlarge"
@@ -171,7 +177,7 @@ jobs:
 
       - uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         with:
-          name: pytorch-triton-wheel-${{ matrix.py_vers }}-${{ matrix.device }}-${{ env.PLATFORM }}
+          name: pytorch-triton-wheel-${{ matrix.py_vers }}-${{ matrix.device }}${{ matrix.rocm_version != '' && format('-{0}', matrix.rocm_version) || '' }}-${{ env.PLATFORM }}
           if-no-files-found: error
           path: ${{ runner.temp }}/artifacts/wheelhouse/*
 
