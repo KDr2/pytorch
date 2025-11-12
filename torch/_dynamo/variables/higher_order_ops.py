@@ -20,6 +20,7 @@ their semantic behavior.
 """
 
 import contextlib
+import copy
 import functools
 import inspect
 import itertools
@@ -248,20 +249,49 @@ def _make_inlined(tx: "InstructionTranslator", f):
     return inline_call
 
 
+from torch._higher_order_ops.invoke_subgraph import (
+    NestedCompileBackend,
+    NestedCompileRegionOptions,
+)
+
+
 def _call_function_and_unflatten_output(
-    tx, fn, args, kwargs, flat_example_value, ret_spec, body_r
+    tx,
+    fn,
+    args,
+    kwargs,
+    flat_example_value,
+    ret_spec,
+    body_r,
+    backend_options: Optional[NestedCompileRegionOptions] = None,
 ):
     from .builder import wrap_fx_proxy
 
     # Store the invocation as a call
+    proxy = tx.output.create_proxy(
+        "call_function",
+        fn,
+        args=args,
+        kwargs=kwargs,
+    )
+
+    # Set backend metadata if provided
+    if backend_options is not None:
+        if "custom" not in proxy.node.meta:
+            proxy.node.meta["custom"] = {}
+        if backend_options.backend == NestedCompileBackend.INDUCTOR:
+            inductor_configs = {}
+            if backend_options.inductor_configs:
+                inductor_configs = copy.deepcopy(backend_options.inductor_configs)
+            proxy.node.meta["custom"]["compile_with_inductor"] = {
+                "inductor_configs": inductor_configs
+            }
+        if backend_options.partitioner is not None:
+            proxy.node.meta["custom"]["partitioner"] = backend_options.partitioner
+
     flat_variable = wrap_fx_proxy(
         tx=tx,
-        proxy=tx.output.create_proxy(
-            "call_function",
-            fn,
-            args=args,
-            kwargs=kwargs,
-        ),
+        proxy=proxy,
         example_value=flat_example_value,
     )
 
@@ -3871,6 +3901,18 @@ class InvokeSubgraphHigherOrderVariable(WrapHigherOrderVariable):
             body_r.as_proxy(),
         )
 
+        # Extract backend from the function if it was decorated with nested_compile_region(backend=...)
+        backend_options = None
+        fn_var = args[0]
+        if hasattr(fn_var, "get_function"):
+            try:
+                fn = fn_var.get_function()
+
+                if hasattr(fn, "__marked_compile_region_backend__"):
+                    backend_options = fn.__marked_compile_region_backend__
+            except Exception:
+                pass
+
         p_args = (
             p_args[0],
             body_name,
@@ -3884,6 +3926,7 @@ class InvokeSubgraphHigherOrderVariable(WrapHigherOrderVariable):
             flat_example_value,
             treespec,
             body_r,
+            backend_options=backend_options,
         )
 
 
