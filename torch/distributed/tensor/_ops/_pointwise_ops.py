@@ -618,7 +618,7 @@ def common_pointwise_strategy(
     return pointwise_strategy
 
 
-for op in linear_pointwise_ops.keys():
+for op in linear_pointwise_ops:
     register_op_strategy(op, schema_info=RuntimeSchemaInfo(static_kwargkey=["out"]))(
         linear_pointwise_strategy
     )
@@ -660,6 +660,8 @@ for_each_ops = [
     aten._foreach_mul_.ScalarList,
     aten._foreach_mul_.Tensor,
     aten._foreach_mul_.List,
+    aten._foreach_pow.List,
+    aten._foreach_pow.ScalarList,
     aten._foreach_neg.default,
     aten._foreach_neg_.default,
     aten._foreach_reciprocal_.default,
