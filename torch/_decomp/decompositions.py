@@ -40,10 +40,6 @@ from torch.utils._pytree import tree_map
 DispatchKey = torch._C.DispatchKey  # type: ignore[attr-defined]
 
 
-_LINEAR_CROSS_ENTROPY_NAIVE: Optional[Callable[..., Tensor]] = getattr(
-    F, "_linear_cross_entropy_naive", None
-)
-
 # None of these functions are publicly accessible; get at them
 # from torch._decomps
 __all__: list[str] = []
@@ -678,12 +674,6 @@ def linear_cross_entropy(
     logits_flat = aten.reshape.default(logits, [-1, logits.size(-1)])
     target_flat = aten.reshape.default(target, [-1])
     if target.dtype.is_floating_point:
-        if _LINEAR_CROSS_ENTROPY_NAIVE is None:
-            raise RuntimeError(
-                "linear_cross_entropy decomposition requires "
-                "torch.nn.functional._linear_cross_entropy_naive"
-            )
-
         reduction_str = (
             "mean"
             if reduction == Reduction.MEAN.value
@@ -692,7 +682,7 @@ def linear_cross_entropy(
             else "none"
         )
 
-        return _LINEAR_CROSS_ENTROPY_NAIVE(  # type: ignore[misc]
+        return F._linear_cross_entropy_naive(  # type: ignore[attr-defined]
             input,
             linear_weight,
             target,
@@ -735,12 +725,6 @@ def linear_cross_entropy_backward(
     target_flat = aten.reshape.default(target, [-1])
 
     if target.dtype.is_floating_point:
-        if _LINEAR_CROSS_ENTROPY_NAIVE is None:
-            raise RuntimeError(
-                "linear_cross_entropy decomposition requires "
-                "torch.nn.functional._linear_cross_entropy_naive"
-            )
-
         reduction_str = (
             "mean"
             if reduction == Reduction.MEAN.value
@@ -749,7 +733,7 @@ def linear_cross_entropy_backward(
             else "none"
         )
 
-        ref = _LINEAR_CROSS_ENTROPY_NAIVE(  # type: ignore[misc]
+        ref = F._linear_cross_entropy_naive(  # type: ignore[attr-defined]
             input,
             linear_weight,
             target,

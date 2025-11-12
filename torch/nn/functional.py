@@ -3628,10 +3628,11 @@ def linear_cross_entropy(
         )
     else:
         op = torch.ops.aten.linear_cross_entropy.default
-        # Only exercise the fused path when the operator is actually built for
-        # this runtime; otherwise fall back to the explicit composition so the
-        # behaviour matches older binaries.
-        if not op.has_kernel_for_dispatch_key("CPU"):
+        schema = op._schema
+        supports_chunk_sizes = any(
+            arg.name == "vocab_chunk_size" for arg in schema.arguments
+        )
+        if not supports_chunk_sizes:
             result = _linear_cross_entropy_naive(
                 input,
                 linear_weight,
@@ -3642,11 +3643,24 @@ def linear_cross_entropy(
                 label_smoothing,
             )
         else:
-            schema = op._schema
-            supports_chunk_sizes = any(
-                arg.name == "vocab_chunk_size" for arg in schema.arguments
-            )
-            if not supports_chunk_sizes:
+            reduction_enum = _Reduction.get_enum(reduction)
+            try:
+                result = torch.ops.aten.linear_cross_entropy(
+                    input,
+                    linear_weight,
+                    target,
+                    linear_bias=linear_bias,
+                    reduction=reduction_enum,
+                    ignore_index=ignore_index,
+                    label_smoothing=label_smoothing,
+                    chunking_strategy=chunking_strategy,
+                    vocab_chunk_size=vocab_chunk_size,
+                    batch_chunk_size=batch_chunk_size,
+                )
+            except RuntimeError as err:
+                msg = str(err)
+                if "not implemented" not in msg and "does not have a device" not in msg:
+                    raise
                 result = _linear_cross_entropy_naive(
                     input,
                     linear_weight,
@@ -3656,39 +3670,6 @@ def linear_cross_entropy(
                     ignore_index,
                     label_smoothing,
                 )
-            else:
-                reduction_enum = _Reduction.get_enum(reduction)
-                needs_grad = torch.is_grad_enabled() and (
-                    input.requires_grad
-                    or linear_weight.requires_grad
-                    or (linear_bias is not None and linear_bias.requires_grad)
-                )
-                # Some downstream builds may omit the generated autograd kernel; if
-                # that happens we still provide gradients by delegating to the
-                # unfused implementation.
-                if needs_grad and not op.has_kernel_for_dispatch_key("AutogradCPU"):
-                    result = _linear_cross_entropy_naive(
-                        input,
-                        linear_weight,
-                        target,
-                        linear_bias,
-                        reduction,
-                        ignore_index,
-                        label_smoothing,
-                    )
-                else:
-                    result = torch.ops.aten.linear_cross_entropy(
-                        input,
-                        linear_weight,
-                        target,
-                        linear_bias=linear_bias,
-                        reduction=reduction_enum,
-                        ignore_index=ignore_index,
-                        label_smoothing=label_smoothing,
-                        chunking_strategy=chunking_strategy,
-                        vocab_chunk_size=vocab_chunk_size,
-                        batch_chunk_size=batch_chunk_size,
-                    )
 
     if reduction == "none":
         return result.reshape(target.shape)

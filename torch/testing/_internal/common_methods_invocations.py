@@ -6828,6 +6828,48 @@ def sample_inputs_linear_cross_entropy(op_info, device, dtype, requires_grad, **
         kwargs={"chunking_strategy": "batch"},
     )
 
+    # Non-contiguous input (transpose) to exercise view handling.
+    base = make_tensor(
+        (3, 2, vocab_hidden),
+        device=device,
+        dtype=dtype,
+        requires_grad=False,
+    )
+    input_nc = base.transpose(0, 1)
+    target_nc = make_target((2, 3), low=0, high=vocab_size)
+    yield SampleInput(
+        input_nc,
+        args=(weight_vocab, target_nc),
+        kwargs={"chunking_strategy": "vocab"},
+    )
+
+    # High-rank input (5D) to ensure arbitrary dimensional flattening.
+    input_high = make_input((2, 3, 4, 5, vocab_hidden))
+    target_high = make_target((2, 3, 4, 5), low=0, high=vocab_size)
+    yield SampleInput(
+        input_high,
+        args=(weight_vocab, target_high),
+        kwargs={"chunking_strategy": "batch"},
+    )
+
+    # All targets ignored (should propagate NaNs for mean/sum reductions).
+    input_ignored = make_input((4, vocab_hidden))
+    target_ignored = torch.full(
+        (4,),
+        -1,
+        dtype=torch.long,
+        device=device,
+        requires_grad=False,
+    )
+    yield SampleInput(
+        input_ignored,
+        args=(weight_vocab, target_ignored),
+        kwargs={
+            "ignore_index": -1,
+            "chunking_strategy": "batch",
+        },
+    )
+
 
 def reference_linear_cross_entropy(
     input,
