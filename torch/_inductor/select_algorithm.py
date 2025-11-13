@@ -2752,8 +2752,12 @@ class AlgorithmSelectorCache(PersistentCache):
         )
 
         if return_multi_template and (config.max_autotune or config.max_autotune_gemm):
-
-            def get_timings(hint_override: Optional[int] = None):
+            from torch._inductor.virtualized import threadlocal
+            def get_timings(hint_override: Optional[int] = None, graph=None, debug=None):
+                if graph:
+                    setattr(threadlocal, "__torchinductor_graph", graph)
+                if debug:
+                    setattr(threadlocal, "__torchinductor_debug", debug)
                 filtered_choices = [
                     c
                     for c in choices
@@ -2786,6 +2790,15 @@ class AlgorithmSelectorCache(PersistentCache):
                 }
 
                 return timings
+            
+            num_workers = min(get_num_workers(), len(choices))
+            executor = ThreadPoolExecutor(max_workers=num_workers)
+            get_timings_future = executor.submit(get_timings, graph=getattr(threadlocal, "__torchinductor_graph"), debug=getattr(threadlocal, "__torchinductor_debug"))
+
+            def real_get_timings(hint_override: Optional[int] = None):
+                if hint_override:
+                    return get_timings(hint_override)
+                return get_timings_future.result()
 
             # We take the union of allowed prologue inputs from all choices,
             # and, within benchmark fusion, don't allow prologue fusion for
@@ -2799,7 +2812,7 @@ class AlgorithmSelectorCache(PersistentCache):
                 torch._inductor.ir.MultiTemplateBuffer(
                     layout,
                     input_nodes,
-                    get_timings,
+                    real_get_timings,
                     choices,
                     allowed_prologue_inps,
                 )

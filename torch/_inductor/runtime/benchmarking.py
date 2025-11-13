@@ -2,6 +2,7 @@ import functools
 import inspect
 import time
 from collections.abc import Callable
+from filelock import FileLock
 from functools import cached_property, wraps
 from itertools import chain
 from statistics import median
@@ -24,7 +25,25 @@ use_experimental_benchmarker = (
 MILLISECONDS_PER_SECOND = 1000
 
 P = ParamSpec("P")
+R = TypeVar("R")
 T = TypeVar("T")
+
+# timeout, in seconds, when attempting to lock the gpu
+GPU_TIMEOUT: float = 60.0 * 60.0
+
+def lock_gpu(fn: Callable[P, R]) -> Callable[P, R]:
+    @wraps(fn)
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        from torch._inductor.runtime.runtime_utils import default_cache_dir
+        if "inferred_device" in kwargs:
+            inferred_device: torch.device = kwargs["inferred_device"]
+            del kwargs["inferred_device"]
+        else:
+            inferred_device = torch.device("cuda")
+        flock: FileLock = FileLock(default_cache_dir() + f"/locks/{inferred_device.type}_{inferred_device.index or torch.cuda.current_device()}.lock", timeout=GPU_TIMEOUT)
+        with flock:
+            return fn(*args, **kwargs)
+    return wrapper
 
 
 def may_distort_benchmarking_result(fn: Callable[..., Any]) -> Callable[..., Any]:
@@ -197,6 +216,7 @@ class Benchmarker:
             # TODO(nmacchioni): For non-CPU functions we default to using the GPU-specific benchmarking
             # implementation which was written specifically with CUDA devices in mind, we may want to
             # explore alternate implementations for other device types.
+            kwargs["inferred_device"] = inferred_device
             return self.benchmark_gpu(_callable, **kwargs)
 
     @time_and_count
@@ -249,6 +269,7 @@ class TritonBenchmarker(Benchmarker):
             raise NotImplementedError("requires Triton") from e
         return do_bench
 
+    @lock_gpu
     @may_distort_benchmarking_result
     @time_and_count
     # pyrefly: ignore [bad-override]
@@ -319,6 +340,7 @@ class InductorBenchmarker(TritonBenchmarker):  # noqa: docstring_linter
             ]
         )
 
+    @lock_gpu
     @may_distort_benchmarking_result
     @time_and_count
     def benchmark_gpu(  # type: ignore[override]
