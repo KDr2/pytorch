@@ -2535,23 +2535,26 @@ def _extract_inputs_from_exported_gm(
     fake_inputs = [
         node.meta.get("val") for node in gm.graph.nodes if node.op == "placeholder"
     ]
-    # Replace non-tensor (constant) inputs with Nones, since these are not being
-    # used anyways by the graph
-    fake_inputs = [
-        inp if isinstance(inp, torch.Tensor) else None for inp in fake_inputs
-    ]
+
+    if not config.fx_wrapper:
+        # Replace non-tensor inputs with Nones
+        # constant scalars are not being used anyways by the graph
+        # symbolic scalar (symint/symfloat) are not supported in non-fx_wrapper mode
+        fake_inputs = [
+            inp if isinstance(inp, torch.Tensor) else None for inp in fake_inputs
+        ]
 
     if any(v is not None for v in fake_inputs):
         # Validate devices before switching to fake tensors.
         for idx, fi, i in zip(count(), fake_inputs, example_inputs_):
             if fi is not None:
-                assert isinstance(i, torch.Tensor)
-                if fi.device != i.device:
-                    raise ValueError(
-                        f"Device mismatch between fake input and example input at position #{idx}: "
-                        f"{fi.device} vs {i.device}. If the model was exported via torch.export(), "
-                        "make sure torch.export() and torch.aot_compile() run on the same device."
-                    )
+                if hasattr(fi, "device") and hasattr(i, "device"):
+                    if fi.device != i.device:
+                        raise ValueError(
+                            f"Device mismatch between fake input and example input at position #{idx}: "
+                            f"{fi.device} vs {i.device}. If the model was exported via torch.export(), "
+                            "make sure torch.export() and torch.aot_compile() run on the same device."
+                        )
         return fake_inputs
 
     return example_inputs_

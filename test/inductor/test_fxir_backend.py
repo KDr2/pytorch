@@ -55,17 +55,20 @@ if HAS_GPU:
 
     from torch.testing._internal.triton_utils import add_kernel_2d_autotuned
 
-test_config = {
+TEST_CONFIG_FXIR = {
     "compile_threads": 1,
     "alignment_asserts": False,
     "size_asserts": False,
     "scalar_asserts": False,
     "nan_asserts": False,
 }
+TEST_CONFIG_EXPORT_AOTI = TEST_CONFIG_FXIR | {
+    "fx_wrapper": True
+}
 
 
 @requires_gpu()
-@config.patch(test_config)
+@config.patch(TEST_CONFIG_FXIR)
 @instantiate_parametrized_tests
 class FxirTestCase(InductorTestCase):
     device = GPU_TYPE
@@ -1308,6 +1311,66 @@ class TestReplaceFloorDiv(InductorTestCase):
         expr = sympy.floor(-FloorDiv(x * y, 2) / FloorDiv(-x * y, 131070))
         self._check(expr)
 
+@requires_gpu()
+@config.patch(TEST_CONFIG_EXPORT_AOTI)
+class ExportAOTITest(InductorTestCase):
+    device = GPU_TYPE
+
+    def _compile_and_run(self, mod, args, ds=None):
+
+        gm = torch.export.export(mod, args, dynamic_shapes=ds)
+        traced_mod = gm.module(False)
+        opt = torch._inductor.aot_compile(traced_mod, args)
+
+        ref = mod(*args)
+
+        flat_args, _ = pytree.tree_flatten(args)
+        result = opt(*flat_args)
+
+        self.assertTrue(same(ref, result))
+
+        return traced_mod, opt
+
+    def _count_ops(self, gm: torch.fx.GraphModule, target: Callable) -> int:
+        return len(gm.graph.find_nodes(op="call_function", target=target))
+
+    def test_reshape_dynamic_ph(self):
+        """
+        Test dynamic scalars using SymInts placeholder
+        """
+        class TestModule(torch.nn.Module):
+            def forward(self, x, shape):
+                return torch.reshape(x, shape) + 2
+
+        ds = {
+            'x': (torch.export.Dim.AUTO, torch.export.Dim.AUTO),
+            'shape': [torch.export.Dim.AUTO, torch.export.Dim.AUTO],
+        }
+        args = (torch.randn((12, 14), device=self.device), [6, 28])
+        pre_gm, post_gm = self._compile_and_run(TestModule(), args, ds)
+
+        # Check triton kernel successfully generated
+        triton_kernel_ops = self._count_ops(post_gm, triton_kernel_wrapper_mutation)
+        self.assertEqual(triton_kernel_ops, 1)
+
+    def test_reshape_dynamic_tmd(self):
+        """
+        Test dynamic reshape using shape dependent information
+        """
+        class TestModule(torch.nn.Module):
+            def forward(self, x):
+                new_shape = [x.shape[0] // 2, x.shape[1] * 2]
+                return torch.reshape(x, new_shape) + 2
+
+        ds = {
+            'x': (torch.export.Dim.AUTO, torch.export.Dim.AUTO),
+        }
+        args = (torch.randn((12, 14), device=self.device),)
+        pre_gm, post_gm = self._compile_and_run(TestModule(), args, ds)
+
+        # Check triton kernel successfully generated
+        triton_kernel_ops = self._count_ops(post_gm, triton_kernel_wrapper_mutation)
+        self.assertEqual(triton_kernel_ops, 1)
 
 if __name__ == "__main__":
     from torch._inductor.test_case import run_tests
