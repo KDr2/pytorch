@@ -3092,11 +3092,7 @@ def dstack(tensors: TensorSequenceType) -> TensorLikeType:
 
 @register_decomposition(aten.expand)
 def expand(a: Tensor, *shape, implicit: bool = False) -> Tensor:
-    from torch.fx.experimental.symbolic_shapes import (
-        guard_or_false,
-        size_hint,
-        sym_or,
-    )
+    from torch.fx.experimental.symbolic_shapes import guard_or_false, size_hint, sym_or
 
     backed_so = torch.fx.experimental._config.backed_size_oblivious
 
