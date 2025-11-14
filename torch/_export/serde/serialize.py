@@ -1082,6 +1082,13 @@ class GraphModuleSerializer(metaclass=Final):
     # should be torch._C.JitType but that annotation is busted
     def serialize_input(self, arg, arg_type: Optional[Any] = None) -> Argument:
         import torch._inductor.ir as inductor_ir
+        from torch.fx.immutable_collections import immutable_dict, immutable_list
+
+        # Handle immutable collections from FX by converting to regular Python types
+        if isinstance(arg, immutable_dict):
+            arg = dict(arg)
+        if isinstance(arg, immutable_list):
+            arg = list(arg)
 
         inductor_tensor_buffers = (
             inductor_ir.Buffer,
@@ -1185,6 +1192,22 @@ class GraphModuleSerializer(metaclass=Final):
             )
         elif arg is None:
             return Argument.create(as_none=True)
+        elif isinstance(arg, dict):
+            # Handle dict by serializing values as a list of tensors
+            # This is specifically for kwargs dicts in HOO nodes
+            # where {parameter names: FX nodes (tensors)}
+            if len(arg) == 0:
+                return Argument.create(as_tensors=[])
+            # For kwargs dicts, we expect all values to be FX nodes representing tensors
+            tensor_args = []
+            for value in arg.values():
+                if isinstance(value, torch.fx.Node):
+                    tensor_args.append(TensorArgument(name=value.name))
+                else:
+                    raise SerializeError(
+                        f"Dict argument contains non-Node value of type {type(value)}: {value}"
+                    )
+            return Argument.create(as_tensors=tensor_args)
         elif isinstance(arg, (list, tuple)):
             if len(arg) == 0:
                 if arg_type is not None:

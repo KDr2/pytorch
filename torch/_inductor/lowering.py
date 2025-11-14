@@ -7245,13 +7245,15 @@ def triton_kernel_wrap_(
     *,
     kernel_idx,
     constant_args_idx,
-    grid,
-    tma_descriptor_metadata,
+    grid_idx,
+    tma_descriptor_metadata_idx,
     kwargs,
 ):
     from torch._higher_order_ops.triton_kernel_wrap import kernel_side_table
 
     constant_args = kernel_side_table.get_constant_args(constant_args_idx)
+    grid = kernel_side_table.get_grid(grid_idx)
+    tma_descriptor_metadata = kernel_side_table.get_tma_descriptor_metadata(tma_descriptor_metadata_idx)
     ir.UserDefinedTritonKernel(
         kernel_idx=kernel_idx,
         grid=grid,

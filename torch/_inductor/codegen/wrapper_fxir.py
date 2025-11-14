@@ -15,6 +15,7 @@ from torch._export.passes._node_metadata_hook import (
     _set_node_metadata_hook,
 )
 from torch._higher_order_ops.triton_kernel_wrap import (
+    kernel_side_table,
     TraceableTritonKernelWrapper,
     tracing_triton_hopifier_singleton,
     triton_kernel_wrapper_mutation,
@@ -1060,13 +1061,17 @@ class FxConverter:
             constant_args_idx,
         ) = tracing_triton_hopifier_singleton.store_non_graphable_args(call_kwargs)
 
+        # Store grid and TMA descriptor metadata in side tables
+        grid_idx = kernel_side_table.add_grid(wrapper_grid)
+        tma_descriptor_metadata_idx = kernel_side_table.add_tma_descriptor_metadata({})
+
         triton_node = self.gm.graph.call_function(
             triton_kernel_wrapper_mutation,
             kwargs={
                 "kernel_idx": kernel.wrapped.kernel_idx,
                 "constant_args_idx": constant_args_idx,
-                "grid": wrapper_grid,
-                "tma_descriptor_metadata": {},
+                "grid_idx": grid_idx,
+                "tma_descriptor_metadata_idx": tma_descriptor_metadata_idx,
                 "kwargs": call_kwargs,
             },
         )

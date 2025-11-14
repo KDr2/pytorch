@@ -2500,6 +2500,9 @@ class DynamoTritonHOPifier(TritonHOPifier):
                 )
 
         constant_args_idx = kernel_side_table.add_constant_args(constant_args)
+        grid_idx = kernel_side_table.add_grid(grids)
+        tma_descriptor_metadata_idx = kernel_side_table.add_tma_descriptor_metadata(tma_descriptor_metadata)
+
         meta = ConstDictVariable(non_constant_args, dict)
         tx.output.create_proxy(
             "call_function",
@@ -2508,8 +2511,8 @@ class DynamoTritonHOPifier(TritonHOPifier):
             {
                 "kernel_idx": variable.kernel_idx,
                 "constant_args_idx": constant_args_idx,
-                "grid": grids,
-                "tma_descriptor_metadata": tma_descriptor_metadata,
+                "grid_idx": grid_idx,
+                "tma_descriptor_metadata_idx": tma_descriptor_metadata_idx,
                 "kwargs": meta.as_proxy(),
             },
         )

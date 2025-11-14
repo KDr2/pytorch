@@ -148,6 +148,8 @@ class KernelSideTable:
     id_to_kernel: dict[int, "TritonKernelType"] = {}
     kernel_to_id: dict["TritonKernelType", int] = {}
     constant_args: dict[int, dict[str, Any]] = {}
+    grids: dict[int, list["TritonGridTupleType"]] = {}
+    tma_descriptor_metadatas: dict[int, TMADescriptorMetadata] = {}
     lock = threading.Lock()
 
     # Returns index on the table
@@ -181,12 +183,42 @@ class KernelSideTable:
         assert idx in self.constant_args
         return self.constant_args[idx]
 
+    # Grids cannot be serialized directly, so we store them in a side table
+    # similar to constant args.
+    def add_grid(self, grid: list["TritonGridTupleType"]) -> int:
+        with self.lock:
+            idx = len(self.grids)
+            self.grids[idx] = grid
+            return idx
+
+    # Returns the grid at the given index
+    def get_grid(self, idx: int) -> list["TritonGridTupleType"]:
+        # No need to lock here as fetching from dict is atomic
+        assert idx in self.grids
+        return self.grids[idx]
+
+    # TMA descriptor metadata cannot be serialized directly, so we store it in a side table
+    # similar to constant args and grids.
+    def add_tma_descriptor_metadata(self, metadata: TMADescriptorMetadata) -> int:
+        with self.lock:
+            idx = len(self.tma_descriptor_metadatas)
+            self.tma_descriptor_metadatas[idx] = metadata
+            return idx
+
+    # Returns the TMA descriptor metadata at the given index
+    def get_tma_descriptor_metadata(self, idx: int) -> TMADescriptorMetadata:
+        # No need to lock here as fetching from dict is atomic
+        assert idx in self.tma_descriptor_metadatas
+        return self.tma_descriptor_metadatas[idx]
+
     # Resets the table (only meant to be used in unit tests)
     # This is only safe assuming single threaded execution
     def reset_table(self) -> None:
         self.id_to_kernel = {}
         self.kernel_to_id = {}
         self.constant_args = {}
+        self.grids = {}
+        self.tma_descriptor_metadatas = {}
 
 
 kernel_side_table = KernelSideTable()
@@ -1012,15 +1044,15 @@ class TritonKernelWrapperMutation(HigherOrderOperator):
         self,
         kernel_idx: int,
         constant_args_idx: int,
-        grid: list["TritonGridType"],
-        tma_descriptor_metadata: TMADescriptorMetadata,
+        grid_idx: int,
+        tma_descriptor_metadata_idx: int,
         kwargs: dict[str, Any],
     ) -> Any:
         return super().__call__(
             kernel_idx=kernel_idx,
             constant_args_idx=constant_args_idx,
-            grid=grid,
-            tma_descriptor_metadata=tma_descriptor_metadata,
+            grid_idx=grid_idx,
+            tma_descriptor_metadata_idx=tma_descriptor_metadata_idx,
             kwargs=kwargs,
         )
 
@@ -1037,16 +1069,16 @@ class TritonKernelWrapperFunctional(HigherOrderOperator):
         self,
         kernel_idx: int,
         constant_args_idx: int,
-        grid: list["TritonGridType"],
-        tma_descriptor_metadata: TMADescriptorMetadata,
+        grid_idx: int,
+        tma_descriptor_metadata_idx: int,
         kwargs: dict[str, Any],
         tensors_to_clone: list[str],
     ) -> dict[str, Any]:
         return super().__call__(
             kernel_idx=kernel_idx,
             constant_args_idx=constant_args_idx,
-            grid=grid,
-            tma_descriptor_metadata=tma_descriptor_metadata,
+            grid_idx=grid_idx,
+            tma_descriptor_metadata_idx=tma_descriptor_metadata_idx,
             kwargs=kwargs,
             tensors_to_clone=tensors_to_clone,
         )
@@ -1060,14 +1092,16 @@ def triton_kernel_wrapper_mutation_dense(
     *,
     kernel_idx: int,
     constant_args_idx: int,
-    grid: list["TritonGridType"],
-    tma_descriptor_metadata: TMADescriptorMetadata,
+    grid_idx: int,
+    tma_descriptor_metadata_idx: int,
     kwargs: dict[str, Any],
 ) -> None:
     from torch._inductor.codegen.wrapper import user_defined_kernel_grid_fn_code
 
     kernel = kernel_side_table.get_kernel(kernel_idx)
     constant_args = kernel_side_table.get_constant_args(constant_args_idx)
+    grid = kernel_side_table.get_grid(grid_idx)
+    tma_descriptor_metadata = kernel_side_table.get_tma_descriptor_metadata(tma_descriptor_metadata_idx)
 
     if len(grid) == 1:
         grid_fn = grid[0]
@@ -1146,8 +1180,8 @@ def triton_kernel_wrapper_mutation_fake_tensor_mode(
     *,
     kernel_idx: int,
     constant_args_idx: int,
-    grid: list["TritonGridType"],
-    tma_descriptor_metadata: TMADescriptorMetadata,
+    grid_idx: int,
+    tma_descriptor_metadata_idx: int,
     kwargs: dict[str, Any],
 ) -> None:
     with mode:
@@ -1159,8 +1193,8 @@ def _(
     *,
     kernel_idx: int,
     constant_args_idx: int,
-    grid: list["TritonGridType"],
-    tma_descriptor_metadata: TMADescriptorMetadata,
+    grid_idx: int,
+    tma_descriptor_metadata_idx: int,
     kwargs: dict[str, Any],
 ) -> None:
     return None
@@ -1196,8 +1230,8 @@ def triton_kernel_wrapper_mutation_proxy_torch_dispatch_mode(
     *,
     kernel_idx: int,
     constant_args_idx: int,
-    grid: list["TritonGridType"],
-    tma_descriptor_metadata: TMADescriptorMetadata,
+    grid_idx: int,
+    tma_descriptor_metadata_idx: int,
     kwargs: dict[str, Any],
 ) -> None:
     trace_triton_kernel_wrapper(
@@ -1206,8 +1240,8 @@ def triton_kernel_wrapper_mutation_proxy_torch_dispatch_mode(
         {
             "kernel_idx": kernel_idx,
             "constant_args_idx": constant_args_idx,
-            "grid": grid,
-            "tma_descriptor_metadata": tma_descriptor_metadata,
+            "grid_idx": grid_idx,
+            "tma_descriptor_metadata_idx": tma_descriptor_metadata_idx,
             "kwargs": kwargs,
         },
     )
@@ -1219,10 +1253,11 @@ def get_mutated_tensors(
     kernel_idx: int,
     constant_args_idx: int,
     kwargs: dict[str, Any],
-    tma_descriptor_metadata: TMADescriptorMetadata,
+    tma_descriptor_metadata_idx: int,
 ) -> list[str]:
     kernel = kernel_side_table.get_kernel(kernel_idx)
     constant_args = kernel_side_table.get_constant_args(constant_args_idx)
+    tma_descriptor_metadata = kernel_side_table.get_tma_descriptor_metadata(tma_descriptor_metadata_idx)
     return identify_mutated_tensors(
         kernel, {**kwargs, **constant_args}, tma_descriptor_metadata
     )
@@ -1233,8 +1268,8 @@ def triton_kernel_wrapper_mutation_functionalize(
     ctx: "BaseFunctionalizeAPI",
     kernel_idx: int,
     constant_args_idx: int,
-    grid: list["TritonGridType"],
-    tma_descriptor_metadata: TMADescriptorMetadata,
+    grid_idx: int,
+    tma_descriptor_metadata_idx: int,
     kwargs: dict[str, Any],
 ) -> None:
     unwrapped_kwargs = ctx.unwrap_tensors(kwargs)  # type: ignore[arg-type]
@@ -1243,14 +1278,14 @@ def triton_kernel_wrapper_mutation_functionalize(
     # they are no longer equal. Fix this by graph breaking on this condition
     # earlier in dynamo.
     tensors_to_clone = get_mutated_tensors(
-        kernel_idx, constant_args_idx, unwrapped_kwargs, tma_descriptor_metadata
+        kernel_idx, constant_args_idx, unwrapped_kwargs, tma_descriptor_metadata_idx
     )
     with ctx.redispatch_to_next():
         unwrapped_outputs = triton_kernel_wrapper_functional(
             kernel_idx=kernel_idx,
             constant_args_idx=constant_args_idx,
-            grid=grid,
-            tma_descriptor_metadata=tma_descriptor_metadata,
+            grid_idx=grid_idx,
+            tma_descriptor_metadata_idx=tma_descriptor_metadata_idx,
             kwargs=unwrapped_kwargs,
             tensors_to_clone=tensors_to_clone,
         )
@@ -1275,8 +1310,8 @@ def triton_kernel_wrapper_functional_dense(
     *,
     kernel_idx: int,
     constant_args_idx: int,
-    grid: list["TritonGridType"],
-    tma_descriptor_metadata: TMADescriptorMetadata,
+    grid_idx: int,
+    tma_descriptor_metadata_idx: int,
     kwargs: dict[str, Any],
     tensors_to_clone: list[str],
 ) -> dict[str, Any]:
@@ -1291,8 +1326,8 @@ def triton_kernel_wrapper_functional_dense(
     triton_kernel_wrapper_mutation(
         kernel_idx=kernel_idx,
         constant_args_idx=constant_args_idx,
-        grid=grid,
-        tma_descriptor_metadata=tma_descriptor_metadata,
+        grid_idx=grid_idx,
+        tma_descriptor_metadata_idx=tma_descriptor_metadata_idx,
         kwargs=kwargs,
     )
     return {key: val for key, val in kwargs.items() if key in tensors_to_clone}
@@ -1304,8 +1339,8 @@ def triton_kernel_wrapper_functional_fake_tensor_mode(
     *,
     kernel_idx: int,
     constant_args_idx: int,
-    grid: list["TritonGridType"],
-    tma_descriptor_metadata: TMADescriptorMetadata,
+    grid_idx: int,
+    tma_descriptor_metadata_idx: int,
     kwargs: dict[str, Any],
     tensors_to_clone: list[str],
 ) -> dict[str, Any]:
@@ -1327,8 +1362,8 @@ def triton_kernel_wrapper_functional_proxy_torch_dispatch_mode(
     *,
     kernel_idx: int,
     constant_args_idx: int,
-    grid: list["TritonGridType"],
-    tma_descriptor_metadata: TMADescriptorMetadata,
+    grid_idx: int,
+    tma_descriptor_metadata_idx: int,
     kwargs: dict[str, Any],
     tensors_to_clone: list[str],
 ) -> dict[str, Any]:
@@ -1338,8 +1373,8 @@ def triton_kernel_wrapper_functional_proxy_torch_dispatch_mode(
         {
             "kernel_idx": kernel_idx,
             "constant_args_idx": constant_args_idx,
-            "grid": grid,
-            "tma_descriptor_metadata": tma_descriptor_metadata,
+            "grid_idx": grid_idx,
+            "tma_descriptor_metadata_idx": tma_descriptor_metadata_idx,
             "kwargs": kwargs,
             "tensors_to_clone": tensors_to_clone,
         },
@@ -1353,8 +1388,8 @@ def triton_kernel_wrapper_functional_functionalize(
     ctx: "BaseFunctionalizeAPI",
     kernel_idx: int,
     constant_args_idx: int,
-    grid: list["TritonGridType"],
-    tma_descriptor_metadata: TMADescriptorMetadata,
+    grid_idx: int,
+    tma_descriptor_metadata_idx: int,
     kwargs: dict[str, Any],
     tensors_to_clone: list[str],
 ) -> dict[str, Any]:
@@ -1363,8 +1398,8 @@ def triton_kernel_wrapper_functional_functionalize(
         outputs = triton_kernel_wrapper_functional(
             kernel_idx=kernel_idx,
             constant_args_idx=constant_args_idx,
-            grid=grid,
-            tma_descriptor_metadata=tma_descriptor_metadata,
+            grid_idx=grid_idx,
+            tma_descriptor_metadata_idx=tma_descriptor_metadata_idx,
             kwargs=unwrapped_kwargs,
             tensors_to_clone=tensors_to_clone,
         )
@@ -2051,14 +2086,20 @@ class TracingTritonHOPifier(TritonHOPifier):
 
         graphable_args, constant_args_idx = self.store_non_graphable_args(combined_args)
 
+        # Store grid in side table instead of passing it directly
+        grid_idx = kernel_side_table.add_grid(grids)
+
+        # Store TMA descriptor metadata in side table
+        tma_descriptor_metadata_idx = kernel_side_table.add_tma_descriptor_metadata({})
+
         assert isinstance(variable.kernel_idx, int)
         return triton_kernel_wrapper_mutation(
             kernel_idx=variable.kernel_idx,
             constant_args_idx=constant_args_idx,
-            grid=grids,  # type: ignore[arg-type]
+            grid_idx=grid_idx,
             # TMA descriptor capturing not yet
             # supported in non-dynamo tracing
-            tma_descriptor_metadata={},
+            tma_descriptor_metadata_idx=tma_descriptor_metadata_idx,
             kwargs=graphable_args,
         )
 
