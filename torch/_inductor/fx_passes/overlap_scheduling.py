@@ -11,6 +11,11 @@ from typing import Any, Literal
 import torch
 import torch.fx as fx
 from torch._dynamo.utils import counters, dynamo_timed
+from torch._inductor.comm_analysis import (
+    estimate_fx_collective_size,
+    get_collective_type_from_kernel_name,
+    NCCL_COLL,
+)
 from torch._inductor.fx_passes.bucketing import is_wait_tensor
 from torch._inductor.fx_passes.memory_estimator import (
     _is_releasable,
@@ -65,16 +70,6 @@ def estimate_collective_time(
     return torch._inductor.comm_analysis.estimate_nccl_collective_runtime_from_fx_node(
         n, override_size
     )
-
-
-def estimate_fx_collective_size(fx_node: torch.fx.Node) -> int:
-    size = 0
-    for node in fx_node.all_input_nodes:
-        if (t := node.meta.get("val")) is not None:
-            # todo - symbolic
-            size += t.numel() * t.element_size()
-
-    return size
 
 
 def is_compute_node(n: fx.Node) -> bool:
@@ -311,6 +306,19 @@ class OverlapScheduler:
 
         return ancestors
 
+    def _schedulable_wait_node(self, n: fx.Node) -> bool:
+        """
+        Add additional check on if the wait node is schedulable
+        We should not schedule a fx node that is:
+            1. wait on a collective that is not callable
+            2. wait on a non-NCCL communication node
+        """
+        assert isinstance(n.args[0], fx.Node)
+        is_callable: bool = n.args[0].op == "call_function"
+        coll: NCCL_COLL = get_collective_type_from_kernel_name(n.target.name())
+        is_collective: bool = coll != NCCL_COLL.UNSUPPORTED
+        return is_callable and is_collective
+
     def off_compute_path(self, n: fx.Node) -> bool:
         """Check if a node is off the compute path (doesn't block any compute)."""
         return self.compute_index_domination[n] == sys.maxsize
@@ -318,7 +326,7 @@ class OverlapScheduler:
     def _identify_collectives(self) -> None:
         """Identify all collective operations."""
         for node in self.nodes:
-            if is_wait_tensor(node):
+            if is_wait_tensor(node) and self._schedulable_wait_node(node):
                 start = node.args[0]
                 coll_time_ms = estimate_collective_time(
                     start, custom_runtime_estimation=self.custom_runtime_estimation
@@ -531,7 +539,7 @@ class OverlapScheduler:
                 self._handle_compute(node)
             elif node in self.collective_info:
                 self._handle_collective_start(node)
-            elif is_wait_tensor(node):
+            elif is_wait_tensor(node) and self._schedulable_wait_node(node):
                 self._handle_wait(node)
             else:
                 self._handle_other(node)
@@ -596,7 +604,7 @@ class OverlapScheduler:
     def _compute_score(self, node: fx.Node) -> object:
         """Compute priority score for a node"""
 
-        if is_wait_tensor(node):
+        if is_wait_tensor(node) and self._schedulable_wait_node(node):
             info = self.collective_info[self.wait_to_start[node]]
             # defer waits locally if they are exposed.
             compute_local_priority = int(info.is_exposed)
@@ -827,7 +835,7 @@ class OverlapScheduler:
             # thus forcing it to be exposed.
             # however, if it is already hidden or it cannot be possible hidden,
             # it's fine to schedule it
-            if is_wait_tensor(node):
+            if is_wait_tensor(node) and self._schedulable_wait_node(node):
                 info = self.collective_info[self.wait_to_start[node]]
                 if info.hiding_node and info.hiding_node != curr_compute_node:
                     continue
@@ -875,7 +883,7 @@ class OverlapScheduler:
         assert all(n not in self.scheduled for n in path)
         for node in sorted(path, key=lambda n: self.node_idx[n]):
             assert not (is_compute_node(node) or node in self.unscheduled_collectives)
-            if is_wait_tensor(node):
+            if is_wait_tensor(node) and self._schedulable_wait_node(node):
                 # When we schedule wait tensors, we also force realization of all
                 # collectives enqueued prior to their corresponding collective.
                 # It's possible the scheduling of one wait tensor here has forced
