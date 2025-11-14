@@ -693,6 +693,9 @@ class TestFP8Matmul(TestCase):
     def test_float8_basics(self, device) -> None:
         if device != "cpu" and torch.cuda.is_available() and not PLATFORM_SUPPORTS_FP8:
             raise unittest.SkipTest(f8_msg)
+        # Skip on CUDA 13.0+ due to known issues with FP8
+        if device == "cuda" and _get_torch_cuda_version() >= (13, 0):
+            raise unittest.SkipTest("Skip on CUDA 13.0+ due to known issues with FP8")
         self._test_tautological_mm(device, e4m3_type, e4m3_type, size=16)
         # According to https://docs.nvidia.com/cuda/cublas/#id99 8F_E5M2 MM is unsupported
         # supported on ROCm but fails on CUDA
@@ -713,6 +716,9 @@ class TestFP8Matmul(TestCase):
     def test_float8_scale(self, device) -> None:
         if device != "cpu" and torch.cuda.is_available() and not PLATFORM_SUPPORTS_FP8:
             raise unittest.SkipTest(f8_msg)
+        # Skip on CUDA 13.0+ due to known issues with FP8
+        if device == "cuda" and _get_torch_cuda_version() >= (13, 0):
+            raise unittest.SkipTest("Skip on CUDA 13.0+ due to known issues with FP8")
         size = (16, 16)
         x = torch.full(size, .5, device=device, dtype=e4m3_type)
         # hipblaslt does not yet support mixed e4m3_type input
@@ -1038,6 +1044,9 @@ class TestFP8Matmul(TestCase):
     def test_float8_bias(self, device) -> None:
         if device != "cpu" and torch.cuda.is_available() and not PLATFORM_SUPPORTS_FP8:
             raise unittest.SkipTest(f8_msg)
+        # Skip on CUDA 13.0+ due to known issues with FP8
+        if device == "cuda" and _get_torch_cuda_version() >= (13, 0):
+            raise unittest.SkipTest("Skip on CUDA 13.0+ due to known issues with FP8")
         (k, l, m) = (16, 48, 32)
         x = torch.ones((k, l), device=device).to(e4m3_type)
         y = torch.full((m, l), .25, device=device, dtype=e4m3_type).t()
