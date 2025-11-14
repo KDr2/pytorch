@@ -8,8 +8,8 @@ import argparse
 import math
 from typing import Any
 
-from tools.flight_recorder.components.fr_logger import FlightRecorderLogger
-from tools.flight_recorder.components.types import (
+from torch.distributed.flight_recorder.components.fr_logger import FlightRecorderLogger
+from torch.distributed.flight_recorder.components.types import (
     Collective,
     EntryState,
     Group,

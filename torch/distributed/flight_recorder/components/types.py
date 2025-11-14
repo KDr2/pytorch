@@ -16,7 +16,7 @@ from typing import (  # type: ignore[attr-defined]
     TypeVar,
 )
 
-from tools.flight_recorder.components.fr_logger import FlightRecorderLogger
+from torch.distributed.flight_recorder.components.fr_logger import FlightRecorderLogger
 
 
 T = TypeVar("T", bound=NamedTuple)

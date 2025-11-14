@@ -13,7 +13,7 @@ import time
 from collections import defaultdict
 from typing import Any, Union
 
-from tools.flight_recorder.components.fr_logger import FlightRecorderLogger
+from torch.distributed.flight_recorder.components.fr_logger import FlightRecorderLogger
 
 
 logger: FlightRecorderLogger = FlightRecorderLogger()

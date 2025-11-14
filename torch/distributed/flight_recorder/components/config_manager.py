@@ -9,7 +9,7 @@ import logging
 from collections.abc import Sequence
 from typing import Optional
 
-from tools.flight_recorder.components.fr_logger import FlightRecorderLogger
+from torch.distributed.flight_recorder.components.fr_logger import FlightRecorderLogger
 
 
 logger: FlightRecorderLogger = FlightRecorderLogger()
