@@ -1044,6 +1044,11 @@ def proxy_call(
             torch.ops.aten.storage_offset.default,
         ]
         and autograd_would_have_decomposed(func, flat_args_kwargs)
+        and func not in (
+                torch.ops.profiler._record_function_enter.default,
+                torch.ops.profiler._record_function_enter_new.default,
+                torch.ops.profiler._record_function_exit._RecordFunction,
+            )
     ):
         with proxy_mode:
             r = func.decompose(*args, **kwargs)

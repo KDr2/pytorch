@@ -301,6 +301,37 @@ class FunctionalTensor(torch.Tensor):
     def __bool__(self):
         return bool(self.item())
 
+from torch.library import impl
+import torch._C
+
+
+@impl("profiler::_record_function_enter_new", "Functionalize")
+def _record_function_enter_new_functionalize(name, args=None):
+    """
+    Functionalize kernel for _record_function_enter_new.
+    Just calls the default implementation - no functionalization needed.
+    """
+    # Profiler ops don't mutate tensors, so just pass through
+    # We need to exclude the Functionalize key to avoid infinite recursion
+    with torch._C._ExcludeDispatchKeyGuard(
+        torch._C.DispatchKeySet(torch._C.DispatchKey.Functionalize)
+    ):
+        return torch.ops.profiler._record_function_enter_new(name, args)
+
+
+@impl("profiler::_record_function_exit._RecordFunction", "Functionalize")
+def _record_function_exit_functionalize(record):
+    """
+    Functionalize kernel for _record_function_exit._RecordFunction.
+    Just calls the default implementation - no functionalization needed.
+    """
+    # Profiler ops don't mutate tensors, so just pass through
+    # We need to exclude the Functionalize key to avoid infinite recursion
+    with torch._C._ExcludeDispatchKeyGuard(
+        torch._C.DispatchKeySet(torch._C.DispatchKey.Functionalize)
+    ):
+        torch.ops.profiler._record_function_exit._RecordFunction(record)
+
 
 class FunctionalTensorMode(TorchDispatchMode):
     def __init__(self, pre_dispatch=False, export=False, _allow_token_discovery=False):
@@ -378,6 +409,14 @@ class FunctionalTensorMode(TorchDispatchMode):
             # See https://github.com/pytorch/pytorch/pull/115258#issuecomment-1900755832
             # Never decompose dropout in export
             if self.export and func is torch.ops.aten.dropout.default:
+                return False
+
+            # Never decompose profiler ops - they should be preserved as-is
+            if func in (
+                torch.ops.profiler._record_function_enter.default,
+                torch.ops.profiler._record_function_enter_new.default,
+                torch.ops.profiler._record_function_exit._RecordFunction,
+            ):
                 return False
 
             # We unconditionally decompose ops that are maybe aliasing or mutating ops
@@ -543,6 +582,8 @@ class FunctionalTensorMode(TorchDispatchMode):
                             with fx_traceback.set_current_replay_node(curr_node):
                                 torch._sync(a)
 
+                    # if "record" in str(func):
+                    #     breakpoint()
                     # When we dispatch to the C++ functionalization kernel, we might need to jump back to the
                     # PreDispatch mode stack afterwards, to handle any other PreDispatch modes underneath
                     # FunctionalTensorMode. If we call func() directly, we would need to exclude PreDispatch
