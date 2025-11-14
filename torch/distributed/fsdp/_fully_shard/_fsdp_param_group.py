@@ -147,6 +147,7 @@ class FSDPParamGroup:
                 shard_placement_fn,
                 mp_policy,
                 offload_policy,
+                param_group=self,  # Ref cycle is OK: parent-child have same lifetime
             )
             for param, module_info in zip(params, param_module_infos)
         ]
