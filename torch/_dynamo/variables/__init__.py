@@ -93,6 +93,7 @@ from .lists import (
     BaseListVariable,
     ListIteratorVariable,
     ListVariable,
+    NamedTupleVariable,
     RangeVariable,
     SliceVariable,
     TupleIteratorVariable,
@@ -142,7 +143,6 @@ from .torch import TorchCtxManagerClassVariable, TorchInGraphFunctionVariable
 from .user_defined import (
     FrozenDataClassVariable,
     MutableMappingVariable,
-    NamedTupleVariable,
     RemovableHandleVariable,
     UserDefinedClassVariable,
     UserDefinedDictVariable,
