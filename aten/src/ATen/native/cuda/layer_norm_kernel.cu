@@ -89,7 +89,7 @@ __global__ void RowwiseMomentsCUDAKernel(
   if (threadIdx.x == 0) {
     T_ACC m1;
     T_ACC m2;
-    thrust::tie(m2, m1) = welford_op.project(val);
+    ::cuda::std::tie(m2, m1) = welford_op.project(val);
     if constexpr (!rms_norm){
       mean[i] = m1;
       rstd[i] = c10::cuda::compat::rsqrt(m2 + eps);
