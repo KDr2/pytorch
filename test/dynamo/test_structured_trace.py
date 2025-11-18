@@ -1017,7 +1017,6 @@ def forward(self, x_1: "f32[2][1]cpu"):
         logs = self.buffer.getvalue()
         self.assertTrue(all(event in logs for event in chromium_events))
 
-    @xfailIfS390X
     @requires_tlparse
     @torch._dynamo.config.patch("compiled_autograd", True)
     def test_compiled_autograd_attribution(self):
