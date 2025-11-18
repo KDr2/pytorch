@@ -68,6 +68,10 @@ inline bool has_pyobject(uint64_t combined_refcount) {
   return (combined_refcount & kHasPyObject) != 0;
 }
 
+inline bool is_uniquely_owned(uint64_t combined_refcount) {
+  return (combined_refcount & ~detail::kHasPyObject) == detail::kUniqueRef;
+}
+
 // The only requirement for refcount increment is that it happens-before
 // decrement, so no additional memory ordering is needed.
 inline uint64_t atomic_combined_refcount_increment(
@@ -390,54 +394,60 @@ class intrusive_ptr final {
 
   void reset_() noexcept {
     if (target_ != NullType::singleton()) {
-      reset_not_null_();
+      reset_not_null_(target_);
     }
   }
 
-  C10_NOINLINE void reset_not_null_() noexcept {
-    if (is_uniquely_owned()) {
+  // C10_NOINLINE to keep binary size a bit smaller. We pass TTarget* here
+  // to avoid an extra pointer dereference in the call from reset_().
+  C10_NOINLINE static void reset_not_null_(TTarget* target) noexcept {
+    if (detail::is_uniquely_owned(
+            target->combined_refcount_.load(std::memory_order_acquire))) {
       // Both counts are 1, so there are no weak references and
       // we are releasing the last strong reference. No other
-      // threads can observe the effects of this target_ deletion
+      // threads can observe the effects of this target deletion
       // call (e.g. calling use_count()) without a data race.
-      target_->combined_refcount_.store(0, std::memory_order_relaxed);
-      delete target_;
+      target->combined_refcount_.store(0, std::memory_order_relaxed);
+      delete target;
       return;
     }
 
     auto combined_refcount = detail::atomic_combined_refcount_decrement(
-        target_->combined_refcount_, detail::kReferenceCountOne);
+        target->combined_refcount_, detail::kReferenceCountOne);
     uint32_t new_refcount = detail::refcount(combined_refcount);
     bool has_pyobject = detail::has_pyobject(combined_refcount);
     if (new_refcount == 0) {
-      bool should_delete = detail::weakcount(combined_refcount) == 1;
+      if (detail::weakcount(combined_refcount) == 1) {
+        delete target;
+        return;
+      }
       // See comment above about weakcount. As long as refcount>0,
       // weakcount is one larger than the actual number of weak references.
       // So we need to decrement it here.
-      if (!should_delete) {
-        // justification for const_cast: release_resources is basically a
-        // destructor and a destructor always mutates the object, even for
-        // const objects.
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
-        const_cast<std::remove_const_t<TTarget>*>(target_)->release_resources();
-        should_delete = detail::atomic_weakcount_decrement(
-                            target_->combined_refcount_) == 0;
-      }
-      if (should_delete) {
-        delete target_;
-      }
+      release_resources_and_decrement_weakrefs_(target);
     } else if constexpr (detail::TargetTraits<TTarget>::can_have_pyobject) {
       // If the refcount transitioned from 2 to 1, we need to decref the
       // PyObject. In other words, we don't want to keep the PyObject alive if
       // there are no C++ references to this object other than the PyObject
       // itself.
       if (has_pyobject && new_refcount == 1) {
-        target_->decref_pyobject();
+        target->decref_pyobject();
       }
     } else {
       TORCH_INTERNAL_ASSERT_DEBUG_ONLY(
           !has_pyobject,
           "TargetTraits indicates that type cannot have PyObject, but refcount has PyObject bit set.");
+    }
+  }
+
+  C10_NOINLINE static void release_resources_and_decrement_weakrefs_(
+      TTarget* target) noexcept {
+    // justification for const_cast: release_resources is basically a
+    // destructor and a destructor always mutates the object, even for
+    // const objects.
+    const_cast<std::remove_const_t<TTarget>*>(target)->release_resources();
+    if (detail::atomic_weakcount_decrement(target->combined_refcount_) == 0) {
+      delete target;
     }
   }
 
@@ -608,9 +618,8 @@ class intrusive_ptr final {
    */
   bool is_uniquely_owned() const noexcept {
     TORCH_INTERNAL_ASSERT_DEBUG_ONLY(target_ != NullType::singleton());
-    uint64_t combined =
-        target_->combined_refcount_.load(std::memory_order_acquire);
-    return (combined & ~detail::kHasPyObject) == detail::kUniqueRef;
+    return detail::is_uniquely_owned(
+        target_->combined_refcount_.load(std::memory_order_acquire));
   }
 
   /**
