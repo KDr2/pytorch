@@ -95,6 +95,13 @@ class FunctionalTensor(torch.Tensor):
         torch.ops.prim.device.default,  # type: ignore[has-type]
     ]
 
+    profiler_fns = [
+        torch.ops.profiler._record_function_enter_new.default, 
+        torch.ops.profiler._record_function_exit._RecordFunction,
+        torch.ops.profiler._record_function_exit.default,
+        torch.ops.profiler._record_function_enter.default
+    ]
+
     # Used by auto_functionalize to determine base of tensors during inference mode.
     _inference_mode_base: Optional["FunctionalTensor"] = None
 

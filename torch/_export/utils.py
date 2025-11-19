@@ -1296,6 +1296,9 @@ def _check_valid_to_preserve(op_overload: "OperatorBase"):
     if op_overload in FunctionalTensor.metadata_fns:
         return False
 
+    if op_overload in FunctionalTensor.profiler_fns:
+        return False
+
     if not hasattr(op_overload, "_schema"):
         return False
 
