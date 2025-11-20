@@ -109,18 +109,12 @@ class SliceViewInfo(ViewInfo):
 
 @dataclass
 class AliasViewInfo(ViewInfo):
-    def __init__(self, base_index):
-        super().__init__(base_index)
-
     def regenerate_view(self, bases_list: list[Tensor]):
         return torch.ops.aten.alias.default(bases_list[self.base_index])
 
 
 @dataclass
 class NotView(ViewInfo):
-    def __init__(self, base_index):
-        super().__init__(base_index)
-
     def regenerate_view(self, bases_list: list[Tensor]):
         return bases_list[self.base_index]
 
