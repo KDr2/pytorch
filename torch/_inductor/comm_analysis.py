@@ -8,6 +8,7 @@ import sympy
 
 import torch
 import torch.utils._pytree as pytree
+from torch._inductor.sizevars import SizeVarAllocator
 from torch.fx.operator_schemas import normalize_function
 
 from . import ir
@@ -16,6 +17,7 @@ from .virtualized import V
 
 
 log = logging.getLogger(__name__)
+sizevars = SizeVarAllocator()
 
 
 class NCCL_COLL(IntEnum):
@@ -74,7 +76,7 @@ def get_size_numel(size: torch.Size, fallback: int = 4096 * 4096) -> int:
     if isinstance(numel, sympy.Integer):
         return int(numel)
 
-    return V.graph.sizevars.size_hint(numel, fallback=fallback)
+    return sizevars.size_hint(numel, fallback=fallback)
 
 
 def get_collective_input_size_bytes(node: ir.IRNode) -> int:
@@ -350,7 +352,7 @@ def estimate_fx_collective_size(fx_node: torch.fx.Node) -> int:
     # dont double count pre-allocated buffer passed in
     kwargs.pop("out", None)
 
-    def tensor_bytes(t) -> int:
+    def tensor_bytes(t: torch.Tensor) -> int:
         return get_size_numel(t.size()) * get_dtype_size(t.dtype)
 
     def add_inp_bytes(inp: torch.fx.Node):
@@ -361,7 +363,8 @@ def estimate_fx_collective_size(fx_node: torch.fx.Node) -> int:
         nonlocal input_bytes
         if input_bytes is None:
             input_bytes = 0
-        input_bytes += tensor_bytes(t)
+        if isinstance(t, torch.Tensor):
+            input_bytes += tensor_bytes(t)
 
     pytree.tree_map_only(
         torch.fx.Node,
@@ -374,9 +377,10 @@ def estimate_fx_collective_size(fx_node: torch.fx.Node) -> int:
     if input_bytes is None or output_tensor is None:
         return 0
 
-    output_bytes = (
-        get_size_numel(output_tensor.size()) * output_tensor.element_size()
-    )  # pyre-ignore
+    if isinstance(output_tensor, torch.Tensor):
+        output_bytes = tensor_bytes(output_tensor)
+    else:
+        output_bytes = 0
 
     return input_bytes + output_bytes
 
