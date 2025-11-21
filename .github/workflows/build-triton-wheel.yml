@@ -32,9 +32,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ github.event_name == 'workflow_dispatch' }}
   cancel-in-progress: true
 
-env:
-  ROCM_VERSIONS: '["7.1", "7.0"]'
-
 jobs:
   get-label-type:
     if: github.repository_owner == 'pytorch'
@@ -58,10 +55,10 @@ jobs:
         docker-image: ["pytorch/manylinux2_28-builder:cpu"]
         include:
           - device: "rocm-n"
-            rocm_version: ${{ fromJSON(env.ROCM_VERSIONS)[0] }}
+            rocm_version: "7.1"
             runs_on: "${{ needs.get-label-type.outputs.label-type }}linux.4xlarge"
           - device: "rocm-n-1"
-            rocm_version: ${{ fromJSON(env.ROCM_VERSIONS)[1] }}
+            rocm_version: "7.0"
             runs_on: "${{ needs.get-label-type.outputs.label-type }}linux.4xlarge"
           - device: "cuda"
             rocm_version: ""
@@ -74,7 +71,7 @@ jobs:
             runs_on: "${{ needs.get-label-type.outputs.label-type }}linux.arm64.2xlarge"
     timeout-minutes: 40
     env:
-      DOCKER_IMAGE: ${{ matrix.device == rocm* && format('pytorch/manylinux2_28-builder:rocm{0}', matrix.rocm_version) || matrix.device == 'aarch64' && 'pytorch/manylinux2_28_aarch64-builder:cpu-aarch64' || matrix.docker-image }}
+      DOCKER_IMAGE: ${{ startsWith(matrix.device, 'rocm') && format('pytorch/manylinux2_28-builder:rocm{0}', matrix.rocm_version) || matrix.device == 'aarch64' && 'pytorch/manylinux2_28_aarch64-builder:cpu-aarch64' || matrix.docker-image }}
       PY_VERS: ${{ matrix.py_vers }}
       BUILD_DEVICE: ${{ matrix.device }}
       PLATFORM: 'manylinux_2_28_x86_64'
