@@ -69,8 +69,8 @@ private:
 
 void _print_dispatch_trace(const std::string& label, const std::string& op_name, const DispatchKeySet& dispatchKeySet) {
   auto nesting_value = dispatch_trace_nesting_value();
-  for (int64_t i = 0; i < nesting_value; ++i) std::cerr << " ";
-  std::cerr << label << " op=[" << op_name << "], key=[" << toString(dispatchKeySet.highestPriorityTypeId()) << "]" << std::endl;
+  for (int64_t i = 0; i < nesting_value; ++i) std::cerr << ' ';
+  std::cerr << label << " op=[" << op_name << "], key=[" << toString(dispatchKeySet.highestPriorityTypeId()) << ']' << std::endl;
 }
 } // namespace detail
 
@@ -537,7 +537,7 @@ int64_t Dispatcher::sequenceNumberForRunningRecordFunction(DispatchKey dispatchK
 
   // Note: this records a sequence number for both Autograd keys, and for
   // non-Autograd keys where the dispatchKeySet still contains an autograd key.
-  // This means that we might collect the same sequence nubmer two different
+  // This means that we might collect the same sequence number two different
   // events if they all occurred above Autograd and still had the Autograd
   // dispatch key in the dispatch key set.
   // However, this usually doesn't happen: normally the first call will

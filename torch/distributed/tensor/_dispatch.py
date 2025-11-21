@@ -9,6 +9,7 @@ import torch
 import torch.distributed as dist
 import torch.distributed.tensor._api as dtensor
 import torch.distributed.tensor._random as random
+from torch._library.utils import fill_defaults
 from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.tensor._dtensor_spec import DTensorSpec, TensorMeta
 from torch.distributed.tensor._op_schema import OpInfo, OpSchema, OutputSpecType
@@ -19,7 +20,10 @@ from torch.distributed.tensor._tp_conv import (
     convolution_backward_handler,
     convolution_handler,
 )
-from torch.distributed.tensor._utils import try_find_mesh_from_args
+from torch.distributed.tensor._utils import (
+    ExplicitRedistributionContext,
+    try_find_mesh_from_args,
+)
 from torch.distributed.tensor.placement_types import Partial, Placement, Replicate
 from torch.utils._debug_mode import get_active_debug_mode
 from torch.utils._python_dispatch import return_and_correct_aliasing
@@ -32,6 +36,23 @@ except ImportError:
 
 aten = torch.ops.aten
 logger = logging.getLogger(__name__)
+
+
+def as_strided_handler(
+    op_call: torch._ops.OpOverload,
+    args: tuple[object, ...],
+    kwargs: dict[str, object],
+):
+    args, kwargs = fill_defaults(op_call._schema, args, kwargs)
+    assert not kwargs
+    tensor, size, stride, storage_offset = args
+    if (
+        tensor.size() == tuple(size)
+        and tensor.stride() == tuple(stride)
+        and (storage_offset is None or tensor.storage_offset() == storage_offset)
+    ):
+        return torch.ops.aten.alias.default(tensor)
+    raise RuntimeError("as_strided not supported with DTensor")
 
 
 def is_same_size_handler(
@@ -107,7 +128,9 @@ class OpDispatcher:
         self._random_ops = {
             aten.native_dropout.default,
             aten.normal_.default,
+            aten.rand.default,
             aten.rand_like.default,
+            aten.randn.default,
             aten.randn_like.default,
             aten.randint_like.default,
             aten.randint_like.low_dtype,
@@ -121,6 +144,7 @@ class OpDispatcher:
             aten.convolution.default: convolution_handler,
             aten.convolution_backward.default: convolution_backward_handler,
             aten._amp_foreach_non_finite_check_and_unscale_.default: found_inf_reduce_handler,
+            aten.as_strided.default: as_strided_handler,
         }
 
     # This flag is used internally to control whether we treat the torch.Tensor(non-DTensor)
@@ -294,19 +318,34 @@ class OpDispatcher:
         if op_info.schema.is_inplace_op():
             # inplace op should return self instead of re-wrapping
             if output_sharding.output_spec is not None:
+                output_spec = output_sharding.output_spec
+                assert isinstance(output_spec, DTensorSpec)
+                assert isinstance(args[0], dtensor.DTensor)
+
                 # NOTE: aten.squeeze_.dim is an inplace op but it also may change
                 # the inplace argument's tensor meta. Here we choose to special case
                 # this op because as far as I know this is the only inplace op that
                 # has such as behavior. We can extend this special case if necessary.
                 if op_call == aten.squeeze_.dim:
-                    output_spec = output_sharding.output_spec
-                    assert isinstance(output_spec, DTensorSpec)
-                    assert isinstance(args[0], dtensor.DTensor)
+                    # update the spec to handle tensor meta changes
                     args[0]._spec = output_spec
                     # use return_and_correct_aliasing to match the outer and the inner
                     # aliasing. See https://github.com/pytorch/pytorch/pull/158954
                     return return_and_correct_aliasing(op_call, args, kwargs, args[0])
                 else:
+                    # For all other inplace ops, check if placement changes are required
+                    # Inplace operations that change placement are not supported because
+                    # they would require redistribution, which breaks aliasing semantics.
+                    # If there are views into the tensor, the views would not be updated.
+                    if args[0]._spec.placements != output_spec.placements:
+                        raise RuntimeError(
+                            f"{op_call}: in-place operations that require placement changes "
+                            f"are not supported. The operation would change placement from "
+                            f"{args[0]._spec.placements} to {output_spec.placements}, "
+                            f"which requires redistribution and breaks aliasing semantics. "
+                            f"Please use the out-of-place version of this operation instead."
+                        )
+                    # Most inplace ops don't change tensor meta, so no spec update needed
                     return args[0]
             else:
                 return None
@@ -364,7 +403,14 @@ class OpDispatcher:
                         if debug_mode is not None
                         else contextlib.nullcontext()
                     )
-
+                    if not ExplicitRedistributionContext.is_redistribute_allowed(
+                        arg_spec,
+                        # pyrefly: ignore [bad-argument-type]
+                        reshard_arg_spec,
+                    ):
+                        raise RuntimeError(
+                            f"Implicit redistribution occurred for {op_info.schema} while ExplicitRedistributionContext was active"
+                        )
                     with redistribute_context:
                         resharded_local_tensor = redistribute_local_tensor(
                             local_tensor,
