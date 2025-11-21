@@ -653,7 +653,7 @@ class FakeTensor(Tensor):
     """
 
     fake_device: torch.device
-    fake_mode: FakeTensorMode
+    _fake_mode_ref: weakref.ReferenceType[FakeTensorMode]  # Store as weakref
     constant: Optional[Tensor]
     real_tensor: Optional[Tensor]
 
@@ -679,6 +679,18 @@ class FakeTensor(Tensor):
     # Indicates to our torch_dispatch dispatching infra that
     # this is an "infra" mode with lower dispatching precedence.
     _mode_key = torch._C._TorchDispatchModeKey.FAKE
+
+    @property
+    def fake_mode(self) -> FakeTensorMode:
+        """Access the FakeTensorMode, dereferencing the weakref."""
+        mode = self._fake_mode_ref()
+        if mode is None:
+            raise RuntimeError(
+                "FakeTensorMode has been garbage collected. "
+                "This usually means the FakeTensor outlived its FakeTensorMode, "
+                "which should not happen in normal operation."
+            )
+        return mode
 
     @property
     # pyrefly: ignore [bad-override]
@@ -777,7 +789,9 @@ class FakeTensor(Tensor):
                 device = torch.device(f"{device.type}:0")
         # pyrefly: ignore [read-only]
         self.fake_device = device
-        self.fake_mode = fake_mode
+        # Store fake_mode as a weakref to break reference cycles
+        # that prevent garbage collection in Python 3.14+
+        self._fake_mode_ref = weakref.ref(fake_mode)
         self.constant = constant
         self.pytype = pytype
         self.dispatch_keys = dispatch_keys
