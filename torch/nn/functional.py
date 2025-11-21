@@ -3536,6 +3536,10 @@ def _linear_cross_entropy_naive(
     return loss
 
 
+_DEFAULT_VOCAB_CHUNK_SIZE = 4096
+_DEFAULT_BATCH_CHUNK_SIZE = 1024
+
+
 def linear_cross_entropy(
     input: Tensor,
     linear_weight: Tensor,
@@ -3627,12 +3631,45 @@ def linear_cross_entropy(
             label_smoothing,
         )
     else:
-        op = torch.ops.aten.linear_cross_entropy.default
-        schema = op._schema
-        supports_chunk_sizes = any(
-            arg.name == "vocab_chunk_size" for arg in schema.arguments
+        reduction_enum = _Reduction.get_enum(reduction)
+        vocab_chunk = (
+            vocab_chunk_size if vocab_chunk_size is not None else _DEFAULT_VOCAB_CHUNK_SIZE
         )
-        if not supports_chunk_sizes:
+        batch_chunk = (
+            batch_chunk_size if batch_chunk_size is not None else _DEFAULT_BATCH_CHUNK_SIZE
+        )
+        has_vocab_helper = hasattr(
+            torch.ops.aten, "_linear_cross_entropy_vocab_chunking"
+        )
+        has_batch_helper = hasattr(
+            torch.ops.aten, "_linear_cross_entropy_batch_chunking"
+        )
+
+        if chunking_strategy == "vocab" and has_vocab_helper:
+            loss, _logsumexp = torch.ops.aten._linear_cross_entropy_vocab_chunking(
+                input,
+                linear_weight,
+                target,
+                linear_bias=linear_bias,
+                reduction=reduction_enum,
+                ignore_index=ignore_index,
+                label_smoothing=label_smoothing,
+                chunk_size=vocab_chunk,
+            )
+            result = loss
+        elif chunking_strategy == "batch" and has_batch_helper:
+            loss, *_templates = torch.ops.aten._linear_cross_entropy_batch_chunking(
+                input,
+                linear_weight,
+                target,
+                linear_bias=linear_bias,
+                reduction=reduction_enum,
+                ignore_index=ignore_index,
+                label_smoothing=label_smoothing,
+                chunk_size=batch_chunk,
+            )
+            result = loss
+        else:
             result = _linear_cross_entropy_naive(
                 input,
                 linear_weight,
@@ -3642,34 +3679,6 @@ def linear_cross_entropy(
                 ignore_index,
                 label_smoothing,
             )
-        else:
-            reduction_enum = _Reduction.get_enum(reduction)
-            try:
-                result = torch.ops.aten.linear_cross_entropy(
-                    input,
-                    linear_weight,
-                    target,
-                    linear_bias=linear_bias,
-                    reduction=reduction_enum,
-                    ignore_index=ignore_index,
-                    label_smoothing=label_smoothing,
-                    chunking_strategy=chunking_strategy,
-                    vocab_chunk_size=vocab_chunk_size,
-                    batch_chunk_size=batch_chunk_size,
-                )
-            except RuntimeError as err:
-                msg = str(err)
-                if "not implemented" not in msg and "does not have a device" not in msg:
-                    raise
-                result = _linear_cross_entropy_naive(
-                    input,
-                    linear_weight,
-                    target,
-                    linear_bias,
-                    reduction,
-                    ignore_index,
-                    label_smoothing,
-                )
 
     if reduction == "none":
         return result.reshape(target.shape)

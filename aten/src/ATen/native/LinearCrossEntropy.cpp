@@ -11,9 +11,6 @@
 #include <optional>
 #include <algorithm>
 #include <string>
-#include <torch/library.h>
-#include <torch/csrc/autograd/custom_function.h>
-#include <ATen/core/grad_mode.h>
 
 #ifndef AT_PER_OPERATOR_HEADERS
 #include <ATen/Functions.h>
@@ -66,6 +63,9 @@ constexpr int64_t kDefaultBatchChunkSize = 1024;
 
 struct LinearCrossEntropySavedForBackward {
   Tensor logsumexp;        // [N]
+  Tensor grad_input;
+  Tensor grad_weight;
+  Tensor grad_bias;
   ChunkingStrategy strategy{ChunkingStrategy::NAIVE};
   int64_t chunk_size{0};
 };
@@ -74,28 +74,6 @@ struct LinearCrossEntropyForwardResult {
   Tensor loss;
   std::optional<LinearCrossEntropySavedForBackward> saved;
 };
-
-static Tensor linear_cross_entropy_autograd_apply(
-    const Tensor& input,
-    const Tensor& linear_weight,
-    const Tensor& target,
-    const std::optional<Tensor>& linear_bias_opt,
-    int64_t reduction,
-    int64_t ignore_index,
-    double label_smoothing,
-    ChunkingStrategy strategy,
-    int64_t vocab_chunk_size,
-    int64_t batch_chunk_size);
-
-Tensor batch_chunking_cpu(
-    const Tensor& input,
-    const Tensor& linear_weight,
-    const Tensor& target,
-    const std::optional<Tensor>& linear_bias_opt,
-    int64_t reduction,
-    int64_t ignore_index,
-    double label_smoothing,
-    int64_t chunk_size);
 
 inline ChunkingStrategy select_chunking_strategy(c10::string_view strategy) {
   if (strategy == "none") {
@@ -142,6 +120,14 @@ LinearCrossEntropyForwardResult linear_cross_entropy_forward_batch_chunking(
     double label_smoothing,
     int64_t chunk_size,
     bool save_for_backward);
+
+inline const Tensor& contiguous_if_needed(const Tensor& tensor, Tensor& buffer) {
+  if (tensor.is_contiguous()) {
+    return tensor;
+  }
+  buffer = tensor.contiguous();
+  return buffer;
+}
 
 static LinearCrossEntropyForwardResult linear_cross_entropy_forward_impl(
     const Tensor& input,
@@ -222,24 +208,6 @@ Tensor linear_cross_entropy_cpu(
   const int64_t batch_chunk_size = batch_chunk_size_opt.value_or(kDefaultBatchChunkSize);
   const ChunkingStrategy strategy = select_chunking_strategy(chunking_strategy);
 
-  const bool needs_grad = at::GradMode::is_enabled() &&
-      (input.requires_grad() || linear_weight.requires_grad() ||
-       (linear_bias_opt.has_value() && linear_bias_opt->requires_grad()));
-
-  if (needs_grad) {
-    return linear_cross_entropy_autograd_apply(
-        input,
-        linear_weight,
-        target,
-        linear_bias_opt,
-        reduction,
-        ignore_index,
-        label_smoothing,
-        strategy,
-        vocab_chunk_size,
-        batch_chunk_size);
-  }
-
   auto result = linear_cross_entropy_forward_impl(
       input,
       linear_weight,
@@ -266,11 +234,30 @@ LinearCrossEntropyForwardResult linear_cross_entropy_forward_naive(
     double label_smoothing,
     bool save_for_backward) {
 
-  auto logits = at::linear(input, linear_weight, linear_bias_opt);
+  Tensor input_buffer;
+  const Tensor& input_ref = contiguous_if_needed(input, input_buffer);
+  Tensor linear_weight_buffer;
+  const Tensor& linear_weight_ref = contiguous_if_needed(linear_weight, linear_weight_buffer);
+  Tensor target_buffer;
+  const Tensor& target_ref = contiguous_if_needed(target, target_buffer);
+  Tensor linear_bias_tensor;
+  if (linear_bias_opt.has_value()) {
+    linear_bias_tensor = linear_bias_opt.value();
+  }
+  Tensor linear_bias_buffer;
+  const Tensor& linear_bias_ref = linear_bias_tensor.defined()
+      ? contiguous_if_needed(linear_bias_tensor, linear_bias_buffer)
+      : linear_bias_tensor;
+  std::optional<Tensor> linear_bias_use;
+  if (linear_bias_ref.defined()) {
+    linear_bias_use = linear_bias_ref;
+  }
+
+  auto logits = at::linear(input_ref, linear_weight_ref, linear_bias_use);
   auto logits_flat = logits.reshape({-1, logits.size(-1)});
-  auto target_flat = target.reshape({-1});
+  auto target_flat = target_ref.reshape({-1});
   auto options = logits_flat.options();
-  const int64_t vocab_size = linear_weight.size(0);
+  const int64_t vocab_size = linear_weight_ref.size(0);
 
   Tensor valid_mask = at::ne(target_flat, ignore_index);
   Tensor logsumexp = at::logsumexp(logits_flat, {1}, false);
@@ -339,9 +326,28 @@ LinearCrossEntropyForwardResult linear_cross_entropy_forward_vocab_chunking(
     int64_t chunk_size,
     bool save_for_backward) {
 
-  auto input_flat = input.reshape({-1, input.size(-1)});
-  auto target_flat = target.reshape({-1});
-  const int64_t vocab_size = linear_weight.size(0);
+  Tensor input_buffer;
+  const Tensor& input_ref = contiguous_if_needed(input, input_buffer);
+  Tensor linear_weight_buffer;
+  const Tensor& linear_weight_ref = contiguous_if_needed(linear_weight, linear_weight_buffer);
+  Tensor target_buffer;
+  const Tensor& target_ref = contiguous_if_needed(target, target_buffer);
+  Tensor linear_bias_tensor;
+  if (linear_bias_opt.has_value()) {
+    linear_bias_tensor = linear_bias_opt.value();
+  }
+  Tensor linear_bias_buffer;
+  const Tensor& linear_bias_ref = linear_bias_tensor.defined()
+      ? contiguous_if_needed(linear_bias_tensor, linear_bias_buffer)
+      : linear_bias_tensor;
+  std::optional<Tensor> linear_bias_use;
+  if (linear_bias_ref.defined()) {
+    linear_bias_use = linear_bias_ref;
+  }
+
+  auto input_flat = input_ref.reshape({-1, input_ref.size(-1)});
+  auto target_flat = target_ref.reshape({-1});
+  const int64_t vocab_size = linear_weight_ref.size(0);
   const auto options = input_flat.options();
   auto long_options = options.dtype(at::kLong);
   const double neg_inf = -std::numeric_limits<double>::infinity();
@@ -356,17 +362,16 @@ LinearCrossEntropyForwardResult linear_cross_entropy_forward_vocab_chunking(
   }
 
   Tensor valid_mask = at::ne(target_flat, ignore_index);
-  const Tensor& linear_bias = linear_bias_opt.value_or(Tensor());
   const int64_t num_chunks = (vocab_size + chunk_size - 1) / chunk_size;
 
   for (int64_t chunk_idx = 0; chunk_idx < num_chunks; ++chunk_idx) {
     const int64_t start_idx = chunk_idx * chunk_size;
     const int64_t end_idx = std::min(start_idx + chunk_size, vocab_size);
 
-    auto weight_chunk = linear_weight.slice(0, start_idx, end_idx);
+    auto weight_chunk = linear_weight_ref.slice(0, start_idx, end_idx);
     std::optional<Tensor> bias_chunk;
-    if (linear_bias.defined()) {
-      bias_chunk = linear_bias.slice(0, start_idx, end_idx);
+    if (linear_bias_ref.defined()) {
+      bias_chunk = linear_bias_ref.slice(0, start_idx, end_idx);
     }
 
     auto logits_chunk = at::linear(input_flat, weight_chunk, bias_chunk);
@@ -464,25 +469,61 @@ LinearCrossEntropyForwardResult linear_cross_entropy_forward_batch_chunking(
     int64_t chunk_size,
     bool save_for_backward) {
 
-  auto input_flat = input.reshape({-1, input.size(-1)});
-  auto target_flat = target.reshape({-1});
+  Tensor input_buffer;
+  const Tensor& input_ref = contiguous_if_needed(input, input_buffer);
+  Tensor linear_weight_buffer;
+  const Tensor& linear_weight_ref = contiguous_if_needed(linear_weight, linear_weight_buffer);
+  Tensor target_buffer;
+  const Tensor& target_ref = contiguous_if_needed(target, target_buffer);
+  Tensor linear_bias_tensor;
+  if (linear_bias_opt.has_value()) {
+    linear_bias_tensor = linear_bias_opt.value();
+  }
+  Tensor linear_bias_buffer;
+  const Tensor& linear_bias_ref = linear_bias_tensor.defined()
+      ? contiguous_if_needed(linear_bias_tensor, linear_bias_buffer)
+      : linear_bias_tensor;
+  std::optional<Tensor> linear_bias_use;
+  if (linear_bias_ref.defined()) {
+    linear_bias_use = linear_bias_ref;
+  }
+
+  auto input_flat = input_ref.reshape({-1, input_ref.size(-1)});
+  auto target_flat = target_ref.reshape({-1});
   const int64_t batch_size = input_flat.size(0);
-  const Tensor& linear_bias = linear_bias_opt.value_or(Tensor());
 
   Tensor valid_mask = at::ne(target_flat, ignore_index);
-  Tensor logsumexp = at::empty({batch_size}, input.options());
-  Tensor target_logits = at::zeros({batch_size}, input.options());
+  Tensor target_logits = at::zeros({batch_size}, input_ref.options());
   Tensor sum_logits;
   if (label_smoothing > 0.0) {
-    sum_logits = at::empty({batch_size}, input.options());
+    sum_logits = at::empty({batch_size}, input_ref.options());
   }
 
   Tensor losses_buffer;
   if (reduction == Reduction::None) {
-    losses_buffer = at::empty({batch_size}, input.options());
+    losses_buffer = at::empty({batch_size}, input_ref.options());
   }
 
-  Tensor total_loss = at::zeros({}, input.options());
+  Tensor total_loss = at::zeros({}, input_ref.options());
+
+  Tensor grad_input_saved;
+  Tensor grad_weight_saved;
+  Tensor grad_bias_saved;
+  const int64_t valid_count = valid_mask.sum().item<int64_t>();
+
+  if (save_for_backward) {
+    grad_input_saved = at::zeros_like(input_flat);
+    if (reduction != Reduction::None) {
+      grad_weight_saved = at::zeros_like(linear_weight_ref);
+      if (linear_bias_ref.defined()) {
+        grad_bias_saved = at::zeros_like(linear_bias_ref);
+      }
+    }
+  }
+
+  const double uniform_component = label_smoothing > 0.0
+      ? label_smoothing / static_cast<double>(linear_weight_ref.size(0))
+      : 0.0;
 
   TORCH_CHECK(
       chunk_size > 0,
@@ -502,9 +543,8 @@ LinearCrossEntropyForwardResult linear_cross_entropy_forward_batch_chunking(
     auto target_chunk = target_flat.narrow(0, start_idx, slice);
     auto valid_mask_chunk = valid_mask.narrow(0, start_idx, slice);
 
-    auto logits_chunk = at::linear(input_chunk, linear_weight, linear_bias);
+    auto logits_chunk = at::linear(input_chunk, linear_weight_ref, linear_bias_use);
     auto logsumexp_chunk = at::logsumexp(logits_chunk, {1}, false);
-    logsumexp.narrow(0, start_idx, slice).copy_(logsumexp_chunk);
 
     auto valid_indices = valid_mask_chunk.nonzero().reshape({-1});
     if (valid_indices.numel() > 0) {
@@ -528,6 +568,37 @@ LinearCrossEntropyForwardResult linear_cross_entropy_forward_batch_chunking(
         ce_reduction,
         ignore_index,
         label_smoothing);
+
+    if (save_for_backward) {
+      auto grad_chunk = at::exp(logits_chunk.sub(logsumexp_chunk.unsqueeze(-1)));
+      if (label_smoothing > 0.0) {
+        grad_chunk = grad_chunk.add(-uniform_component);
+      }
+      auto mask = valid_mask_chunk.to(grad_chunk.scalar_type()).unsqueeze(1);
+      grad_chunk = grad_chunk.mul(mask);
+      auto rows = valid_mask_chunk.nonzero().squeeze(-1);
+      if (rows.numel() > 0) {
+        auto targets_slice = at::index_select(target_chunk, 0, rows).to(at::kLong);
+        auto gather = grad_chunk.index({rows, targets_slice}).add(-(1.0 - label_smoothing));
+        grad_chunk.index_put_({rows, targets_slice}, gather);
+      }
+      if (reduction == Reduction::Mean) {
+        if (valid_count == 0) {
+          grad_chunk.zero_();
+        } else {
+          grad_chunk.div_(static_cast<double>(valid_count));
+        }
+      }
+      grad_chunk = grad_chunk.mul(mask);
+      auto grad_input_chunk = grad_chunk.matmul(linear_weight_ref);
+      grad_input_saved.narrow(0, start_idx, slice).copy_(grad_input_chunk);
+      if (grad_weight_saved.defined()) {
+        grad_weight_saved.add_(grad_chunk.transpose(0, 1).matmul(input_chunk));
+      }
+      if (grad_bias_saved.defined()) {
+        grad_bias_saved.add_(grad_chunk.sum(0));
+      }
+    }
 
     if (reduction == Reduction::None) {
       auto dest = losses_buffer.narrow(0, start_idx, slice);
@@ -558,9 +629,15 @@ LinearCrossEntropyForwardResult linear_cross_entropy_forward_batch_chunking(
 
   if (save_for_backward) {
     LinearCrossEntropySavedForBackward saved;
-    saved.logsumexp = std::move(logsumexp);
     saved.strategy = ChunkingStrategy::BATCH_CHUNKING;
     saved.chunk_size = chunk_size;
+    saved.grad_input = grad_input_saved.reshape_as(input);
+    if (grad_weight_saved.defined()) {
+      saved.grad_weight = std::move(grad_weight_saved);
+    }
+    if (grad_bias_saved.defined()) {
+      saved.grad_bias = std::move(grad_bias_saved);
+    }
     result.saved = std::move(saved);
   }
 
@@ -578,8 +655,12 @@ inline Tensor zeros_like_tensor(const Tensor& src) {
   return at::_ops::zeros_like::call(src, std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt);
 }
 
+inline bool has_defined_tensor(const std::optional<Tensor>& opt) {
+  return opt.has_value() && opt->defined();
+}
+
 inline Tensor zeros_like_or_undef(const std::optional<Tensor>& opt) {
-  if (opt.has_value()) {
+  if (has_defined_tensor(opt)) {
     return zeros_like_tensor(opt.value());
   }
   return Tensor();
@@ -648,17 +729,39 @@ inline std::tuple<Tensor, Tensor, std::optional<Tensor>> backward_vocabulary_chu
     int64_t chunk_size,
     const Tensor& saved_logsumexp,
     bool has_saved) {
-  const auto input_flat = input.reshape({-1, input.size(-1)});
-  const auto target_flat = target.reshape({-1});
-  const auto dtype = input.scalar_type();
-  const auto options = input.options();
+  Tensor input_buffer;
+  const Tensor& input_ref = contiguous_if_needed(input, input_buffer);
+  Tensor linear_weight_buffer;
+  const Tensor& linear_weight_ref = contiguous_if_needed(linear_weight, linear_weight_buffer);
+  Tensor target_buffer;
+  const Tensor& target_ref = contiguous_if_needed(target, target_buffer);
+  Tensor grad_output_buffer;
+  const Tensor& grad_output_ref = contiguous_if_needed(grad_output, grad_output_buffer);
+
+  Tensor linear_bias_tensor;
+  if (linear_bias_opt.has_value()) {
+    linear_bias_tensor = linear_bias_opt.value();
+  }
+  Tensor linear_bias_buffer;
+  const Tensor& linear_bias_ref = linear_bias_tensor.defined()
+      ? contiguous_if_needed(linear_bias_tensor, linear_bias_buffer)
+      : linear_bias_tensor;
+  std::optional<Tensor> linear_bias_use;
+  if (linear_bias_ref.defined()) {
+    linear_bias_use = linear_bias_ref;
+  }
+
+  const auto input_flat = input_ref.reshape({-1, input_ref.size(-1)});
+  const auto target_flat = target_ref.reshape({-1});
+  const auto dtype = input_ref.scalar_type();
+  const auto options = input_ref.options();
   Tensor valid_mask = at::ne(target_flat, ignore_index);
   const int64_t valid_count = valid_mask.sum().item<int64_t>();
 
   if (reduction == Reduction::Mean && valid_count == 0) {
     Tensor grad_input = zeros_like_tensor(input);
-    Tensor grad_weight = zeros_like_tensor(linear_weight);
-    Tensor grad_bias = zeros_like_or_undef(linear_bias_opt);
+    Tensor grad_weight = zeros_like_tensor(linear_weight_ref);
+    Tensor grad_bias = zeros_like_or_undef(linear_bias_use);
     std::optional<Tensor> grad_bias_opt;
     if (grad_bias.defined()) {
       grad_bias_opt = std::move(grad_bias);
@@ -680,10 +783,10 @@ inline std::tuple<Tensor, Tensor, std::optional<Tensor>> backward_vocabulary_chu
     for (int64_t chunk_idx = 0; chunk_idx < num_chunks; ++chunk_idx) {
       const int64_t start_idx = chunk_idx * chunk_size;
       const int64_t end_idx = std::min(start_idx + chunk_size, vocab_size);
-      auto weight_chunk = linear_weight.slice(0, start_idx, end_idx);
+      auto weight_chunk = linear_weight_ref.slice(0, start_idx, end_idx);
       std::optional<Tensor> bias_chunk;
-      if (linear_bias_opt.has_value()) {
-        bias_chunk = linear_bias_opt->slice(0, start_idx, end_idx);
+      if (linear_bias_ref.defined()) {
+        bias_chunk = linear_bias_ref.slice(0, start_idx, end_idx);
       }
       auto logits_chunk = at::linear(input_flat, weight_chunk, bias_chunk);
       auto chunk_max = std::get<0>(logits_chunk.max(-1));
@@ -699,11 +802,13 @@ inline std::tuple<Tensor, Tensor, std::optional<Tensor>> backward_vocabulary_chu
   }
 
   Tensor grad_input = zeros_like_tensor(input_flat);
-  Tensor grad_weight = zeros_like_tensor(linear_weight);
-  Tensor grad_bias = zeros_like_or_undef(linear_bias_opt);
+  Tensor grad_weight = zeros_like_tensor(linear_weight_ref);
+  Tensor grad_bias = zeros_like_or_undef(linear_bias_use);
 
-  const double uniform_component = label_smoothing > 0.0 ? label_smoothing / static_cast<double>(vocab_size) : 0.0;
-  Tensor grad_output_tensor = cast_grad_output(grad_output, input);
+  const double uniform_component = label_smoothing > 0.0
+      ? label_smoothing / static_cast<double>(vocab_size)
+      : 0.0;
+  Tensor grad_output_tensor = cast_grad_output(grad_output_ref, input_ref);
   Tensor grad_output_flat;
   if (reduction == Reduction::None) {
     grad_output_flat = grad_output_tensor.reshape(-1);
@@ -712,10 +817,10 @@ inline std::tuple<Tensor, Tensor, std::optional<Tensor>> backward_vocabulary_chu
   for (int64_t chunk_idx = 0; chunk_idx < num_chunks; ++chunk_idx) {
     const int64_t start_idx = chunk_idx * chunk_size;
     const int64_t end_idx = std::min(start_idx + chunk_size, vocab_size);
-    auto weight_chunk = linear_weight.slice(0, start_idx, end_idx);
+    auto weight_chunk = linear_weight_ref.slice(0, start_idx, end_idx);
     std::optional<Tensor> bias_chunk;
-    if (linear_bias_opt.has_value()) {
-      bias_chunk = linear_bias_opt->slice(0, start_idx, end_idx);
+    if (linear_bias_ref.defined()) {
+      bias_chunk = linear_bias_ref.slice(0, start_idx, end_idx);
     }
     auto logits_chunk = at::linear(input_flat, weight_chunk, bias_chunk);
     auto grad_chunk = at::exp(logits_chunk.sub(logsumexp.unsqueeze(-1)));
@@ -758,15 +863,37 @@ inline std::tuple<Tensor, Tensor, std::optional<Tensor>> backward_batch_chunking
     int64_t chunk_size,
     const Tensor& saved_logsumexp,
     bool has_saved) {
-  const auto input_flat = input.reshape({-1, input.size(-1)});
-  const auto target_flat = target.reshape({-1});
+  Tensor input_buffer;
+  const Tensor& input_ref = contiguous_if_needed(input, input_buffer);
+  Tensor linear_weight_buffer;
+  const Tensor& linear_weight_ref = contiguous_if_needed(linear_weight, linear_weight_buffer);
+  Tensor target_buffer;
+  const Tensor& target_ref = contiguous_if_needed(target, target_buffer);
+  Tensor grad_output_buffer;
+  const Tensor& grad_output_ref = contiguous_if_needed(grad_output, grad_output_buffer);
+
+  Tensor linear_bias_tensor;
+  if (linear_bias_opt.has_value()) {
+    linear_bias_tensor = linear_bias_opt.value();
+  }
+  Tensor linear_bias_buffer;
+  const Tensor& linear_bias_ref = linear_bias_tensor.defined()
+      ? contiguous_if_needed(linear_bias_tensor, linear_bias_buffer)
+      : linear_bias_tensor;
+  std::optional<Tensor> linear_bias_use;
+  if (linear_bias_ref.defined()) {
+    linear_bias_use = linear_bias_ref;
+  }
+
+  const auto input_flat = input_ref.reshape({-1, input_ref.size(-1)});
+  const auto target_flat = target_ref.reshape({-1});
   Tensor valid_mask = at::ne(target_flat, ignore_index);
   const int64_t valid_count = valid_mask.sum().item<int64_t>();
 
   if (reduction == Reduction::Mean && valid_count == 0) {
     Tensor grad_input = zeros_like_tensor(input);
-    Tensor grad_weight = zeros_like_tensor(linear_weight);
-    Tensor grad_bias = zeros_like_or_undef(linear_bias_opt);
+    Tensor grad_weight = zeros_like_tensor(linear_weight_ref);
+    Tensor grad_bias = zeros_like_or_undef(linear_bias_use);
     std::optional<Tensor> grad_bias_opt;
     if (grad_bias.defined()) {
       grad_bias_opt = std::move(grad_bias);
@@ -774,8 +901,7 @@ inline std::tuple<Tensor, Tensor, std::optional<Tensor>> backward_batch_chunking
     return std::make_tuple(std::move(grad_input), std::move(grad_weight), std::move(grad_bias_opt));
   }
 
-  const auto options = input.options();
-  const Tensor& linear_bias = linear_bias_opt.value_or(Tensor());
+  const auto options = input_ref.options();
 
   TORCH_CHECK(chunk_size > 0, "linear_cross_entropy: batch_chunk_size must be positive, got ", chunk_size);
   const int64_t total = input_flat.size(0);
@@ -794,24 +920,24 @@ inline std::tuple<Tensor, Tensor, std::optional<Tensor>> backward_batch_chunking
         continue;
       }
       auto input_chunk = input_flat.narrow(0, start_idx, slice);
-      auto logits_chunk = at::linear(input_chunk, linear_weight, linear_bias);
+      auto logits_chunk = at::linear(input_chunk, linear_weight_ref, linear_bias_use);
       auto logsumexp_chunk = at::logsumexp(logits_chunk, {1}, false);
       logsumexp.narrow(0, start_idx, slice).copy_(logsumexp_chunk);
     }
   }
 
   Tensor grad_input = zeros_like_tensor(input_flat);
-  Tensor grad_weight = zeros_like_tensor(linear_weight);
-  Tensor grad_bias = zeros_like_or_undef(linear_bias_opt);
+  Tensor grad_weight = zeros_like_tensor(linear_weight_ref);
+  Tensor grad_bias = zeros_like_or_undef(linear_bias_use);
 
-  Tensor grad_output_tensor = cast_grad_output(grad_output, input);
+  Tensor grad_output_tensor = cast_grad_output(grad_output_ref, input_ref);
   Tensor grad_output_flat;
   if (reduction == Reduction::None) {
     grad_output_flat = grad_output_tensor.reshape(-1);
   }
 
   const double uniform_component = label_smoothing > 0.0
-      ? label_smoothing / static_cast<double>(linear_weight.size(0))
+      ? label_smoothing / static_cast<double>(linear_weight_ref.size(0))
       : 0.0;
 
   for (int64_t chunk_idx = 0; chunk_idx < num_chunks; ++chunk_idx) {
@@ -823,7 +949,7 @@ inline std::tuple<Tensor, Tensor, std::optional<Tensor>> backward_batch_chunking
     auto input_chunk = input_flat.narrow(0, start_idx, slice);
     auto target_chunk = target_flat.narrow(0, start_idx, slice);
     auto valid_mask_chunk = valid_mask.narrow(0, start_idx, slice);
-    auto logits_chunk = at::linear(input_chunk, linear_weight, linear_bias_opt);
+    auto logits_chunk = at::linear(input_chunk, linear_weight_ref, linear_bias_use);
     auto logsumexp_chunk = logsumexp.narrow(0, start_idx, slice);
     auto grad_chunk = at::exp(logits_chunk.sub(logsumexp_chunk.unsqueeze(-1)));
     if (label_smoothing > 0.0) {
@@ -847,7 +973,7 @@ inline std::tuple<Tensor, Tensor, std::optional<Tensor>> backward_batch_chunking
       grad_chunk.mul_(grad_output_tensor.div(static_cast<double>(valid_count)));
     }
     grad_chunk = mask_invalid_rows(grad_chunk, valid_mask_chunk);
-    grad_input.narrow(0, start_idx, slice).add_(grad_chunk.matmul(linear_weight));
+    grad_input.narrow(0, start_idx, slice).add_(grad_chunk.matmul(linear_weight_ref));
     grad_weight.add_(grad_chunk.transpose(0, 1).matmul(input_chunk));
     if (grad_bias.defined()) {
       grad_bias.add_(grad_chunk.sum(0));
@@ -919,163 +1045,7 @@ std::tuple<Tensor, Tensor, std::optional<Tensor>> linear_cross_entropy_backward_
       /*has_saved=*/false);
 }
 
-namespace {
-
-class LinearCrossEntropyAutogradFunction
-    : public torch::autograd::Function<LinearCrossEntropyAutogradFunction> {
- public:
-  static Tensor forward(
-      torch::autograd::AutogradContext* ctx,
-      const Tensor& input,
-      const Tensor& linear_weight,
-      const Tensor& target,
-      const Tensor& linear_bias,
-      int64_t reduction,
-      int64_t ignore_index,
-      double label_smoothing,
-      int64_t strategy_code,
-      int64_t vocab_chunk_size,
-      int64_t batch_chunk_size) {
-
-    std::optional<Tensor> linear_bias_opt;
-    if (linear_bias.defined()) {
-      linear_bias_opt = linear_bias;
-    }
-
-    ChunkingStrategy strategy = static_cast<ChunkingStrategy>(strategy_code);
-    auto forward_result = linear_cross_entropy_forward_impl(
-        input,
-        linear_weight,
-        target,
-        linear_bias_opt,
-        reduction,
-        ignore_index,
-        label_smoothing,
-        strategy,
-        vocab_chunk_size,
-        batch_chunk_size,
-        /*save_for_backward=*/true);
-
-    TORCH_CHECK(forward_result.saved.has_value(), "linear_cross_entropy: expected saved data for backward");
-    const auto& saved = forward_result.saved.value();
-
-    auto long_opts = input.options().device(at::kCPU).dtype(at::kLong);
-    auto double_opts = input.options().device(at::kCPU).dtype(at::kDouble);
-
-    std::vector<Tensor> tensors_to_save;
-    tensors_to_save.reserve(12);
-    tensors_to_save.push_back(input);
-    tensors_to_save.push_back(linear_weight);
-    tensors_to_save.push_back(target);
-    tensors_to_save.push_back(linear_bias);
-    tensors_to_save.push_back(saved.logsumexp);
-    tensors_to_save.push_back(at::full({}, static_cast<int64_t>(saved.strategy), long_opts));
-    tensors_to_save.push_back(at::full({}, saved.chunk_size, long_opts));
-    tensors_to_save.push_back(at::full({}, reduction, long_opts));
-    tensors_to_save.push_back(at::full({}, ignore_index, long_opts));
-    tensors_to_save.push_back(at::full({}, vocab_chunk_size, long_opts));
-    tensors_to_save.push_back(at::full({}, batch_chunk_size, long_opts));
-    tensors_to_save.push_back(at::full({}, label_smoothing, double_opts));
-
-    ctx->save_for_backward(tensors_to_save);
-    return forward_result.loss;
-  }
-
-  static torch::autograd::tensor_list backward(
-      torch::autograd::AutogradContext* ctx,
-      torch::autograd::tensor_list grad_outputs) {
-    auto saved = ctx->get_saved_variables();
-    auto it = saved.begin();
-    Tensor input = *it++;
-    Tensor linear_weight = *it++;
-    Tensor target = *it++;
-    Tensor linear_bias_saved = *it++;
-    Tensor logsumexp = *it++;
-    Tensor strategy_tensor = *it++;
-    Tensor chunk_tensor = *it++;
-    Tensor reduction_tensor = *it++;
-    Tensor ignore_tensor = *it++;
-    Tensor vocab_chunk_tensor = *it++;
-    Tensor batch_chunk_tensor = *it++;
-    Tensor smoothing_tensor = *it++;
-
-    std::optional<Tensor> linear_bias_opt;
-    if (linear_bias_saved.defined()) {
-      linear_bias_opt = linear_bias_saved;
-    }
-
-    const int64_t strategy_code = strategy_tensor.item<int64_t>();
-    const int64_t chunk_size_saved = chunk_tensor.item<int64_t>();
-    const int64_t reduction = reduction_tensor.item<int64_t>();
-    const int64_t ignore_index = ignore_tensor.item<int64_t>();
-    const int64_t vocab_chunk_size = vocab_chunk_tensor.item<int64_t>();
-    const int64_t batch_chunk_size = batch_chunk_tensor.item<int64_t>();
-    const double label_smoothing = smoothing_tensor.item<double>();
-
-    Tensor grad_output = grad_outputs[0];
-
-    const int64_t flattened_batch = input.numel() / input.size(-1);
-
-    Tensor grad_input;
-    Tensor grad_weight;
-    std::optional<Tensor> grad_bias_opt;
-
-    ChunkingStrategy strategy = static_cast<ChunkingStrategy>(strategy_code);
-    const int64_t effective_vocab_chunk = chunk_size_saved > 0 ? chunk_size_saved : vocab_chunk_size;
-    const int64_t effective_batch_chunk = chunk_size_saved > 0 ? chunk_size_saved : batch_chunk_size;
-
-    if (strategy == ChunkingStrategy::VOCAB_CHUNKING) {
-      auto grads = backward_vocabulary_chunking(
-          input,
-          linear_weight,
-          target,
-          linear_bias_opt,
-          grad_output,
-          reduction,
-          ignore_index,
-          label_smoothing,
-          effective_vocab_chunk,
-          logsumexp,
-          /*has_saved=*/true);
-      grad_input = std::get<0>(grads);
-      grad_weight = std::get<1>(grads);
-      grad_bias_opt = std::get<2>(grads);
-    } else {
-      auto grads = backward_batch_chunking(
-          input,
-          linear_weight,
-          target,
-          linear_bias_opt,
-          grad_output,
-          reduction,
-          ignore_index,
-          label_smoothing,
-          strategy == ChunkingStrategy::BATCH_CHUNKING ? effective_batch_chunk : flattened_batch,
-          logsumexp,
-          /*has_saved=*/true);
-      grad_input = std::get<0>(grads);
-      grad_weight = std::get<1>(grads);
-      grad_bias_opt = std::get<2>(grads);
-    }
-
-    torch::autograd::tensor_list outputs(10);
-    outputs[0] = grad_input;
-    outputs[1] = grad_weight;
-    outputs[2] = Tensor();
-    outputs[3] = grad_bias_opt.has_value() ? grad_bias_opt.value() : Tensor();
-    outputs[4] = Tensor();
-    outputs[5] = Tensor();
-    outputs[6] = Tensor();
-    outputs[7] = Tensor();
-    outputs[8] = Tensor();
-    outputs[9] = Tensor();
-    return outputs;
-  }
-};
-
-} // anonymous namespace
-
-static Tensor linear_cross_entropy_autograd_apply(
+std::tuple<Tensor, Tensor> _linear_cross_entropy_vocab_chunking_cpu(
     const Tensor& input,
     const Tensor& linear_weight,
     const Tensor& target,
@@ -1083,21 +1053,145 @@ static Tensor linear_cross_entropy_autograd_apply(
     int64_t reduction,
     int64_t ignore_index,
     double label_smoothing,
-    ChunkingStrategy strategy,
-    int64_t vocab_chunk_size,
-    int64_t batch_chunk_size) {
-  Tensor bias_tensor = linear_bias_opt.has_value() ? linear_bias_opt.value() : Tensor();
-  return LinearCrossEntropyAutogradFunction::apply(
+    int64_t chunk_size) {
+  auto forward = linear_cross_entropy_forward_vocab_chunking(
       input,
       linear_weight,
       target,
-      bias_tensor,
+      linear_bias_opt,
       reduction,
       ignore_index,
       label_smoothing,
-      static_cast<int64_t>(strategy),
-      vocab_chunk_size,
-      batch_chunk_size);
+      chunk_size,
+      /*save_for_backward=*/true);
+  TORCH_INTERNAL_ASSERT(forward.saved.has_value(), "linear_cross_entropy: missing saved tensors for vocab chunking");
+  const auto& saved = forward.saved.value();
+  TORCH_INTERNAL_ASSERT(saved.logsumexp.defined(), "linear_cross_entropy: missing logsumexp for vocab chunking");
+  return std::make_tuple(std::move(forward.loss), saved.logsumexp);
+}
+
+std::tuple<Tensor, Tensor, std::optional<Tensor>> _linear_cross_entropy_vocab_chunking_backward_cpu(
+    const Tensor& grad_output,
+    const Tensor& saved_logsumexp,
+    const Tensor& input,
+    const Tensor& linear_weight,
+    const Tensor& target,
+    const std::optional<Tensor>& linear_bias_opt,
+    int64_t reduction,
+    int64_t ignore_index,
+    double label_smoothing,
+    int64_t chunk_size) {
+  TORCH_CHECK(saved_logsumexp.defined(), "linear_cross_entropy: expected logsumexp for vocab chunking backward");
+  return backward_vocabulary_chunking(
+      input,
+      linear_weight,
+      target,
+      linear_bias_opt,
+      grad_output,
+      reduction,
+      ignore_index,
+      label_smoothing,
+      chunk_size,
+      saved_logsumexp,
+      /*has_saved=*/true);
+}
+
+std::tuple<Tensor, Tensor, Tensor, Tensor, Tensor, Tensor> _linear_cross_entropy_batch_chunking_cpu(
+    const Tensor& input,
+    const Tensor& linear_weight,
+    const Tensor& target,
+    const std::optional<Tensor>& linear_bias_opt,
+    int64_t reduction,
+    int64_t ignore_index,
+    double label_smoothing,
+    int64_t chunk_size) {
+  auto forward = linear_cross_entropy_forward_batch_chunking(
+      input,
+      linear_weight,
+      target,
+      linear_bias_opt,
+      reduction,
+      ignore_index,
+      label_smoothing,
+      chunk_size,
+      /*save_for_backward=*/true);
+  TORCH_INTERNAL_ASSERT(forward.saved.has_value(), "linear_cross_entropy: missing saved tensors for batch chunking");
+  const auto& saved = forward.saved.value();
+  TORCH_INTERNAL_ASSERT(saved.grad_input.defined(), "linear_cross_entropy: missing grad_input template for batch chunking");
+
+  const bool grad_weight_valid = saved.grad_weight.defined();
+  const bool grad_bias_valid = saved.grad_bias.defined();
+  auto bool_options = input.options().dtype(at::kBool);
+  Tensor grad_weight_flag = at::full({}, grad_weight_valid, bool_options);
+  Tensor grad_bias_flag = at::full({}, grad_bias_valid, bool_options);
+  return std::make_tuple(
+      std::move(forward.loss),
+      saved.grad_input,
+      saved.grad_weight,
+      saved.grad_bias,
+      std::move(grad_weight_flag),
+      std::move(grad_bias_flag));
+}
+
+std::tuple<Tensor, Tensor, std::optional<Tensor>> _linear_cross_entropy_batch_chunking_backward_cpu(
+    const Tensor& grad_output,
+    const Tensor& saved_grad_input,
+    const Tensor& saved_grad_weight,
+    const Tensor& saved_grad_bias,
+    const Tensor& grad_weight_valid,
+    const Tensor& grad_bias_valid,
+    const Tensor& input,
+    const Tensor& linear_weight,
+    const Tensor& target,
+    const std::optional<Tensor>& linear_bias_opt,
+    int64_t reduction,
+    int64_t ignore_index,
+    double label_smoothing,
+    int64_t chunk_size) {
+  TORCH_CHECK(saved_grad_input.defined(), "linear_cross_entropy: expected grad_input template for batch chunking backward");
+
+  const bool grad_weight_flag = grad_weight_valid.item<bool>();
+  const bool grad_bias_flag = grad_bias_valid.item<bool>();
+
+  if (reduction == Reduction::None || !grad_weight_flag) {
+    return backward_batch_chunking(
+        input,
+        linear_weight,
+        target,
+        linear_bias_opt,
+        grad_output,
+        reduction,
+        ignore_index,
+        label_smoothing,
+        chunk_size,
+        Tensor(),
+        /*has_saved=*/false);
+  }
+
+  auto grad_output_tensor = cast_grad_output(grad_output, input);
+  Tensor grad_input = saved_grad_input.reshape_as(input).mul(grad_output_tensor);
+  Tensor grad_weight = saved_grad_weight.mul(grad_output_tensor);
+  std::optional<Tensor> grad_bias_opt;
+  if (has_defined_tensor(linear_bias_opt)) {
+    if (!grad_bias_flag) {
+      auto fallback = backward_batch_chunking(
+          input,
+          linear_weight,
+          target,
+          linear_bias_opt,
+          grad_output,
+          reduction,
+          ignore_index,
+          label_smoothing,
+          chunk_size,
+          Tensor(),
+          /*has_saved=*/false);
+      return fallback;
+    }
+    grad_bias_opt = saved_grad_bias.mul(grad_output_tensor);
+  }
+
+  return std::make_tuple(std::move(grad_input), std::move(grad_weight), std::move(grad_bias_opt));
 }
 
 } // namespace at::native
