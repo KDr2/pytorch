@@ -36,7 +36,23 @@ install_ubuntu() {
         rm -rf /opt/rocm
       fi
 
-      export THEROCK_NIGHTLY_INDEX_URL="${THEROCK_NIGHTLY_INDEX_URL:-https://rocm.nightlies.amd.com/v2/gfx94X-dcgpu/}"
+      # Determine theRock nightly URL based on GPU architecture
+      # Check BUILD_ENVIRONMENT or PYTORCH_ROCM_ARCH for the target GPU
+      if [[ -z "${THEROCK_NIGHTLY_INDEX_URL:-}" ]]; then
+        if [[ "${BUILD_ENVIRONMENT}" == *"gfx950"* ]] || [[ "${PYTORCH_ROCM_ARCH}" == *"gfx950"* ]]; then
+          # MI350 (gfx950)
+          THEROCK_NIGHTLY_INDEX_URL="https://rocm.nightlies.amd.com/v2/gfx950-dcgpu/"
+          echo "Detected gfx950 architecture - using MI350 theRock nightly repository"
+        else
+          # Default to MI300 (gfx942/gfx94X)
+          THEROCK_NIGHTLY_INDEX_URL="https://rocm.nightlies.amd.com/v2/gfx94X-dcgpu/"
+          echo "Using gfx94X (MI300) theRock nightly repository"
+        fi
+      fi
+
+      export THEROCK_NIGHTLY_INDEX_URL
+      echo "TheRock Index URL: ${THEROCK_NIGHTLY_INDEX_URL}"
+      
       python3 -m pip install \
         --index-url "${THEROCK_NIGHTLY_INDEX_URL}" \
         "rocm[libraries,devel]"
