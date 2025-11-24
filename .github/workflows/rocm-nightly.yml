@@ -1,4 +1,4 @@
-name: rocm-therock-nightly
+name: rocm-nightly
 
 on:
   schedule:
