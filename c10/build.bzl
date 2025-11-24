@@ -1,6 +1,6 @@
 def define_targets(rules):
     rules.cc_library(
-        name = "c10",
+        name = "_c10",
         visibility = ["//visibility:public"],
         deps = [
             "//c10/core:CPUAllocator",
