@@ -1,4 +1,5 @@
 #!/bin/bash
+set -ex
 # Helper script to detect ROCM_PATH dynamically
 # This script is meant to be sourced by other scripts
 
