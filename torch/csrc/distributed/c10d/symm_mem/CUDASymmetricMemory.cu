@@ -135,7 +135,7 @@ size_t CUDASymmetricMemory::get_buffer_size() {
 }
 
 size_t CUDASymmetricMemory::get_signal_pad_size() {
-  return signal_pad_size;
+  return c10d::symmetric_memory::get_signal_pad_size();
 }
 
 bool CUDASymmetricMemory::has_multicast_support() {
@@ -153,7 +153,8 @@ void check_channel(int channel, int world_size) {
       "must be greater than 0 (got ",
       channel,
       ")");
-  const size_t num_channels = signal_pad_size / sizeof(uint32_t) * world_size;
+  const size_t num_channels = c10d::symmetric_memory::get_signal_pad_size() /
+      sizeof(uint32_t) * world_size;
   TORCH_CHECK(
       static_cast<size_t>(channel) < num_channels,
       "The maximum supported channel for barrier(), put_signal() and wait_signal() is ",
@@ -348,7 +349,7 @@ void* CUDASymmetricMemoryAllocator::alloc(
     int device_idx,
     const std::optional<std::string>& group_name) {
   size_t signal_pad_offset = at::round_up(size, 16UL);
-  size_t block_size = signal_pad_offset + signal_pad_size;
+  size_t block_size = signal_pad_offset + get_signal_pad_size();
   c10::cuda::CUDAGuard guard(device_idx);
   device_idx = static_cast<int>(guard.current_device().index());
 #if !defined(USE_ROCM) && defined(PYTORCH_C10_DRIVER_API_SUPPORTED)
@@ -358,9 +359,12 @@ void* CUDASymmetricMemoryAllocator::alloc(
   // NOLINTNEXTLINE(bugprone-signed-char-misuse)
   prop.location.id = device_idx;
   bool has_fabric_support = at::cuda::get_fabric_access(device_idx);
-  LOG(INFO) << "CUDASymmetricMemoryAllocator::alloc: has_fabric_support " << has_fabric_support;
+  LOG(INFO) << "CUDASymmetricMemoryAllocator::alloc: has_fabric_support "
+            << has_fabric_support;
   if (handle_type_ == Expandable_Segments_Handle_Type::UNSPECIFIED) {
-    handle_type_ = has_fabric_support ? Expandable_Segments_Handle_Type::FABRIC_HANDLE : Expandable_Segments_Handle_Type::POSIX_FD;
+    handle_type_ = has_fabric_support
+        ? Expandable_Segments_Handle_Type::FABRIC_HANDLE
+        : Expandable_Segments_Handle_Type::POSIX_FD;
   }
   if (handle_type_ == Expandable_Segments_Handle_Type::POSIX_FD) {
     prop.requestedHandleTypes = CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR;
@@ -375,7 +379,8 @@ void* CUDASymmetricMemoryAllocator::alloc(
   block_size = at::round_up(block_size, granularity);
 
   HandleType handle;
-  C10_CUDA_DRIVER_CHECK(driver_api->cuMemCreate_(&handle, block_size, &prop, 0));
+  C10_CUDA_DRIVER_CHECK(
+      driver_api->cuMemCreate_(&handle, block_size, &prop, 0));
 
 #elif defined(USE_ROCM)
   handle_type_ = Expandable_Segments_Handle_Type::POSIX_FD;
@@ -457,7 +462,8 @@ void validate_rendezvous_requests(
   // Use (hostname, device_idx) pair to uniquely identify each allocation.
   std::set<std::pair<std::string, int>> device_host_pairs;
   for (auto req : reqs) {
-    device_host_pairs.insert(std::make_pair(std::string(req.hostname), req.device_idx));
+    device_host_pairs.insert(
+        std::make_pair(std::string(req.hostname), req.device_idx));
   }
   if (!allow_overlapping_devices() &&
       device_host_pairs.size() < (size_t)world_size) {
@@ -702,7 +708,7 @@ c10::intrusive_ptr<CUDASymmetricMemory> make_symm_mem(
 #if ROCM_VERSION >= 70100
         reinterpret_cast<void*>(static_cast<uintptr_t>(imported_handles[r])),
 #else
-        (void*)(uintptr_t) & (imported_handles[r]),
+        (void*)(uintptr_t)&(imported_handles[r]),
 #endif
         hipMemHandleTypePosixFileDescriptor));
 #else
@@ -732,8 +738,13 @@ c10::intrusive_ptr<CUDASymmetricMemory> make_symm_mem(
   for (int r = 0; r < world_size; ++r) {
     if (r == rank) {
       if (mc_addr != nullptr) {
-        alloc_refs.push_back(c10::make_intrusive<AllocationRef>(
-            mc_addr, mc_handle, block->block_size, block->device_idx, true));
+        alloc_refs.push_back(
+            c10::make_intrusive<AllocationRef>(
+                mc_addr,
+                mc_handle,
+                block->block_size,
+                block->device_idx,
+                true));
       }
       // Note that in B200, cuMulticastUnbind can error if the mapped buffers
       // are free'd before the multicast object is free'd. That's why the
@@ -743,8 +754,9 @@ c10::intrusive_ptr<CUDASymmetricMemory> make_symm_mem(
       alloc_refs.emplace_back(block->alloc_ref);
       continue;
     }
-    alloc_refs.push_back(c10::make_intrusive<AllocationRef>(
-        buffers[r], handles[r], block->block_size, block->device_idx));
+    alloc_refs.push_back(
+        c10::make_intrusive<AllocationRef>(
+            buffers[r], handles[r], block->block_size, block->device_idx));
   }
 
   auto symm_mem = c10::make_intrusive<CUDASymmetricMemory>(

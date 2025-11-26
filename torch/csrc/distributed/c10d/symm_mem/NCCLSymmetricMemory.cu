@@ -7,8 +7,8 @@
 #endif
 
 #ifdef NCCL_HAS_SYMMEM_SUPPORT
-#include <torch/csrc/distributed/c10d/NCCLUtils.hpp>
 #include <torch/csrc/distributed/c10d/GroupRegistry.hpp>
+#include <torch/csrc/distributed/c10d/NCCLUtils.hpp>
 #include <torch/csrc/distributed/c10d/ProcessGroupNCCL.hpp>
 #include <torch/csrc/distributed/c10d/cuda/utils.hpp>
 #include <torch/csrc/distributed/c10d/symm_mem/CUDASymmetricMemory-inl.h>
@@ -39,7 +39,7 @@ struct NCCLAllocation {
 
 class NCCLSymmetricMemory : public SymmetricMemory {
  public:
- NCCLSymmetricMemory(
+  NCCLSymmetricMemory(
       std::shared_ptr<NCCLAllocation> allocation,
       const std::string& group_name,
       ncclWindow_t handle,
@@ -80,7 +80,7 @@ class NCCLSymmetricMemory : public SymmetricMemory {
   }
 
   size_t get_signal_pad_size() override {
-    return signal_pad_size;
+    return c10d::symmetric_memory::get_signal_pad_size();
   };
 
   bool has_multicast_support() override {
@@ -161,8 +161,7 @@ class NCCLSymmetricMemoryAllocator : public SymmetricMemoryAllocator {
     // TODO: we might need to use a roundup or mempool for mem allocation.
     void* ptr;
     C10D_NCCL_CHECK(ncclMemAlloc(&ptr, size), "ncclMemAlloc");
-    auto allocation =
-        std::make_shared<NCCLAllocation>(ptr, size, device_idx);
+    auto allocation = std::make_shared<NCCLAllocation>(ptr, size, device_idx);
     // TODO: thread safety
     allocations_.emplace(ptr, allocation);
     return ptr;
@@ -194,8 +193,9 @@ class NCCLSymmetricMemoryAllocator : public SymmetricMemoryAllocator {
       }
     }
     auto it = allocations_.find(ptr);
-    TORCH_CHECK(it != allocations_.end(), "memory needs to be first allocated before calling rendezvous.");
-
+    TORCH_CHECK(
+        it != allocations_.end(),
+        "memory needs to be first allocated before calling rendezvous.");
 
     auto group = resolve_process_group(group_name.value());
     auto alloc = it->second;
@@ -204,44 +204,60 @@ class NCCLSymmetricMemoryAllocator : public SymmetricMemoryAllocator {
     ncclWindow_t signal_handle;
 
     auto group_info = get_group_info(group_name.value());
-    auto buffer_size_map =
-        storeExchange.all_gather(group_info.store, group_info.rank, group_info.world_size, it->second->buffer_size);
+    auto buffer_size_map = storeExchange.all_gather(
+        group_info.store,
+        group_info.rank,
+        group_info.world_size,
+        it->second->buffer_size);
 
     LOG(INFO) << "[rank " << group_info.rank << ']'
               << "buffer_size_map: " << buffer_size_map;
-    // NCCL window registration api requires all ranks to have the same buffer size
-    // we have this check to make sure all ranks have the same buffer size.
+    // NCCL window registration api requires all ranks to have the same buffer
+    // size we have this check to make sure all ranks have the same buffer size.
     for (auto r = 0; r < group_info.world_size; ++r) {
-      TORCH_CHECK(alloc->buffer_size == buffer_size_map[r], "buffer size mismatch");
+      TORCH_CHECK(
+          alloc->buffer_size == buffer_size_map[r], "buffer size mismatch");
     }
     auto* ncclPg = dynamic_cast<c10d::ProcessGroupNCCL*>(
         group->getBackend(c10::DeviceType::CUDA).get());
     TORCH_CHECK(ncclPg != nullptr, "backend must be a NCCL process group");
     ncclComm_t comm = reinterpret_cast<ncclComm_t>(ncclPg->getCommPtr());
     C10D_NCCL_CHECK(
-      ncclCommWindowRegister(comm, ptr, alloc->buffer_size, (ncclWindow_t*)&handle, NCCL_WIN_COLL_SYMMETRIC),
-      c10::str(
-          "Failed to window register segment with ptr ",
-          ptr,
-          ", size ",
-          alloc->buffer_size,
-          " on ncclComm_ ",
-          comm));
+        ncclCommWindowRegister(
+            comm,
+            ptr,
+            alloc->buffer_size,
+            (ncclWindow_t*)&handle,
+            NCCL_WIN_COLL_SYMMETRIC),
+        c10::str(
+            "Failed to window register segment with ptr ",
+            ptr,
+            ", size ",
+            alloc->buffer_size,
+            " on ncclComm_ ",
+            comm));
 
     void* signal_pad_ptr;
-    C10D_NCCL_CHECK(ncclMemAlloc(&signal_pad_ptr, signal_pad_size), "ncclMemAlloc failed");
+    const size_t signal_pad_size = get_signal_pad_size();
     C10D_NCCL_CHECK(
-    ncclCommWindowRegister(comm, signal_pad_ptr, signal_pad_size, (ncclWindow_t*)&signal_handle, NCCL_WIN_COLL_SYMMETRIC),
-    c10::str(
-        "Failed to window register segment with ptr ",
-        signal_pad_ptr,
-        ", size ",
-        signal_pad_size,
-        " on ncclComm_ ",
-        comm));
+        ncclMemAlloc(&signal_pad_ptr, signal_pad_size), "ncclMemAlloc failed");
+    C10D_NCCL_CHECK(
+        ncclCommWindowRegister(
+            comm,
+            signal_pad_ptr,
+            signal_pad_size,
+            (ncclWindow_t*)&signal_handle,
+            NCCL_WIN_COLL_SYMMETRIC),
+        c10::str(
+            "Failed to window register segment with ptr ",
+            signal_pad_ptr,
+            ", size ",
+            signal_pad_size,
+            " on ncclComm_ ",
+            comm));
 
-    auto symm_mem =
-        c10::make_intrusive<NCCLSymmetricMemory>(alloc, *group_name, std::move(handle), std::move(signal_handle));
+    auto symm_mem = c10::make_intrusive<NCCLSymmetricMemory>(
+        alloc, *group_name, std::move(handle), std::move(signal_handle));
 
     symm_mems_[std::make_tuple(ptr, *group_name)] = symm_mem;
     return symm_mem;
@@ -270,14 +286,12 @@ class NCCLSymmetricMemoryAllocator : public SymmetricMemoryAllocator {
 };
 
 struct RegisterNCCLSymmetricMemoryAllocator {
-    RegisterNCCLSymmetricMemoryAllocator() {
+  RegisterNCCLSymmetricMemoryAllocator() {
     auto allocator = c10::make_intrusive<NCCLSymmetricMemoryAllocator>();
     // Query backend used for CUDA tensor
     if (getSymmMemBackendCUDA() == "NCCL") {
       // Direct set (static registration)
-      register_allocator(
-          c10::DeviceType::CUDA,
-          allocator);
+      register_allocator(c10::DeviceType::CUDA, allocator);
     } else {
       // Register availability in case `set_backend` is called dynamically
       register_availability("NCCL", allocator);

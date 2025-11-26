@@ -101,6 +101,40 @@ class SymmetricMemoryTest(MultiProcContinuousTest):
     @skipIf(
         not PLATFORM_SUPPORTS_SYMM_MEM, "SymmMem is not supported on this ROCm arch"
     )
+    @skip_if_lt_x_gpu(2)
+    def test_get_signal_pad_size(self) -> None:
+        # Test that get_signal_pad_size returns a positive integer
+        signal_pad_size = symm_mem.get_signal_pad_size()
+        self.assertIsInstance(signal_pad_size, int)
+        self.assertGreater(signal_pad_size, 0)
+
+        # Test that the C++ API returns the same value
+        cpp_signal_pad_size = _SymmetricMemory.get_signal_pad_size()
+        self.assertEqual(signal_pad_size, cpp_signal_pad_size)
+
+    @skipIf(
+        not PLATFORM_SUPPORTS_SYMM_MEM, "SymmMem is not supported on this ROCm arch"
+    )
+    @skip_if_lt_x_gpu(2)
+    def test_set_signal_pad_size(self) -> None:
+        # Save the original signal pad size
+        original_size = symm_mem.get_signal_pad_size()
+
+        # Test setting a new signal pad size
+        new_size = 1024 * 1024  # 1MB
+        symm_mem.set_signal_pad_size(new_size)
+        self.assertEqual(symm_mem.get_signal_pad_size(), new_size)
+
+        # Test that the C++ API reflects the change
+        self.assertEqual(_SymmetricMemory.get_signal_pad_size(), new_size)
+
+        # Restore original size for other tests
+        symm_mem.set_signal_pad_size(original_size)
+        self.assertEqual(symm_mem.get_signal_pad_size(), original_size)
+
+    @skipIf(
+        not PLATFORM_SUPPORTS_SYMM_MEM, "SymmMem is not supported on this ROCm arch"
+    )
     def test_large_alloc(self) -> None:
         t = symm_mem.empty(2 * 1024**3, dtype=torch.uint8, device="cuda")
         self.assertEqual(t.numel() * t.element_size(), 2 * 1024**3)

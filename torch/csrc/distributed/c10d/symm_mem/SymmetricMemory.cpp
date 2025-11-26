@@ -1,10 +1,14 @@
 #include <torch/csrc/distributed/c10d/symm_mem/SymmetricMemory.hpp>
+#include <torch/csrc/distributed/c10d/symm_mem/CUDASymmetricMemoryTypes.hpp>
 
 namespace {
 
 using namespace c10d::symmetric_memory;
 
 static bool is_finalizing_ = false;
+
+// Signal pad size configuration - uses default if not explicitly set
+static std::optional<size_t> configured_signal_pad_size_ = std::nullopt;
 
 // NOLINTNEXTLINE(cppcoreguidelines-special-member-functions)
 class AllocatorMap {
@@ -184,6 +188,14 @@ void set_backend(const std::string& name) {
 
 std::optional<std::string> get_backend(c10::Device device) {
   return AllocatorMap::get().get_backend(device.type());
+}
+
+size_t get_signal_pad_size() {
+  return configured_signal_pad_size_.value_or(default_signal_pad_size);
+}
+
+void set_signal_pad_size(size_t size) {
+  configured_signal_pad_size_ = size;
 }
 
 bool has_allocator(c10::DeviceType device_type) {
