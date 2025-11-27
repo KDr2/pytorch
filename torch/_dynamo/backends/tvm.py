@@ -82,7 +82,7 @@ def tvm(
         # pyrefly: ignore [import-error]
         from tvm import auto_scheduler
 
-        log_file = tempfile.NamedTemporaryFile()
+        log_file = tempfile.NamedTemporaryFile()  # noqa: SIM115
 
         # pyrefly: ignore [bad-argument-type]
         if not os.path.exists(log_file):
