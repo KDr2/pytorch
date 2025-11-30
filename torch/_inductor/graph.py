@@ -664,6 +664,13 @@ class GraphLowering(torch.fx.Interpreter):
         conv_nodes = [
             n for n in gm.graph.nodes if n.target is torch.ops.aten.convolution.default
         ]
+
+        for n in gm.graph.nodes:
+            if isinstance(n.target, functools.partial):
+                for target in n.target.args[0].targets:
+                    if target.fns[0] is torch.ops.mkldnn._convolution_pointwise.default:
+                        conv_nodes.append(n)
+
         nconv = len(conv_nodes)
 
         if nconv == 0:
@@ -861,6 +868,14 @@ class GraphLowering(torch.fx.Interpreter):
         nodes_cannot_propagate = [torch.ops.aten.bmm.default]
         output_set = OrderedSet[Node]()
         for n in reversed(self.module.graph.nodes):  # type: ignore[arg-type, union-attr]
+            # check mkldnn conv on CPU
+            if isinstance(n.target, functools.partial):
+                for target in n.target.args[0].targets:
+                    if target.fns[0] is torch.ops.mkldnn._convolution_pointwise.default:
+                        output_set.add(n)
+                        if last_conv is None:
+                            last_conv = n
+                continue
             if n.target is torch.ops.aten.convolution.default:
                 output_set.add(n)
                 if last_conv is None:
@@ -1888,6 +1903,13 @@ class GraphLowering(torch.fx.Interpreter):
                 # Prevent excessive accumulation in a computed buffer, when
                 # there are multiple branches each with small number of memory
                 # reads, but they converge to a user.
+                if n in self.nodes_prefer_channels_last:
+                    result = ir.ExternKernel.require_stride_order(
+                        result,
+                        ir.get_stride_order(
+                            make_channels_last_strides_for(n.meta["val"].shape)
+                        ),
+                    )
                 result.realize_hint()
 
             # Realize if a Pointwise has too much stuff to be inlined.
