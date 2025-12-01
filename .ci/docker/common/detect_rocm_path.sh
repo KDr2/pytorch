@@ -2,7 +2,6 @@
 set -ex
 # Helper script to detect ROCM_PATH dynamically
 # This script is meant to be sourced by other scripts
-
 # Detect ROCM_PATH based on installation type
 if command -v rocm-sdk &> /dev/null && python3 -m rocm_sdk path --root &> /dev/null; then
     # theRock/nightly installation
