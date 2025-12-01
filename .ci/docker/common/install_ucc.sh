@@ -65,7 +65,7 @@ function install_ucc() {
       HIP_OFFLOAD="$HIP_OFFLOAD --offload-arch=$arch"
     done
     # Add --rocm-path flag for amdclang to find device libraries
-    export CXXFLAGS="${CXXFLAGS:-} --rocm-path=${ROCM_PATH}"
+    HIP_OFFLOAD="$HIP_OFFLOAD --rocm-path=${ROCM_PATH}"
   else
     HIP_OFFLOAD="all-arch-no-native"
   fi
