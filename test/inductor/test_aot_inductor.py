@@ -5304,6 +5304,29 @@ class AOTInductorTestsTemplate:
         }
         self.check_model(model, example_inputs, dynamic_shapes=dynamic_shapes)
 
+    def test_aoti_check_lowerbound_codegen(self):
+        class Model(torch.nn.Module):
+            def forward(self, x):
+                return x + 1
+
+        model = Model()
+        batch = Dim("batch", min=2, max=10)
+        example_inputs = (torch.randn(4, 3),)
+
+        for should_check in (True, False):
+            with config.patch({"aot_inductor.check_lowerbound": should_check}):
+                _, code = run_and_get_cpp_code(
+                    AOTIRunnerUtil.legacy_compile,
+                    model,
+                    example_inputs,
+                    dynamic_shapes={"x": {0: batch}},
+                )
+                FileCheck().check_count(
+                    "expected it to be >= 2",
+                    1 if should_check else 0,
+                    exactly=True,
+                ).run(code)
+
     @unittest.skipIf(config.triton.native_matmul, "matmul is generated")
     def test_aoti_debug_printer_codegen(self):
         # basic addmm model to test codegen for aoti intermediate debug printer

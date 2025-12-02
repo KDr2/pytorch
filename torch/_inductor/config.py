@@ -1689,6 +1689,10 @@ class aot_inductor:
         "AOT_INDUCTOR_FILTERED_KERNELS_TO_PRINT", None
     )
 
+    # Whether to codegen lowerbound constraint on dynamic shapes. For AOTI only.
+    # Disabling this avoids false-positives triggered by 0/1 dynamic sizes.
+    check_lowerbound: bool = True
+
     # Serialized tree spec for flattening inputs
     # TODO: Move this into metadata
     serialized_in_spec = ""
