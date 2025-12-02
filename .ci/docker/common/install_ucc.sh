@@ -8,10 +8,12 @@ else
   with_cuda=no
 fi
 
-# Source common script to detect ROCM_PATH
-source "$(dirname "${BASH_SOURCE[0]}")/detect_rocm_path.sh"
+if [ -f "$(dirname "${BASH_SOURCE[0]}")/detect_rocm_path.sh" ]; then
+  source "$(dirname "${BASH_SOURCE[0]}")/detect_rocm_path.sh"
+else
+  ROCM_PATH="${ROCM_PATH:-/opt/rocm}"
+fi
 
-# Use detected ROCM_PATH or set to "no" if not found
 if [[ -d "${ROCM_PATH}" ]]; then
   with_rocm="${ROCM_PATH}"
 else
