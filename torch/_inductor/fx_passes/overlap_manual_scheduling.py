@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import heapq
 from collections import Counter, defaultdict
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
 import torch
 import torch.fx as fx
@@ -26,6 +26,10 @@ from torch._inductor.fx_passes.overlap_scheduling import (
 from torch.utils._ordered_set import OrderedSet
 
 from .graph_view import get_subgraph_by_path, GraphView, make_graph_view
+
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class ManualOverlapPreservingBucketer(OverlapPreservingBucketer):
@@ -110,10 +114,13 @@ class ManualOverlapPreservingBucketer(OverlapPreservingBucketer):
             "bucketed_all_gather" if is_all_gather(first) else "bucketed_reduce_scatter"
         )
         for n in new_nodes:
-            n.meta["nn_module_stack"] = coll_nodes[0].meta.get("nn_module_stack", "")
-            n.meta["fwd_nn_module_stack"] = coll_nodes[0].meta.get(
-                "fwd_nn_module_stack", ""
-            )
+            for key, default in [
+                ("nn_module_stack", ""),
+                ("fwd_nn_module_stack", ""),
+                ("custom", {}),
+                ("stack_trace", ""),
+            ]:
+                n.meta[key] = coll_nodes[0].meta.get(key, default)
             if n == new_wait:
                 node_type = node_type + "_wait"
             n.meta["manual_bucket_node_type"] = node_type
@@ -161,6 +168,7 @@ class ManualOverlapScheduler(OverlapScheduler):
         gm: fx.GraphModule,
         module_bucket_plans: list[list[str] | str],
         insert_overlap_deps: bool,
+        module_stack_fn: None | Callable[[fx.Node], list[tuple[str, type[Any]]]] = None,
     ):
         super().__init__(
             gm,
@@ -187,6 +195,8 @@ class ManualOverlapScheduler(OverlapScheduler):
             scheduled=OrderedSet(self.graph.nodes),
         )
         self.insert_overlap_deps = insert_overlap_deps
+
+        self.module_stack_fn = module_stack_fn
 
     def _identify_collectives(self) -> None:
         """Identify all collective operations."""
@@ -318,7 +328,7 @@ class ManualOverlapScheduler(OverlapScheduler):
         """
         Obtain nodes in each subgraph from module_bucket_plans
         """
-        graph_view: GraphView | None = make_graph_view(self.graph)
+        graph_view: GraphView | None = make_graph_view(self.graph, self.module_stack_fn)
         if graph_view is None:
             return
 
@@ -341,6 +351,7 @@ def manual_overlap_bucketing(
     gm: torch.fx.GraphModule,
     module_bucket_plans: list[list[str] | str],
     insert_overlap_deps: bool = False,
+    module_stack_fn: None | Callable[[fx.Node], list[tuple[str, type[Any]]]] = None,
 ) -> torch.fx.GraphModule:
     """Schedule nodes based on user specifications in module_bucket_plans
     The manual overlapping consists of two steps:
@@ -353,10 +364,16 @@ def manual_overlap_bucketing(
     Args:
         gm: input graph module to optimize.
         module_bucket_plans: user specified FQNs
+        module_stack_fn: Optional callable for extracting module hierarchy from nodes.
+            Used to construct a GraphView for identifying nodes in module_bucket_plans.
+            The module_class component of the returned tuples is not used by this pass.
+
+            See the `module_stack_fn` parameter in `make_graph_view` (graph_view.py) for
+            detailed documentation on signature, return format, and usage examples.
     """
     # decode abbreviated FQNs to actual FQNs
     overlapped_gm = ManualOverlapScheduler(
-        gm, module_bucket_plans, insert_overlap_deps
+        gm, module_bucket_plans, insert_overlap_deps, module_stack_fn
     ).run()
     overlapped_gm.recompile()
     return overlapped_gm

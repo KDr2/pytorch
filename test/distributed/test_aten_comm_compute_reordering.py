@@ -1378,6 +1378,77 @@ class TestManualOverlapBucketing(TestComputeCommReorderingMultiProc):
         self.assertEqual([n.name for n in mixed_nodes], ["layers_0_wq"])
 
     @unittest.skipIf(not HAS_GPU, "Inductor+gpu needs triton and recent GPU arch")
+    def test_make_graph_view_and_get_subgraph_by_path_custom_module_stack_fn(self):
+        from torch._dynamo.functional_export import dynamo_graph_capture_for_export
+        from torch._inductor.fx_passes.graph_view import (
+            get_subgraph_by_path,
+            make_graph_view,
+        )
+
+        model = get_toy_model(device_type)
+
+        module_path_key = "module_path"
+        # Add annotation to node.meta["custom"]
+        for name, m in model.named_modules():
+            m.forward = torch.fx.traceback.annotate_fn({module_path_key: name})(
+                m.forward
+            )
+
+        def module_stack_fn(node):
+            module_stack = node.meta.get("custom", {}).get(module_path_key, "")
+            return [(module_stack, torch.nn.Module)]
+
+        gm = dynamo_graph_capture_for_export(model)(torch.randn(2, 4).to(device_type))
+
+        # delete "nn_module_stack" to make sure the graph view is only constructed from annotation
+        for n in gm.graph.nodes:
+            if "nn_module_stack" in n.meta:
+                del n.meta["nn_module_stack"]
+
+        graph_view = make_graph_view(gm.graph, module_stack_fn=module_stack_fn)
+        # Fetch subgraph for first transformer layer
+        sub_nodes = get_subgraph_by_path(graph_view, "layers.0.wq")
+        self.assertEqual(
+            [n.name for n in sub_nodes],
+            [
+                "l_func_self_modules_layers_modules_0_modules_wq_parameters_weight_",
+                "l_func_self_modules_layers_modules_0_modules_wq_parameters_bias_",
+                "linear",
+            ],
+        )
+
+        # Fetch multiple paths at once
+        multi_nodes = get_subgraph_by_path(graph_view, ["layers.0.wq", "layers.0.proj"])
+        self.assertEqual(
+            [n.name for n in multi_nodes],
+            [
+                "l_func_self_modules_layers_modules_0_modules_wq_parameters_weight_",
+                "l_func_self_modules_layers_modules_0_modules_wq_parameters_bias_",
+                "linear",
+                "l_func_self_modules_layers_modules_0_modules_proj_parameters_weight_",
+                "l_func_self_modules_layers_modules_0_modules_proj_parameters_bias_",
+                "x",
+            ],
+        )
+
+        # Fetch non existing paths
+        non_exist_nodes = get_subgraph_by_path(graph_view, "nonexistent.module.path")
+        self.assertEqual(non_exist_nodes, [])
+
+        # Fetch mixed of existing and non existing paths
+        mixed_nodes = get_subgraph_by_path(
+            graph_view, ["layers.0.wq", "nonexistent.module.path"]
+        )
+        self.assertEqual(
+            [n.name for n in mixed_nodes],
+            [
+                "l_func_self_modules_layers_modules_0_modules_wq_parameters_weight_",
+                "l_func_self_modules_layers_modules_0_modules_wq_parameters_bias_",
+                "linear",
+            ],
+        )
+
+    @unittest.skipIf(not HAS_GPU, "Inductor+gpu needs triton and recent GPU arch")
     def test_manual_reordering_bucketing_pass_separate_buckets(
         self,
     ):
