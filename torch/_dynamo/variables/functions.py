@@ -372,6 +372,26 @@ def fn_var_getattr(
         return variables.LazyVariableTracker.create(subobj, source)
     return VariableTracker.build(tx, subobj)
 
+import contextlib
+import re
+@contextlib.contextmanager
+def record_nn_module_stack(module_key: str, source, tx, mod: torch.nn.Module):
+    fully_qualified_name = source.name()
+    # Remove redundant namings
+    fully_qualified_name = re.sub(
+        r"\._(?:modules|parameters|buffers)\[(['\"])([^'\"\]]+)\1\]",
+        r".\2",
+        fully_qualified_name,
+    )
+    num_calls = tx.num_calls.get(fully_qualified_name, 0)
+    module_key = f"{module_key}@{num_calls}" if num_calls > 0 else module_key
+    try:
+        tx.nn_module_stack[module_key] = (fully_qualified_name, mod.__class__)
+        tx.num_calls[fully_qualified_name] = num_calls + 1
+        yield
+    finally:
+        del tx.nn_module_stack[module_key]
+
 
 class BaseUserFunctionVariable(VariableTracker):
     def get_filename(self) -> str:
@@ -389,7 +409,14 @@ class BaseUserFunctionVariable(VariableTracker):
         args: Sequence[VariableTracker],
         kwargs: dict[str, VariableTracker],
     ) -> VariableTracker:
-        return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+        module_key = "0" # TODO: fix
+        mod = torch.nn.Module()
+
+        ctx = record_nn_module_stack(
+            module_key, self.source, tx, mod
+        ) if self.source else contextlib.nullcontext()
+        with ctx:
+            return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
 
     def call_obj_hasattr(
         self, tx: "InstructionTranslator", name: str
