@@ -127,9 +127,12 @@ if [ -n "$ROCM_VERSION" ]; then
     mkdir ${ROCM_PATH}/llvm/bin/original
     write_sccache_stub_rocm ${ROCM_PATH}/llvm/bin/clang
     write_sccache_stub_rocm ${ROCM_PATH}/llvm/bin/clang++
-    # Fix last link in symlink chain, clang points to versioned clang in prior dir
+    # Fix last link in symlink chain for traditional ROCm where clang -> clang-17
+    # Skip for theRock where clang points to _rocm_sdk_core (different package)
     pushd ${ROCM_PATH}/llvm/bin/original
-    ln -s ../$(readlink clang)
+    if [[ -L clang ]] && [[ "$(readlink clang)" == clang-* ]]; then
+      ln -s ../$(readlink clang)
+    fi
     popd
   else
     echo "Cannot find ROCm compiler."

@@ -89,6 +89,10 @@ if [[ "$image" == *rocm* ]]; then
 fi
 
 tag=$(echo $image | awk -F':' '{print $2}')
+# If no tag (no colon in image name), use the image name itself
+if [[ -z "$tag" ]]; then
+  tag="$image"
+fi
 
 # It's annoying to rename jobs every time you want to rewrite a
 # configuration, so we hardcode everything here rather than do it
@@ -326,7 +330,9 @@ case "$tag" in
       extract_version_from_image_name cuda CUDA_VERSION
     fi
     if [[ "$image" == *rocm* ]]; then
-      extract_version_from_image_name rocm ROCM_VERSION
+      if [[ -z "$ROCM_VERSION" ]]; then
+        extract_version_from_image_name rocm ROCM_VERSION
+      fi
       NINJA_VERSION=1.9.0
       TRITON=yes
       # To ensure that any ROCm config will build using conda cmake
