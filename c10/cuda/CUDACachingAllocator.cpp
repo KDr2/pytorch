@@ -419,18 +419,21 @@ struct ExpandableSegment {
       CUmemGenericAllocationHandle handle = 0;
       CUmemAllocationProp prop = {};
       prop.type = CU_MEM_ALLOCATION_TYPE_PINNED;
-      // In fbcode, IPC handle types for expandable segments are disabled by default
-      // because some jobs were failing (see https://github.com/pytorch/pytorch/pull/132890),
-      // but can be explicitly enabled via environment variable when IPC functionality is
-      // required (e.g., for multi-process communication with CTran).
-      // In non-fbcode builds, IPC handle types are enabled by default.
+      // In fbcode, IPC handle types for expandable segments are disabled by
+      // default because some jobs were failing (see
+      // https://github.com/pytorch/pytorch/pull/132890), but can be explicitly
+      // enabled via environment variable when IPC functionality is required
+      // (e.g., for multi-process communication with CTran). In non-fbcode
+      // builds, IPC handle types are enabled by default.
 #ifdef FBCODE_CAFFE2
       static const bool default_enable_ipc = false;
 #else
       static const bool default_enable_ipc = true;
 #endif
-      static const auto env = c10::utils::get_env("PYTORCH_CUDA_EXPANDABLE_SEGMENTS_IPC");
-      static const bool enable_ipc_handles = env.has_value() ? (env.value() == "1") : default_enable_ipc;
+      static const auto env =
+          c10::utils::get_env("PYTORCH_CUDA_EXPANDABLE_SEGMENTS_IPC");
+      static const bool enable_ipc_handles =
+          env.has_value() ? (env.value() == "1") : default_enable_ipc;
       if (enable_ipc_handles) {
         if (CUDAAllocatorConfig::expandable_segments_handle_type() !=
             Expandable_Segments_Handle_Type::FABRIC_HANDLE) {
