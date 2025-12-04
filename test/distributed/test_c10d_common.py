@@ -42,6 +42,7 @@ from torch.testing._internal.common_utils import (
     parametrize,
     retry_on_connect_failures,
     run_tests,
+    TemporaryFileName,
     TEST_WITH_DEV_DBG_ASAN,
     TEST_XPU,
     TestCase,
@@ -107,13 +108,12 @@ class AbstractTimeoutTest:
             c2p.append(e)
 
     def _init_methods(self):
-        f = tempfile.NamedTemporaryFile(delete=False)
-        if sys.platform == "win32":
-            yield "file:///{}".format(f.name.replace("\\", "/"))
-            f.close()
-        else:
-            yield f"file://{f.name}"
-            f.close()
+        with TemporaryFileName() as filename:
+            if sys.platform == "win32":
+                yield "file:///{}".format(filename.replace("\\", "/"))
+            else:
+                yield f"file://{filename}"
+        if sys.platform != "win32":
             yield f"tcp://127.0.0.1:{common.find_free_port():d}"
 
     def _test_default_store_timeout(self, backend):
@@ -140,7 +140,8 @@ class AbstractTimeoutTest:
 class TimeoutTest(TestCase):
     @retry_on_connect_failures
     def test_store_based_barrier(self):
-        f = tempfile.NamedTemporaryFile(delete=False)
+        f = tempfile.NamedTemporaryFile(delete=False)  # noqa: SIM115
+        f.close()
         port = common.find_free_port()
 
         def thread_work(timeout, init_type, world_size, rank, error_list):
