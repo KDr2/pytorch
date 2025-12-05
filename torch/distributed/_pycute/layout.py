@@ -161,6 +161,7 @@ def coalesce(layout: Layout, profile: LayoutProfile = None) -> Layout:
     if is_tuple(profile):
         assert len(layout) >= len(profile)
         return make_layout(
+            # pyrefly: ignore [bad-argument-type]
             chain(
                 (coalesce(layout[i], profile[i]) for i in range(len(profile))),  # type: ignore[arg-type]
                 (layout[i] for i in range(len(profile), len(layout))),
@@ -202,6 +203,7 @@ def filter(layout: Layout, profile: LayoutProfile = None) -> Layout:
     if is_tuple(profile):
         assert len(layout) >= len(profile)
         return make_layout(
+            # pyrefly: ignore [bad-argument-type]
             chain(
                 (filter(layout[i], profile[i]) for i in range(len(profile))),  # type: ignore[arg-type]
                 (layout[i] for i in range(len(profile), len(layout))),
@@ -232,6 +234,7 @@ def composition(layoutA: Layout, layoutB: LayoutInput) -> Layout:
     elif is_tuple(layoutB):
         assert len(layoutA) >= len(layoutB)
         return make_layout(
+            # pyrefly: ignore [bad-argument-type]
             chain(
                 (composition(layoutA[i], layoutB[i]) for i in range(len(layoutB))),  # type: ignore[arg-type]
                 (layoutA[i] for i in range(len(layoutB), len(layoutA))),
@@ -368,6 +371,7 @@ def logical_divide(layoutA: Layout, layoutB: LayoutInput) -> Layout:
     elif is_tuple(layoutB):
         assert len(layoutA) >= len(layoutB)
         return make_layout(
+            # pyrefly: ignore [bad-argument-type]
             chain(
                 (
                     logical_divide(layoutA[i], layoutB[i])  # type: ignore[arg-type]
@@ -393,6 +397,7 @@ def logical_product(layoutA: Layout, layoutB: LayoutInput) -> Layout:
     elif is_tuple(layoutB):
         assert len(layoutA) >= len(layoutB)
         return make_layout(
+            # pyrefly: ignore [bad-argument-type]
             chain(
                 (
                     logical_product(layoutA[i], layoutB[i])  # type: ignore[arg-type]
