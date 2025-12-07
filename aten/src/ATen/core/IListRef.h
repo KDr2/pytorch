@@ -217,7 +217,7 @@ namespace detail {
  * has to create a new copy of `T` (`OptionalTensorRef`).
  */
 template <typename T>
-using IListRefConstRef = typename ivalue_to_const_ref_overload_return<T>::type;
+using IListRefConstRef = ivalue_to_const_ref_overload_return<T>::type;
 
 /*
  * Interface that implements key functions for each `IListRefTag` type.
@@ -380,12 +380,12 @@ class IListRefIterator {
   using pointer = T*;
   using reference = T&;
 
-  using unboxed_iterator_type = typename detail::
+  using unboxed_iterator_type = detail::
       IListRefTagImpl<IListRefTag::Unboxed, T>::list_type::const_iterator;
-  using boxed_iterator_type = typename detail::
+  using boxed_iterator_type = detail::
       IListRefTagImpl<IListRefTag::Boxed, T>::list_type::const_iterator;
   using materialized_iterator_type =
-      typename detail::MaterializedIListRef<T>::const_iterator;
+      detail::MaterializedIListRef<T>::const_iterator;
 
   IListRefIterator() : tag_(IListRefTag::None) {}
 
@@ -514,16 +514,16 @@ class IListRef {
 
  public:
   using unboxed_type =
-      typename detail::IListRefTagImpl<IListRefTag::Unboxed, T>::list_type;
+      detail::IListRefTagImpl<IListRefTag::Unboxed, T>::list_type;
   using boxed_type =
-      typename detail::IListRefTagImpl<IListRefTag::Boxed, T>::list_type;
+      detail::IListRefTagImpl<IListRefTag::Boxed, T>::list_type;
   using materialized_type =
-      typename detail::MaterializedIListRef<T>;
+      detail::MaterializedIListRef<T>;
 
   using iterator = IListRefIterator<T>;
   using const_iterator = IListRefIterator<T>;
   using reverse_iterator = std::reverse_iterator<iterator>;
-  using value_type = typename iterator::value_type;
+  using value_type = iterator::value_type;
 
   IListRef() : tag_(IListRefTag::None) {}
 

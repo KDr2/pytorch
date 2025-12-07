@@ -109,7 +109,7 @@ inline Return callUnboxedKernelFunction(
 // NB: keep this in sync with cloneWithRealTypes in function_schema.cpp
 
 template <typename T>
-inline typename remove_symint<T>::type unpackSymInt(T x) {
+inline remove_symint<T>::type unpackSymInt(T x) {
   return x;
 }
 

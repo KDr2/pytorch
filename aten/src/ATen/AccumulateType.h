@@ -62,19 +62,19 @@ struct AccumulateType {};
 
 template <typename T>
 struct AccumulateType<T, false> {
-  using type = typename AccumulateTypeDevice<T, c10::DeviceType::CPU>::type;
+  using type = AccumulateTypeDevice<T, c10::DeviceType::CPU>::type;
 };
 
 template <typename T>
 struct AccumulateType<T, true> {
-  using type = typename AccumulateTypeDevice<T, c10::DeviceType::CUDA>::type;
+  using type = AccumulateTypeDevice<T, c10::DeviceType::CUDA>::type;
 };
 
 template <typename T, c10::DeviceType device>
-using acc_type_device = typename AccumulateTypeDevice<T, device>::type;
+using acc_type_device = AccumulateTypeDevice<T, device>::type;
 
 template <typename T, bool is_cuda>
-using acc_type = typename AccumulateType<T, is_cuda>::type;
+using acc_type = AccumulateType<T, is_cuda>::type;
 
 #define ACC_TYPE(t, acc_t, device_type)         \
   template <>                                   \

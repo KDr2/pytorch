@@ -18,8 +18,8 @@ class OrderedDict {
   // The lifetime of an iterator is bound to the lifetime of the `OrderedDict`.
   // Further, any `insert()` operation may invalidate all iterators
   // pointing into the vector.
-  using Iterator = typename std::vector<Item>::iterator;
-  using ConstIterator = typename std::vector<Item>::const_iterator;
+  using Iterator = std::vector<Item>::iterator;
+  using ConstIterator = std::vector<Item>::const_iterator;
 
   /// Constructs the `OrderedDict` with a short description of the kinds of keys
   /// stored in the `OrderedDict`. This description is used in error messages
@@ -499,7 +499,7 @@ template <typename K, typename V>
 bool operator==(
     const torch::OrderedDict<K, V>& a,
     const torch::OrderedDict<K, V>& b) {
-  using Item = typename torch::OrderedDict<K, V>::Item;
+  using Item = torch::OrderedDict<K, V>::Item;
   if (a.index_ != b.index_)
     return false;
   if (a.items_.size() != b.items_.size())

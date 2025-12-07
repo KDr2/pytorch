@@ -16,7 +16,7 @@
 
 namespace c10 {
 
-template <typename T, typename std::enable_if_t<std::is_integral_v<T>, int> = 0>
+template <typename T, std::enable_if_t<std::is_integral_v<T>, int> = 0>
 C10_ALWAYS_INLINE bool add_overflows(T a, T b, T* out) {
 #if C10_HAS_BUILTIN_OVERFLOW()
   return __builtin_add_overflow(a, b, out);
@@ -50,7 +50,7 @@ C10_ALWAYS_INLINE bool add_overflows(uint64_t a, uint64_t b, uint64_t* out) {
   return add_overflows<uint64_t>(a, b, out);
 }
 
-template <typename T, typename std::enable_if_t<std::is_integral_v<T>, int> = 0>
+template <typename T, std::enable_if_t<std::is_integral_v<T>, int> = 0>
 C10_ALWAYS_INLINE bool mul_overflows(T a, T b, T* out) {
 #if C10_HAS_BUILTIN_OVERFLOW()
   return __builtin_mul_overflow(a, b, out);

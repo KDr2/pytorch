@@ -403,7 +403,7 @@ struct TORCH_API SlotCursor {
 template <typename Policy>
 struct slot_iterator_impl {
   using SlotCursor = detail::SlotCursor;
-  using value_type = typename Policy::value_type;
+  using value_type = Policy::value_type;
   slot_iterator_impl(
       Module root,
       bool recurse, // if true, do a depth-first search, otherwise, just look at
@@ -533,7 +533,7 @@ template <typename Policy>
 struct slot_list_impl {
   using iterator = slot_iterator_impl<Policy>;
   using const_iterator = slot_iterator_impl<Policy>;
-  using value_type = typename iterator::value_type;
+  using value_type = iterator::value_type;
   slot_iterator_impl<Policy> begin() const {
     return slot_iterator_impl<Policy>(module_, recurse_, return_module_);
   }

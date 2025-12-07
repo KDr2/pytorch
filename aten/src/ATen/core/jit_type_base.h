@@ -170,7 +170,7 @@ struct TORCH_API Type {
   template <typename T>
   class SingletonOrSharedTypePtr {
    public:
-    using element_type = typename std::shared_ptr<T>::element_type;
+    using element_type = std::shared_ptr<T>::element_type;
 
     SingletonOrSharedTypePtr() = default;
 
@@ -206,11 +206,11 @@ struct TORCH_API Type {
     // pointer.
 
     template <typename U = T, std::enable_if_t<std::is_base_of_v<SharedType, U>, bool> = true>
-    /* implicit */ SingletonOrSharedTypePtr(T* p) : SingletonOrSharedTypePtr(static_cast<typename detail::as_shared_type<U>::type>(p)->shared_from_this()) {}
+    /* implicit */ SingletonOrSharedTypePtr(T* p) : SingletonOrSharedTypePtr(static_cast<detail::as_shared_type<U>::type>(p)->shared_from_this()) {}
 
     template <typename U = T, std::enable_if_t<std::is_same_v<Type, U>, bool> = true>
     /* implicit */ SingletonOrSharedTypePtr(T* p) {
-      if (auto* shared_p = dynamic_cast<typename detail::as_shared_type<U>::type>(p)) {
+      if (auto* shared_p = dynamic_cast<detail::as_shared_type<U>::type>(p)) {
         repr_ = shared_p->shared_from_this();
       } else {
         repr_ = makeSingletonSharedPtr(p);
@@ -372,14 +372,14 @@ struct TORCH_API Type {
   // Dynamically cast this object to the subclass indicated by the
   // template variable, returning nullptr if the cast is invalid.
   template <typename T, std::enable_if_t<!detail::IsSingletonType<T>::value, bool> = true>
-  typename detail::CastReturnType<T>::type cast() {
+  detail::CastReturnType<T>::type cast() {
     if (T::Kind == kind()) {
       return std::static_pointer_cast<T>(static_cast<T*>(this)->shared_from_this());
     }
     return nullptr;
   }
   template <typename T, std::enable_if_t<detail::IsSingletonType<T>::value, bool> = true>
-  typename detail::CastReturnType<T>::type cast() {
+  detail::CastReturnType<T>::type cast() {
     if (T::Kind == kind()) {
       TORCH_INTERNAL_ASSERT_DEBUG_ONLY(this == T::get().get());
       return typename detail::CastReturnType<T>::type(static_cast<T*>(this));
@@ -387,14 +387,14 @@ struct TORCH_API Type {
     return nullptr;
   }
   template <typename T, std::enable_if_t<!detail::IsSingletonType<T>::value, bool> = true>
-  typename detail::CastConstReturnType<T>::type cast() const {
+  detail::CastConstReturnType<T>::type cast() const {
     if (T::Kind == kind()) {
       return std::static_pointer_cast<const T>(static_cast<const T*>(this)->shared_from_this());
     }
     return nullptr;
   }
   template <typename T, std::enable_if_t<detail::IsSingletonType<T>::value, bool> = true>
-  typename detail::CastConstReturnType<T>::type cast() const {
+  detail::CastConstReturnType<T>::type cast() const {
     if (T::Kind == kind()) {
       TORCH_INTERNAL_ASSERT_DEBUG_ONLY(this == T::get().get());
       return typename detail::CastConstReturnType<T>::type(static_cast<const T*>(this));

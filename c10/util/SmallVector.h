@@ -633,14 +633,14 @@ class SmallVectorImpl : public SmallVectorTemplateBase<T> {
   using SuperClass = SmallVectorTemplateBase<T>;
 
  public:
-  using iterator = typename SuperClass::iterator;
-  using const_iterator = typename SuperClass::const_iterator;
-  using reference = typename SuperClass::reference;
-  using size_type = typename SuperClass::size_type;
+  using iterator = SuperClass::iterator;
+  using const_iterator = SuperClass::const_iterator;
+  using reference = SuperClass::reference;
+  using size_type = SuperClass::size_type;
 
  protected:
   using SmallVectorTemplateBase<T>::TakesParamByValue;
-  using ValueParamT = typename SuperClass::ValueParamT;
+  using ValueParamT = SuperClass::ValueParamT;
 
   // Default ctor - Initialize to empty.
   explicit SmallVectorImpl(unsigned N) : SmallVectorTemplateBase<T>(N) {}

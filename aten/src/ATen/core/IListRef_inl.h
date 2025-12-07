@@ -30,11 +30,11 @@ class IListRefTagImplBase<IListRefTag::Unboxed, T, ListElemT> {
     return ilist.payload_.unboxed;
   }
 
-  static typename list_type::const_iterator& unwrap(IListRefIterator<T>& it) {
+  static list_type::const_iterator& unwrap(IListRefIterator<T>& it) {
     return it.payload_.unboxed_iterator;
   }
 
-  static const typename list_type::const_iterator& unwrap(
+  static const list_type::const_iterator& unwrap(
       const IListRefIterator<T>& it) {
     return it.payload_.unboxed_iterator;
   }
@@ -50,7 +50,7 @@ class IListRefTagImplBase<IListRefTag::Unboxed, T, ListElemT> {
   }
 
   static IListRefConstRef<T> iterator_get(
-      const typename list_type::const_iterator& it) {
+      const list_type::const_iterator& it) {
     return *it;
   }
 };
@@ -69,11 +69,11 @@ class IListRefTagImplBase<IListRefTag::Boxed, T, ListElemT> {
     return *ilist.payload_.boxed;
   }
 
-  static typename list_type::const_iterator& unwrap(IListRefIterator<T>& it) {
+  static list_type::const_iterator& unwrap(IListRefIterator<T>& it) {
     return it.payload_.boxed_iterator;
   }
 
-  static const typename list_type::const_iterator& unwrap(
+  static const list_type::const_iterator& unwrap(
       const IListRefIterator<T>& it) {
     return it.payload_.boxed_iterator;
   }
@@ -83,7 +83,7 @@ class IListRefTagImplBase<IListRefTag::Boxed, T, ListElemT> {
   }
 
   static IListRefConstRef<T> iterator_get(
-      const typename list_type::const_iterator& it) {
+      const list_type::const_iterator& it) {
     return (*it).get().toTensor();
   }
 };
@@ -102,11 +102,11 @@ class IListRefTagImplBase<IListRefTag::Materialized, T, MaterializedIListRefElem
     return *ilist.payload_.materialized;
   }
 
-  static typename list_type::const_iterator& unwrap(IListRefIterator<T>& it) {
+  static list_type::const_iterator& unwrap(IListRefIterator<T>& it) {
     return it.payload_.materialized_iterator;
   }
 
-  static const typename list_type::const_iterator& unwrap(
+  static const list_type::const_iterator& unwrap(
       const IListRefIterator<T>& it) {
     return it.payload_.materialized_iterator;
   }
@@ -116,7 +116,7 @@ class IListRefTagImplBase<IListRefTag::Materialized, T, MaterializedIListRefElem
   }
 
   static IListRefConstRef<T> iterator_get(
-      const typename list_type::const_iterator& it) {
+      const list_type::const_iterator& it) {
     return *it;
   }
 };

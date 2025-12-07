@@ -946,7 +946,7 @@ struct VectorizedQuantizedConverter {
   using float_vec_return_type = float_vec_return_type_;
   using int_vec_return_type = int_vec_return_type_;
 
-  using value_type = typename T::underlying;
+  using value_type = T::underlying;
   std::array<value_type, size_> vals;
 
   VectorizedQuantizedConverter(T val) {

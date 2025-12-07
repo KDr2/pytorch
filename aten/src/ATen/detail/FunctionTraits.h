@@ -51,7 +51,7 @@ struct function_traits<ReturnType(Args...)> {
   template <size_t i>
   struct arg
   {
-      using type = typename std::tuple_element<i, std::tuple<Args...>>::type;
+      using type = std::tuple_element<i, std::tuple<Args...>>::type;
       // the i-th argument is equivalent to the i-th tuple element of a tuple
       // composed of those arguments.
   };
@@ -60,22 +60,22 @@ struct function_traits<ReturnType(Args...)> {
 template <typename T>
 struct nullary_function_traits {
   using traits = function_traits<T>;
-  using result_type = typename traits::result_type;
+  using result_type = traits::result_type;
 };
 
 template <typename T>
 struct unary_function_traits {
   using traits = function_traits<T>;
-  using result_type = typename traits::result_type;
-  using arg1_t = typename traits::template arg<0>::type;
+  using result_type = traits::result_type;
+  using arg1_t = traits::template arg<0>::type;
 };
 
 template <typename T>
 struct binary_function_traits {
   using traits = function_traits<T>;
-  using result_type = typename traits::result_type;
-  using arg1_t = typename traits::template arg<0>::type;
-  using arg2_t = typename traits::template arg<1>::type;
+  using result_type = traits::result_type;
+  using arg1_t = traits::template arg<0>::type;
+  using arg2_t = traits::template arg<1>::type;
 };
 
 

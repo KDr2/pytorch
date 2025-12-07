@@ -70,9 +70,9 @@ class Enumerator {
   class Proxy {
    public:
     using difference_type = ssize_t;
-    using value_type = typename std::iterator_traits<Iterator>::value_type;
-    using reference = typename std::iterator_traits<Iterator>::reference;
-    using pointer = typename std::iterator_traits<Iterator>::pointer;
+    using value_type = std::iterator_traits<Iterator>::value_type;
+    using reference = std::iterator_traits<Iterator>::reference;
+    using pointer = std::iterator_traits<Iterator>::pointer;
     using iterator_category = std::input_iterator_tag;
 
     C10_ALWAYS_INLINE constexpr explicit Proxy(const Enumerator& e)
@@ -87,12 +87,10 @@ class Enumerator {
     }
 
     // Const Proxy: Force const references.
-    C10_ALWAYS_INLINE constexpr typename MakeConst<reference>::type operator*()
-        const {
+    C10_ALWAYS_INLINE constexpr MakeConst<reference>::type operator*() const {
       return element;
     }
-    C10_ALWAYS_INLINE constexpr typename MakeConst<pointer>::type operator->()
-        const {
+    C10_ALWAYS_INLINE constexpr MakeConst<pointer>::type operator->() const {
       return std::addressof(element);
     }
 

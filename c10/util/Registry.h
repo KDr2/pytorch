@@ -172,7 +172,7 @@ class Registerer {
   explicit Registerer(
       const SrcType& key,
       Registry<SrcType, ObjectPtrType, Args...>* registry,
-      typename Registry<SrcType, ObjectPtrType, Args...>::Creator creator,
+      Registry<SrcType, ObjectPtrType, Args...>::Creator creator,
       const std::string& help_msg = "") {
     registry->Register(key, creator, help_msg);
   }
@@ -181,7 +181,7 @@ class Registerer {
       const SrcType& key,
       const RegistryPriority priority,
       Registry<SrcType, ObjectPtrType, Args...>* registry,
-      typename Registry<SrcType, ObjectPtrType, Args...>::Creator creator,
+      Registry<SrcType, ObjectPtrType, Args...>::Creator creator,
       const std::string& help_msg = "") {
     registry->Register(key, creator, help_msg, priority);
   }

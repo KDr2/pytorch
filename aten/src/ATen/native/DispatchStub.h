@@ -332,35 +332,35 @@ private:
 namespace {
 template <typename DispatchStub>
 struct RegisterCUDADispatch {
-  RegisterCUDADispatch(DispatchStub &stub, typename DispatchStub::FnPtr value) {
+  RegisterCUDADispatch(DispatchStub &stub, DispatchStub::FnPtr value) {
     stub.set_cuda_dispatch_ptr(value);
   }
 };
 
 template <typename DispatchStub>
 struct RegisterXPUDispatch {
-  RegisterXPUDispatch(DispatchStub &stub, typename DispatchStub::FnPtr value){
+  RegisterXPUDispatch(DispatchStub &stub, DispatchStub::FnPtr value){
     stub.set_xpu_dispatch_ptr(value);
   }
 };
 
 template <typename DispatchStub>
 struct RegisterHPUDispatch {
-  RegisterHPUDispatch(DispatchStub &stub, typename DispatchStub::FnPtr value){
+  RegisterHPUDispatch(DispatchStub &stub, DispatchStub::FnPtr value){
     stub.set_hpu_dispatch_ptr(value);
   }
 };
 
 template <typename DispatchStub>
 struct RegisterMPSDispatch {
-  RegisterMPSDispatch(DispatchStub &stub, typename DispatchStub::FnPtr value) {
+  RegisterMPSDispatch(DispatchStub &stub, DispatchStub::FnPtr value) {
     stub.set_mps_dispatch_ptr(value);
   }
 };
 
 template <typename DispatchStub>
 struct RegisterHIPDispatch {
-  RegisterHIPDispatch(DispatchStub &stub, typename DispatchStub::FnPtr value) {
+  RegisterHIPDispatch(DispatchStub &stub, DispatchStub::FnPtr value) {
     // TODO: make this point at hip_dispatch_ptr
     stub.set_cuda_dispatch_ptr(value);
   }
@@ -368,14 +368,14 @@ struct RegisterHIPDispatch {
 
 template <typename DispatchStub>
 struct RegisterMTIADispatch {
-  RegisterMTIADispatch(DispatchStub &stub, typename DispatchStub::FnPtr value) {
+  RegisterMTIADispatch(DispatchStub &stub, DispatchStub::FnPtr value) {
     stub.set_mtia_dispatch_ptr(value);
   }
 };
 
 template <typename DispatchStub>
 struct RegisterPRIVATEUSE1Dispatch {
-  RegisterPRIVATEUSE1Dispatch(DispatchStub &stub, typename DispatchStub::FnPtr value) {
+  RegisterPRIVATEUSE1Dispatch(DispatchStub &stub, DispatchStub::FnPtr value) {
     stub.set_privateuse1_dispatch_ptr(value);
   }
 };

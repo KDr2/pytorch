@@ -22,7 +22,7 @@ struct VecScalarType<Half> {
 
 // This is different from at::acc_type since we only need to specialize BFloat16
 template <typename scalar_t>
-using vec_scalar_t = typename VecScalarType<scalar_t>::type;
+using vec_scalar_t = VecScalarType<scalar_t>::type;
 
 // Vector conversion between float and bfloat16/half
 template <>
@@ -53,7 +53,7 @@ inline Vectorized<Half> convert_from_float<Half>(
 
 template <
     typename scalar_t,
-    typename std::enable_if_t<is_reduced_floating_point_v<scalar_t>, int> = 0>
+    std::enable_if_t<is_reduced_floating_point_v<scalar_t>, int> = 0>
 inline void load_to_float(
     const scalar_t* data,
     Vectorized<float>& out1,
@@ -77,7 +77,7 @@ inline void load_to_float<Half>(
 
 template <
     typename scalar_t,
-    typename std::enable_if_t<is_reduced_floating_point_v<scalar_t>, int> = 0>
+    std::enable_if_t<is_reduced_floating_point_v<scalar_t>, int> = 0>
 inline void load_to_float(const scalar_t* data, Vectorized<float>& out);
 
 template <>
@@ -118,7 +118,7 @@ inline void load_to_float<Half>(const Half* data, Vectorized<float>& out) {
 template <
     typename scalar_t,
     typename Op,
-    typename std::enable_if_t<is_reduced_floating_point_v<scalar_t>, int> = 0>
+    std::enable_if_t<is_reduced_floating_point_v<scalar_t>, int> = 0>
 inline float reduce_all(const Op& vec_fun, const scalar_t* data, int64_t size) {
   using bVec = vec::Vectorized<scalar_t>;
   using fVec = vec::Vectorized<float>;
@@ -162,7 +162,7 @@ template <
     typename scalar_t,
     typename Op1,
     typename Op2,
-    typename std::enable_if_t<is_reduced_floating_point_v<scalar_t>, int> = 0>
+    std::enable_if_t<is_reduced_floating_point_v<scalar_t>, int> = 0>
 inline std::pair<float, float> reduce2_all(
     const Op1& vec_fun1,
     const Op2& vec_fun2,
@@ -231,7 +231,7 @@ template <
     typename scalar_t,
     typename MapOp,
     typename ReduceOp,
-    typename std::enable_if_t<is_reduced_floating_point_v<scalar_t>, int> = 0>
+    std::enable_if_t<is_reduced_floating_point_v<scalar_t>, int> = 0>
 inline float map_reduce_all(
     const MapOp& map_fun,
     const ReduceOp& red_fun,
@@ -289,7 +289,7 @@ template <
     typename scalar_t,
     typename MapOp,
     typename ReduceOp,
-    typename std::enable_if_t<is_reduced_floating_point_v<scalar_t>, int> = 0>
+    std::enable_if_t<is_reduced_floating_point_v<scalar_t>, int> = 0>
 inline float map2_reduce_all(
     const MapOp& map_fun,
     const ReduceOp& red_fun,
@@ -356,7 +356,7 @@ template <
     typename scalar_t,
     typename MapOp,
     typename ReduceOp,
-    typename std::enable_if_t<is_reduced_floating_point_v<scalar_t>, int> = 0>
+    std::enable_if_t<is_reduced_floating_point_v<scalar_t>, int> = 0>
 inline float map3_reduce_all(
     const MapOp& map_fun,
     const ReduceOp& red_fun,
@@ -431,7 +431,7 @@ inline float map3_reduce_all(
 template <
     typename scalar_t,
     typename Op,
-    typename std::enable_if_t<
+    std::enable_if_t<
         !(!detail::should_prefer_converting_through_float_v<scalar_t> &&
           std::is_invocable_v<Op, vec::Vectorized<scalar_t>>),
         int> = 0>
@@ -464,7 +464,7 @@ inline void map(
 template <
     typename scalar_t,
     typename Op,
-    typename std::enable_if_t<is_reduced_floating_point_v<scalar_t>, int> = 0>
+    std::enable_if_t<is_reduced_floating_point_v<scalar_t>, int> = 0>
 inline void map(
     const Op& vec_fun,
     scalar_t* output_data,
@@ -502,7 +502,7 @@ inline void map(
 template <
     typename scalar_t,
     typename Op,
-    typename std::enable_if_t<
+    std::enable_if_t<
         !(!detail::should_prefer_converting_through_float_v<scalar_t> &&
           std::is_invocable_v<
               Op,
@@ -543,7 +543,7 @@ inline void map2(
 template <
     typename scalar_t,
     typename Op,
-    typename std::enable_if_t<
+    std::enable_if_t<
         !(!detail::should_prefer_converting_through_float_v<scalar_t> &&
           std::is_invocable_v<
               Op,
@@ -590,7 +590,7 @@ inline void map3(
 template <
     typename scalar_t,
     typename Op,
-    typename std::enable_if_t<
+    std::enable_if_t<
         !(!detail::should_prefer_converting_through_float_v<scalar_t> &&
           std::is_invocable_v<
               Op,

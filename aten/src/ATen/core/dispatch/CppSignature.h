@@ -25,9 +25,8 @@ class TORCH_API CppSignature final {
     // all CppSignature's for an operator will match, even if they're registered
     // with different calling conventions.
     // See Note [Plumbing Keys Through The Dispatcher]
-    using decayed_function_type =
-        typename c10::remove_DispatchKeySet_arg_from_func<
-            std::decay_t<FuncType>>::func_type;
+    using decayed_function_type = c10::remove_DispatchKeySet_arg_from_func<
+        std::decay_t<FuncType>>::func_type;
 
     return CppSignature(std::type_index(typeid(decayed_function_type)));
   }

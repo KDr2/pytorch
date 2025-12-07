@@ -50,7 +50,7 @@ struct infer_function_traits<Result(Args...)> {
 };
 
 template <typename T>
-using infer_function_traits_t = typename infer_function_traits<T>::type;
+using infer_function_traits_t = infer_function_traits<T>::type;
 
 /**
  * make_function_traits: creates a `function_traits` type given a Return type
@@ -75,8 +75,7 @@ struct make_function_traits<Result, typelist::typelist<Args...>> {
 };
 
 template <typename Result, typename ArgList>
-using make_function_traits_t =
-    typename make_function_traits<Result, ArgList>::type;
+using make_function_traits_t = make_function_traits<Result, ArgList>::type;
 
 /**
  * make_offset_index_sequence<Start, N>
@@ -101,7 +100,7 @@ struct make_offset_index_sequence_impl<Start, 0, Is...> {
 
 template <size_t Start, size_t N>
 using make_offset_index_sequence =
-    typename make_offset_index_sequence_impl<Start, N>::type;
+    make_offset_index_sequence_impl<Start, N>::type;
 
 /**
  * Use tuple_elements to extract a position-indexed subset of elements

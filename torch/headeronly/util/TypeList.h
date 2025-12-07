@@ -58,7 +58,7 @@ struct to_tuple<typelist<Types...>> final {
   using type = std::tuple<Types...>;
 };
 template <class TypeList>
-using to_tuple_t = typename to_tuple<TypeList>::type;
+using to_tuple_t = to_tuple<TypeList>::type;
 
 /**
  * Creates a typelist containing the types of a given tuple.
@@ -76,7 +76,7 @@ struct from_tuple<std::tuple<Types...>> final {
   using type = typelist<Types...>;
 };
 template <class Tuple>
-using from_tuple_t = typename from_tuple<Tuple>::type;
+using from_tuple_t = from_tuple<Tuple>::type;
 
 /**
  * Concatenates multiple type lists.
@@ -94,8 +94,7 @@ template <class... Head1Types, class... Head2Types, class... TailLists>
 struct concat<typelist<Head1Types...>, typelist<Head2Types...>, TailLists...>
     final {
   using type =
-      typename concat<typelist<Head1Types..., Head2Types...>, TailLists...>::
-          type;
+      concat<typelist<Head1Types..., Head2Types...>, TailLists...>::type;
 };
 template <class... HeadTypes>
 struct concat<typelist<HeadTypes...>> final {
@@ -106,7 +105,7 @@ struct concat<> final {
   using type = typelist<>;
 };
 template <class... TypeLists>
-using concat_t = typename concat<TypeLists...>::type;
+using concat_t = concat<TypeLists...>::type;
 
 /**
  * Filters the types in a type list by a type trait.
@@ -140,7 +139,7 @@ struct filter<Condition, typelist<>> final {
   using type = typelist<>;
 };
 template <template <class> class Condition, class TypeList>
-using filter_t = typename filter<Condition, TypeList>::type;
+using filter_t = filter<Condition, TypeList>::type;
 
 /**
  * Counts how many types in the list fulfill a type trait
@@ -184,7 +183,7 @@ struct contains<
     : contains<typelist<Tail...>, Type> {};
 } // namespace detail
 template <class TypeList, class Type>
-using contains = typename detail::contains<TypeList, Type>::type;
+using contains = detail::contains<TypeList, Type>::type;
 
 /**
  * Returns true iff the type trait is true for all types in the type list
@@ -246,7 +245,7 @@ struct map<Mapper, typelist<Types...>> final {
   using type = typelist<Mapper<Types>...>;
 };
 template <template <class> class Mapper, class TypeList>
-using map_t = typename map<Mapper, TypeList>::type;
+using map_t = map<Mapper, TypeList>::type;
 
 /**
  * Returns the first element of a type list.
@@ -264,7 +263,7 @@ struct head<typelist<Head, Tail...>> final {
   using type = Head;
 };
 template <class TypeList>
-using head_t = typename head<TypeList>::type;
+using head_t = head<TypeList>::type;
 
 /**
  * Returns the first element of a type list, or the specified default if the
@@ -280,7 +279,7 @@ struct head_with_default<Default, typelist<Head, Tail...>> final {
   using type = Head;
 };
 template <class Default, class TypeList>
-using head_with_default_t = typename head_with_default<Default, TypeList>::type;
+using head_with_default_t = head_with_default<Default, TypeList>::type;
 
 /**
  * Returns the N-th element of a type list.
@@ -319,7 +318,7 @@ struct element<Index, typelist<Head, Tail...>>
 
 /// Convenience alias.
 template <size_t Index, class TypeList>
-using element_t = typename element<Index, TypeList>::type;
+using element_t = element<Index, TypeList>::type;
 
 /**
  * Returns the last element of a type list.
@@ -334,14 +333,14 @@ struct last final {
 };
 template <class Head, class... Tail>
 struct last<typelist<Head, Tail...>> final {
-  using type = typename last<typelist<Tail...>>::type;
+  using type = last<typelist<Tail...>>::type;
 };
 template <class Head>
 struct last<typelist<Head>> final {
   using type = Head;
 };
 template <class TypeList>
-using last_t = typename last<TypeList>::type;
+using last_t = last<TypeList>::type;
 static_assert(std::is_same_v<int, last_t<typelist<double, float, int>>>);
 
 /**
@@ -368,11 +367,11 @@ struct take final {
   static_assert(
       num <= size<TypeList>::value,
       "Tried to typelist::take more elements than there are in the list");
-  using type = typename detail::
-      take_elements<TypeList, 0, std::make_index_sequence<num>>::type;
+  using type =
+      detail::take_elements<TypeList, 0, std::make_index_sequence<num>>::type;
 };
 template <class TypeList, size_t num>
-using take_t = typename take<TypeList, num>::type;
+using take_t = take<TypeList, num>::type;
 
 template <class TypeList, size_t num>
 struct drop final {
@@ -382,13 +381,13 @@ struct drop final {
   static_assert(
       num <= size<TypeList>::value,
       "Tried to typelist::drop more elements than there are in the list");
-  using type = typename detail::take_elements<
+  using type = detail::take_elements<
       TypeList,
       num,
       std::make_index_sequence<size<TypeList>::value - num>>::type;
 };
 template <class TypeList, size_t num>
-using drop_t = typename drop<TypeList, num>::type;
+using drop_t = drop<TypeList, num>::type;
 
 /**
  * Like drop, but returns an empty list rather than an assertion error if `num`
@@ -402,14 +401,14 @@ struct drop_if_nonempty final {
   static_assert(
       is_instantiation_of<typelist, TypeList>::value,
       "In typelist::drop<T, num>, the T argument must be typelist<...>.");
-  using type = typename detail::take_elements<
+  using type = detail::take_elements<
       TypeList,
       std::min(num, size<TypeList>::value),
       std::make_index_sequence<
           size<TypeList>::value - std::min(num, size<TypeList>::value)>>::type;
 };
 template <class TypeList, size_t num>
-using drop_if_nonempty_t = typename drop_if_nonempty<TypeList, num>::type;
+using drop_if_nonempty_t = drop_if_nonempty<TypeList, num>::type;
 
 /**
  * Reverses a typelist.
@@ -432,7 +431,7 @@ struct reverse<typelist<>> final {
   using type = typelist<>;
 };
 template <class TypeList>
-using reverse_t = typename reverse<TypeList>::type;
+using reverse_t = reverse<TypeList>::type;
 
 /**
  * Find the index of the first type in a typelist fulfilling a type trait

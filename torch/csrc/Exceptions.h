@@ -354,7 +354,7 @@ using conditional_gil_scoped_release = std::conditional_t<
     noop_gil_scoped_release>;
 
 template <typename Func, size_t i>
-using Arg = typename invoke_traits<Func>::template arg<i>::type;
+using Arg = invoke_traits<Func>::template arg<i>::type;
 
 template <typename Func, size_t... Is, bool release_gil>
 auto wrap_pybind_function_impl_(

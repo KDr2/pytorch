@@ -50,7 +50,7 @@ struct OpMathType<c10::complex<Half>> {
 };
 
 template <typename T>
-using opmath_type = typename OpMathType<T>::type;
+using opmath_type = OpMathType<T>::type;
 
 namespace {
 

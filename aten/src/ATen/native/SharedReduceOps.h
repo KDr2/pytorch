@@ -447,7 +447,7 @@ struct GreaterOrNan {
 
 template <typename comp_t>
 struct MinMaxReductionOps {
-  using scalar_t = typename binary_function_traits<comp_t>::arg1_t;
+  using scalar_t = binary_function_traits<comp_t>::arg1_t;
   using index_t = int64_t;
   using arg_t = detail::pair<scalar_t, index_t>;
 

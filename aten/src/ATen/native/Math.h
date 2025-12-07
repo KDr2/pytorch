@@ -148,7 +148,7 @@ jiterator_also_stringify_as(jiterator_code(
 #define CENTRAL_RANGE 0.7
 
 template <typename T>
-inline typename std::enable_if_t<std::is_floating_point_v<T>, T>
+inline std::enable_if_t<std::is_floating_point_v<T>, T>
 calc_erfinv(T y) {
 /* Function to calculate inverse error function.  Rational approximation
 is used to generate an initial approximation, which is then improved to
@@ -1243,7 +1243,7 @@ template <>
 }
 
 template <typename T>
-inline typename std::enable_if_t<std::is_integral_v<T>, T>
+inline std::enable_if_t<std::is_integral_v<T>, T>
 calc_gcd(T a, T b) {
   a = abs_impl(a);
   b = abs_impl(b);
@@ -1292,7 +1292,7 @@ C10_HOST_DEVICE c10::complex<T> exp2_impl(c10::complex<T> x) {
  * required is x -> 2(2ab/x - b - a)/(b-a).  If b is infinity, this becomes x -> 4a/x - 1.
  */
 template <typename T>
-inline typename std::enable_if_t<std::is_floating_point_v<T>, T>
+inline std::enable_if_t<std::is_floating_point_v<T>, T>
 chbevl(const T x, const T array[], size_t len) {
   T b0, b1, b2;
 
@@ -1369,7 +1369,7 @@ inline std::tuple<const T*, size_t> chebyshev_coefficients_i0e_B() {
 }
 
 template <typename T>
-inline typename std::enable_if_t<std::is_same_v<double, T>, std::tuple<const T*, size_t>>
+inline std::enable_if_t<std::is_same_v<double, T>, std::tuple<const T*, size_t>>
 chebyshev_coefficients_i1e_A() {
   /* Chebyshev coefficients for exp(-x) I1(x)
    * in the interval [0,8].
@@ -1396,7 +1396,7 @@ chebyshev_coefficients_i1e_A() {
 }
 
 template <typename T>
-inline typename std::enable_if_t<std::is_same_v<float, T>, std::tuple<const T*, size_t>>
+inline std::enable_if_t<std::is_same_v<float, T>, std::tuple<const T*, size_t>>
 chebyshev_coefficients_i1e_A() {
   /* Chebyshev coefficients for exp(-x) I1(x)
    * in the interval [0,8].
@@ -1425,7 +1425,7 @@ chebyshev_coefficients_i1e_A() {
 }
 
 template <typename T>
-inline typename std::enable_if_t<std::is_same_v<double, T>, std::tuple<const T*, size_t>>
+inline std::enable_if_t<std::is_same_v<double, T>, std::tuple<const T*, size_t>>
 chebyshev_coefficients_i1e_B() {
   /* Chebyshev coefficients for exp(-x) sqrt(x) I1(x)
    * in the inverted interval [8,infinity].
@@ -1451,7 +1451,7 @@ chebyshev_coefficients_i1e_B() {
 }
 
 template <typename T>
-inline typename std::enable_if_t<std::is_same_v<float, T>, std::tuple<const T*, size_t>>
+inline std::enable_if_t<std::is_same_v<float, T>, std::tuple<const T*, size_t>>
 chebyshev_coefficients_i1e_B() {
   /* Chebyshev coefficients for exp(-x) sqrt(x) I1(x)
    * in the inverted interval [8,infinity].
@@ -1471,7 +1471,7 @@ chebyshev_coefficients_i1e_B() {
 }
 
 template <typename T>
-inline typename std::enable_if_t<std::is_floating_point_v<T>, T>
+inline std::enable_if_t<std::is_floating_point_v<T>, T>
 calc_i0(T _x) {
   T x = std::abs(_x);
 
@@ -1498,7 +1498,7 @@ inline c10::Half calc_i0(c10::Half a) { return calc_i0(static_cast<float>(a)); }
  * of all inputs to convert them into the domain of the approximation.
  */
 template <typename T>
-inline typename std::enable_if_t<std::is_floating_point_v<T>, T>
+inline std::enable_if_t<std::is_floating_point_v<T>, T>
 calc_i1(T _x) {
   T x = std::abs(_x);
 
@@ -1528,7 +1528,7 @@ inline c10::Half calc_i1(c10::Half a) { return calc_i1(static_cast<float>(a)); }
  * of all inputs to convert them into the domain of the approximation.
  */
 template <typename T>
-inline typename std::enable_if_t<std::is_floating_point_v<T>, T>
+inline std::enable_if_t<std::is_floating_point_v<T>, T>
 calc_i1e(T _x) {
   T x = std::abs(_x);
 
@@ -1744,7 +1744,7 @@ inline C10_HOST_DEVICE T calc_ndtri(T y0) {
 
 
 template <typename T>
-C10_HOST_DEVICE  inline typename std::enable_if_t<std::is_floating_point_v<T>, T>
+C10_HOST_DEVICE  inline std::enable_if_t<std::is_floating_point_v<T>, T>
 erfcx_y100(T y100)
 {
   switch (static_cast<int>(y100)) {
@@ -2155,7 +2155,7 @@ return 0.97771701335885035464e0 + (0.22000938572830479551e-1 + (0.27951610702682
 }
 
 template <typename T>
-C10_HOST_DEVICE inline typename std::enable_if_t<std::is_floating_point_v<T>, T>
+C10_HOST_DEVICE inline std::enable_if_t<std::is_floating_point_v<T>, T>
 calc_erfcx(T x)
 {
   if (at::_isnan(x)) {

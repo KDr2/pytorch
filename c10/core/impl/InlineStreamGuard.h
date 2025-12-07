@@ -32,7 +32,7 @@ class InlineStreamGuard : private InlineDeviceGuard<T> {
   /// This constructor exists purely for testing
   template <
       typename U = T,
-      typename = typename std::enable_if_t<std::is_same_v<U, VirtualGuardImpl>>>
+      typename = std::enable_if_t<std::is_same_v<U, VirtualGuardImpl>>>
   explicit InlineStreamGuard(
       Stream stream,
       const DeviceGuardImplInterface* impl)

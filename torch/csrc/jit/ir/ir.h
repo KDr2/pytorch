@@ -927,7 +927,7 @@ struct TORCH_API Node {
   void printAttributes(std::ostream& out, bool ignore_subgraph) const;
 
   template <typename T>
-  Node* setAttr(Symbol name, typename T::ConstructorType v) {
+  Node* setAttr(Symbol name, T::ConstructorType v) {
     AT_ASSERT(name.is_attr());
     auto it = findAttr(name, false);
     auto nv = AVPtr(new T(name, std::forward<typename T::ConstructorType>(v)));
@@ -940,7 +940,7 @@ struct TORCH_API Node {
     return this;
   }
   template <typename T>
-  typename T::ValueType& getAttr(Symbol name) const {
+  T::ValueType& getAttr(Symbol name) const {
     AT_ASSERT(name.is_attr());
     auto it = findAttr(name, true);
     auto* child = dynamic_cast<T*>(it->get());
@@ -1650,7 +1650,7 @@ struct TORCH_API OperatorSet {
 template <typename T>
 struct OperatorMap {
   // Type aliasing
-  using OpMapType = typename std::pair<std::shared_ptr<Operator>, T>;
+  using OpMapType = std::pair<std::shared_ptr<Operator>, T>;
   using ValueType = std::vector<OpMapType>;
   using MapType = std::unordered_map<Symbol, ValueType>;
 
@@ -1756,7 +1756,7 @@ struct OperatorMap {
 template <typename T>
 struct FunctionSchemaMap {
   // Type aliasing
-  using FuncSchemaMapType = typename std::pair<FunctionSchema, T>;
+  using FuncSchemaMapType = std::pair<FunctionSchema, T>;
   using ValueType = std::vector<FuncSchemaMapType>;
   using MapType = std::unordered_map<Symbol, ValueType>;
 

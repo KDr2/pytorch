@@ -47,7 +47,7 @@ struct ivalue_to_helper {
   using type = decltype(std::declval<IValue>().template to<T>());
 };
 template <class T>
-using ivalue_to_helper_t = typename ivalue_to_helper<T>::type;
+using ivalue_to_helper_t = ivalue_to_helper<T>::type;
 
 template <class T>
 struct has_ivalue_to<T, std::void_t<ivalue_to_helper_t<T>>> : std::true_type {};

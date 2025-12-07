@@ -62,7 +62,7 @@ void make_offset2bag_out(
 
 template<bool has_weight, typename TIndex, typename TData>
 struct _CallbackAndBlockSize {
-    using TCallback = typename fbgemm::EmbeddingSpMDMKernelSignature<TData, TIndex, TIndex, TData>::Type;
+    using TCallback = fbgemm::EmbeddingSpMDMKernelSignature<TData, TIndex, TIndex, TData>::Type;
 
     int64_t blockSize = -1;
     TCallback callback = nullptr;
@@ -96,7 +96,7 @@ struct _EmbeddingBagKernelCacheImpl : private StorageMixins... {
 
     // this method is thread safe (call sites may call from different threads)
     template<bool has_weight, typename TIndex, typename TData>
-    typename _CallbackAndBlockSize<has_weight, TIndex, TData>::TCallback
+    _CallbackAndBlockSize<has_weight, TIndex, TData>::TCallback
     getCallback(int64_t block_size) const {
         // if the cache doesn't store the kernel for the incoming block size
         // (so it is different from the one stored in corresponding mixin)

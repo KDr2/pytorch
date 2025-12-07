@@ -64,11 +64,11 @@ struct maybe_keep_symint<true, T> {
 
 template <typename T>
 struct maybe_keep_symint<false, T> {
-  using type = typename remove_symint<T>::type;
+  using type = remove_symint<T>::type;
 };
 
 template <typename T>
-using fn_has_symint = typename guts::typelist::true_for_any_type<
+using fn_has_symint = guts::typelist::true_for_any_type<
     has_symint,
     typename guts::infer_function_traits<T>::type::parameter_types>;
 

@@ -128,7 +128,7 @@ class VecMask {
   VecMask() : mask_(static_cast<T>(0)) {}
   VecMask(const VectorizedN<T, N>& mask) : mask_(mask) {}
 
-  template <int L = N, typename std::enable_if_t<L == 1, int> = 0>
+  template <int L = N, std::enable_if_t<L == 1, int> = 0>
   VecMask(const Vectorized<T>& mask) : mask_(mask) {}
 
   template <typename U, int L>
@@ -236,7 +236,7 @@ class VecMask {
     return mask_;
   }
 
-  template <int L = N, typename std::enable_if_t<L == 1, int> = 0>
+  template <int L = N, std::enable_if_t<L == 1, int> = 0>
   inline operator Vectorized<T>() const {
     return mask_[0];
   }

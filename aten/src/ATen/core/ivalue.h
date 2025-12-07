@@ -1059,7 +1059,7 @@ struct TORCH_API IValue final {
   template <typename T>
   T to() &&;
   template <typename T>
-  typename c10::detail::ivalue_to_const_ref_overload_return<T>::type to()
+  c10::detail::ivalue_to_const_ref_overload_return<T>::type to()
       const&;
 
   // ToOptional: convert a IValue to the Optional obj that accepts both T and

@@ -1829,7 +1829,7 @@ c10::intrusive_ptr<T> IValue::toCustomClass() const& {
 
 template <typename T>
 T generic_to(IValue ivalue, _fake_type<T> /*unused*/) {
-  using ElemType = typename std::remove_pointer<T>::type::element_type;
+  using ElemType = std::remove_pointer<T>::type::element_type;
   return std::move(ivalue).template toCustomClass<ElemType>();
 }
 
@@ -1973,7 +1973,7 @@ inline std::optional<std::string_view> IValue::to() && {
 }
 
 template <typename T>
-inline typename c10::detail::ivalue_to_const_ref_overload_return<T>::type IValue::to() const& {
+inline c10::detail::ivalue_to_const_ref_overload_return<T>::type IValue::to() const& {
   return generic_to(*this, _fake_type<T>{});
 }
 

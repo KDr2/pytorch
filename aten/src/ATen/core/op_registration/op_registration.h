@@ -26,7 +26,7 @@ namespace detail {
 // See Note [Plumbing Keys Through The Dispatcher]
 template<class KernelFunctor>
 std::unique_ptr<FunctionSchema> inferFunctionSchemaFromFunctor() {
-  using func_type = typename c10::remove_DispatchKeySet_arg_from_func<KernelFunctor>::func_type;
+  using func_type = c10::remove_DispatchKeySet_arg_from_func<KernelFunctor>::func_type;
   return std::make_unique<FunctionSchema>(inferFunctionSchemaFlattenedReturns<func_type>());
 }
 }

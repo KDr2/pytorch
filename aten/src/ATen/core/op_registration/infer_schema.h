@@ -112,8 +112,8 @@ TORCH_API FunctionSchema make_function_schema(c10::ArrayRef<ArgumentDef> argumen
 /// function. Flattens std::tuple returns into multiple return types
 template <typename FunctionTraits>
 FunctionSchema createFunctionSchemaFromTraitsFlattenedReturns() {
- using ReturnType = typename FunctionTraits::return_type;
- using ParameterTypes = typename FunctionTraits::parameter_types;
+ using ReturnType = FunctionTraits::return_type;
+ using ParameterTypes = FunctionTraits::parameter_types;
 
  // arguments and returns are computed into a std::array at compile time and embedded into the binary.
  // The only code executed at runtime here is the one that creates a std::vector
@@ -128,8 +128,8 @@ FunctionSchema createFunctionSchemaFromTraitsFlattenedReturns() {
 /// function. Preserves std::tuple returns as a Tuple return type
 template <typename FunctionTraits>
 FunctionSchema createFunctionSchemaFromTraitsSingleReturn(std::string&& name, std::string&& overload_name) {
- using ReturnType = typename FunctionTraits::return_type;
- using ParameterTypes = typename FunctionTraits::parameter_types;
+ using ReturnType = FunctionTraits::return_type;
+ using ParameterTypes = FunctionTraits::parameter_types;
 
  // arguments and returns are computed into a std::array at compile time and embedded into the binary.
  // The only code executed at runtime here is the one that creates a std::vector

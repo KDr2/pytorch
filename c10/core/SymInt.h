@@ -434,9 +434,8 @@ class C10_API SymInt {
 /// Sum of a list of SymInt; accumulates into the c10::SymInt expression
 template <
     typename C,
-    typename std::enable_if_t<
-        std::is_same_v<typename C::value_type, c10::SymInt>,
-        int> = 0>
+    std::enable_if_t<std::is_same_v<typename C::value_type, c10::SymInt>, int> =
+        0>
 inline c10::SymInt multiply_integers(const C& container) {
   return std::accumulate(
       container.begin(),

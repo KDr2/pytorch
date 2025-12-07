@@ -63,7 +63,7 @@ template <typename T>
 inline std::ostream& _str(std::ostream& ss, const T& t) {
   if constexpr (std::is_enum_v<T> && !Streamable<T>::value) {
     // NOLINTNEXTLINE(modernize-type-traits)
-    return _str(ss, static_cast<typename std::underlying_type<T>::type>(t));
+    return _str(ss, static_cast<std::underlying_type<T>::type>(t));
   } else {
     // NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage)
     ss << t;

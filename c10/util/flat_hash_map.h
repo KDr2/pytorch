@@ -211,7 +211,7 @@ struct make_void {
   typedef void type;
 };
 template <typename... Ts>
-using void_t = typename make_void<Ts...>::type;
+using void_t = make_void<Ts...>::type;
 
 template <typename T, typename = void>
 struct HashPolicySelector {
@@ -219,7 +219,7 @@ struct HashPolicySelector {
 };
 template <typename T>
 struct HashPolicySelector<T, void_t<typename T::hash_policy>> {
-  typedef typename T::hash_policy type;
+  typedef T::hash_policy type;
 };
 
 template <
@@ -236,7 +236,7 @@ class sherwood_v3_table : private EntryAlloc,
                           private Equal {
   using Entry = detailv3::sherwood_v3_entry<T>;
   using AllocatorTraits = std::allocator_traits<EntryAlloc>;
-  using EntryPointer = typename AllocatorTraits::pointer;
+  using EntryPointer = AllocatorTraits::pointer;
 
  public:
   struct convertible_to_iterator;
@@ -756,7 +756,7 @@ class sherwood_v3_table : private EntryAlloc,
  private:
   EntryPointer entries = empty_default_table();
   uint64_t num_slots_minus_one = 0;
-  typename HashPolicySelector<ArgumentHash>::type hash_policy;
+  HashPolicySelector<ArgumentHash>::type hash_policy;
   int8_t max_lookups = detailv3::min_lookups - 1;
   float _max_load_factor = 0.5f;
   uint64_t num_elements = 0;
@@ -1988,15 +1988,15 @@ class flat_hash_map
     return emplace_result;
   }
   template <typename M>
-  typename Table::iterator insert_or_assign(
-      typename Table::const_iterator /*unused*/,
+  Table::iterator insert_or_assign(
+      Table::const_iterator /*unused*/,
       const key_type& key,
       M&& m) {
     return insert_or_assign(key, std::forward<M>(m)).first;
   }
   template <typename M>
-  typename Table::iterator insert_or_assign(
-      typename Table::const_iterator /*unused*/,
+  Table::iterator insert_or_assign(
+      Table::const_iterator /*unused*/,
       key_type&& key,
       M&& m) {
     return insert_or_assign(std::move(key), std::forward<M>(m)).first;

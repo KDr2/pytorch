@@ -37,7 +37,7 @@ inline Vectorized<bool> Vectorized<bool>::loadu(
 
 template <typename VT>
 struct VecHoldType {
-  using hold_type = typename VT::value_type;
+  using hold_type = VT::value_type;
 };
 
 template <>
@@ -51,7 +51,7 @@ struct VecHoldType<Vectorized<Half>> {
 };
 
 template <typename VT>
-using vechold_type = typename VecHoldType<VT>::hold_type;
+using vechold_type = VecHoldType<VT>::hold_type;
 
 } // namespace CPU_CAPABILITY
 } // namespace at::vec

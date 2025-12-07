@@ -63,8 +63,8 @@ struct MaybeOwnedTraits<std::shared_ptr<T>>
 /// Tensor::expect_contiguous.
 template <typename T>
 class MaybeOwned final {
-  using borrow_type = typename MaybeOwnedTraits<T>::borrow_type;
-  using owned_type = typename MaybeOwnedTraits<T>::owned_type;
+  using borrow_type = MaybeOwnedTraits<T>::borrow_type;
+  using owned_type = MaybeOwnedTraits<T>::owned_type;
 
   bool isBorrowed_;
   union {

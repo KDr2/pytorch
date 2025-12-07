@@ -19,7 +19,7 @@ List<T>::List(const c10::intrusive_ptr<c10::detail::ListImpl>& elements)
 template<class T>
 List<T>::List()
 : List(make_intrusive<c10::detail::ListImpl>(
-  typename c10::detail::ListImpl::list_type(),
+  c10::detail::ListImpl::list_type(),
   getTypePtr<T>())) {
   static_assert(!std::is_same_v<T, IValue>, "This constructor is not valid for List<IValue>. Please use c10::impl::GenericList(elementType) instead.");
 }
@@ -27,7 +27,7 @@ List<T>::List()
 template<class T>
 List<T>::List(ArrayRef<T> values)
 : List(make_intrusive<c10::detail::ListImpl>(
-    typename c10::detail::ListImpl::list_type(),
+    c10::detail::ListImpl::list_type(),
     getTypePtr<T>())) {
   static_assert(!std::is_same_v<T, IValue>, "This constructor is not valid for List<IValue>. Please use c10::impl::GenericList(elementType).");
   impl_->list.reserve(values.size());
@@ -45,7 +45,7 @@ List<T>::List(std::initializer_list<T> initial_values)
 template<class T>
 List<T>::List(TypePtr elementType)
 : List(make_intrusive<c10::detail::ListImpl>(
-    typename c10::detail::ListImpl::list_type(),
+    c10::detail::ListImpl::list_type(),
     std::move(elementType))) {
   static_assert(std::is_same_v<T, IValue> || std::is_same_v<T, c10::intrusive_ptr<ivalue::Future>>,
                 "This constructor is only valid for c10::impl::GenericList or List<Future>.");
@@ -162,13 +162,13 @@ inline bool operator==(const T& lhs, const ListElementReference<T, Iterator>& rh
 }
 
 template<class T>
-inline typename ListElementConstReferenceTraits<T>::const_reference
+inline ListElementConstReferenceTraits<T>::const_reference
 list_element_to_const_ref(const IValue& element) {
   return element.template to<T>();
 }
 
 template<>
-inline typename ListElementConstReferenceTraits<std::optional<std::string>>::const_reference
+inline ListElementConstReferenceTraits<std::optional<std::string>>::const_reference
 list_element_to_const_ref<std::optional<std::string>>(const IValue& element) {
   return element.toOptionalStringRef();
 }
@@ -198,7 +198,7 @@ typename List<T>::internal_const_reference_type List<T>::operator[](size_type po
 template<class T>
 typename List<T>::internal_reference_type List<T>::operator[](size_type pos) {
   static_cast<void>(impl_->list.at(pos)); // Throw the exception if it is out of range.
-  return {impl_->list.begin() + static_cast<typename decltype(impl_->list)::difference_type>(pos)};
+  return {impl_->list.begin() + static_cast<decltype(impl_->list)::difference_type>(pos)};
 }
 
 template<class T>
@@ -226,7 +226,7 @@ bool List<T>::empty() const {
 }
 
 template<class T>
-typename List<T>::size_type List<T>::size() const {
+List<T>::size_type List<T>::size() const {
   return impl_->list.size();
 }
 

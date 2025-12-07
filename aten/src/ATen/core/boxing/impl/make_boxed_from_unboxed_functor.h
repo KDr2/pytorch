@@ -660,8 +660,8 @@ call_functor_with_args_from_stack(
   // plumb keys through the dispatcher. We don't want to expose the
   // DispatchKeySet type to jit, so we don't include this argument on the stack.
   // See Note [Plumbing Keys Through The Dispatcher] for the background.
-  using ArgTypes = typename c10::remove_DispatchKeySet_arg_from_func<
-      Functor>::parameter_types;
+  using ArgTypes =
+      c10::remove_DispatchKeySet_arg_from_func<Functor>::parameter_types;
   constexpr size_t num_ivalue_args = guts::typelist::size<ArgTypes>::value;
   return call_functor_with_args_from_stack_<Functor, AllowDeprecatedTypes>(
       functor,
@@ -745,14 +745,14 @@ struct make_boxed_from_unboxed_functor final {
       DispatchKeySet dispatchKeySet,
       Stack* stack) {
     using ReturnType =
-        typename guts::infer_function_traits_t<KernelFunctor>::return_type;
+        guts::infer_function_traits_t<KernelFunctor>::return_type;
     // We're explicitly filtering out DispatchKeySet from the argument list.
     // Some kernels take a DispatchKeySet as their first argument in order to
     // plumb keys through the dispatcher. We don't want to expose the
     // DispatchKeySet type to jit, so we don't include this argument on the
     // stack. See Note [Plumbing Keys Through The Dispatcher] for the
     // background.
-    using ArgTypes = typename c10::remove_DispatchKeySet_arg_from_func<
+    using ArgTypes = c10::remove_DispatchKeySet_arg_from_func<
         KernelFunctor>::parameter_types;
     constexpr bool has_outputs = !std::is_same_v<void, ReturnType>;
     constexpr size_t num_inputs = guts::typelist::size<ArgTypes>::value;

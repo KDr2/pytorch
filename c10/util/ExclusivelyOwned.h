@@ -55,7 +55,7 @@ struct ExclusivelyOwnedTraits;
 template <typename T>
 class ExclusivelyOwned {
   using EOT = ExclusivelyOwnedTraits<T>;
-  typename ExclusivelyOwnedTraits<T>::repr_type repr_;
+  ExclusivelyOwnedTraits<T>::repr_type repr_;
 
  public:
   ExclusivelyOwned() : repr_(EOT::nullRepr()) {}
@@ -112,19 +112,19 @@ class ExclusivelyOwned {
     return EOT::take(repr_);
   }
 
-  typename EOT::const_pointer_type operator->() const {
+  EOT::const_pointer_type operator->() const {
     return get();
   }
 
-  typename EOT::const_pointer_type get() const {
+  EOT::const_pointer_type get() const {
     return EOT::getImpl(repr_);
   }
 
-  typename EOT::pointer_type operator->() {
+  EOT::pointer_type operator->() {
     return get();
   }
 
-  typename EOT::pointer_type get() {
+  EOT::pointer_type get() {
     return EOT::getImpl(repr_);
   }
 

@@ -35,7 +35,7 @@ struct InitLambda {
 template <typename Func>
 decltype(auto) init(Func&& f) {
   using InitTraits = c10::guts::infer_function_traits_t<std::decay_t<Func>>;
-  using ParameterTypeList = typename InitTraits::parameter_types;
+  using ParameterTypeList = InitTraits::parameter_types;
 
   InitLambda<Func, ParameterTypeList> init{std::forward<Func>(f)};
   return init;
@@ -176,7 +176,7 @@ class class_ : public ::torch::detail::class_base {
     auto wrapped_func =
         [func = std::move(func)](jit::Stack& stack) mutable -> void {
       using RetType =
-          typename c10::guts::infer_function_traits_t<Func>::return_type;
+          c10::guts::infer_function_traits_t<Func>::return_type;
       detail::BoxedProxy<RetType, Func>()(stack, func);
     };
     auto method = std::make_unique<jit::BuiltinOpFunction>(
@@ -320,7 +320,7 @@ class class_ : public ::torch::detail::class_base {
     // and assign it to the `capsule` attribute.
     using SetStateTraits =
         c10::guts::infer_function_traits_t<std::decay_t<SetStateFn>>;
-    using SetStateArg = typename c10::guts::typelist::head_t<
+    using SetStateArg = c10::guts::typelist::head_t<
         typename SetStateTraits::parameter_types>;
     auto setstate_wrapper = [set_state = std::forward<SetStateFn>(set_state)](
                                 c10::tagged_capsule<CurClass> self,
@@ -406,7 +406,7 @@ class class_ : public ::torch::detail::class_base {
       // like this! Currently can't do it because the profiler stuff is in
       // libtorch and not ATen
       using RetType =
-          typename c10::guts::infer_function_traits_t<Func>::return_type;
+          c10::guts::infer_function_traits_t<Func>::return_type;
       detail::BoxedProxy<RetType, Func>()(stack, func);
     };
     auto method = std::make_unique<jit::BuiltinOpFunction>(

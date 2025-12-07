@@ -97,15 +97,14 @@ class C10_API Scalar {
   // problem.
   template <
       typename T,
-      typename std::enable_if_t<std::is_same_v<T, bool>, bool>* = nullptr>
+      std::enable_if_t<std::is_same_v<T, bool>, bool>* = nullptr>
   Scalar(T vv) : tag(Tag::HAS_b) {
     v.i = convert<int64_t, bool>(vv);
   }
 
   template <
       typename T,
-      typename std::enable_if_t<std::is_same_v<T, c10::SymBool>, bool>* =
-          nullptr>
+      std::enable_if_t<std::is_same_v<T, c10::SymBool>, bool>* = nullptr>
   Scalar(T vv) : tag(Tag::HAS_sb) {
     v.i = convert<int64_t, c10::SymBool>(vv);
   }
@@ -247,9 +246,7 @@ class C10_API Scalar {
   Scalar conj() const;
   Scalar log() const;
 
-  template <
-      typename T,
-      typename std::enable_if_t<!c10::is_complex<T>::value, int> = 0>
+  template <typename T, std::enable_if_t<!c10::is_complex<T>::value, int> = 0>
   bool equal(T num) const {
     if (isComplex()) {
       TORCH_INTERNAL_ASSERT(!isSymbolic());
@@ -280,9 +277,7 @@ class C10_API Scalar {
     }
   }
 
-  template <
-      typename T,
-      typename std::enable_if_t<c10::is_complex<T>::value, int> = 0>
+  template <typename T, std::enable_if_t<c10::is_complex<T>::value, int> = 0>
   bool equal(T num) const {
     if (isComplex()) {
       TORCH_INTERNAL_ASSERT(!isSymbolic());
@@ -425,7 +420,7 @@ class C10_API Scalar {
 
   template <
       typename T,
-      typename std::enable_if_t<
+      std::enable_if_t<
           std::is_integral_v<T> && !std::is_same_v<T, bool>,
           bool>* = nullptr>
   Scalar(T vv, bool /*unused*/) : tag(Tag::HAS_i) {
@@ -434,7 +429,7 @@ class C10_API Scalar {
 
   template <
       typename T,
-      typename std::enable_if_t<
+      std::enable_if_t<
           !std::is_integral_v<T> && !c10::is_complex<T>::value,
           bool>* = nullptr>
   Scalar(T vv, bool /*unused*/) : tag(Tag::HAS_d) {
@@ -443,7 +438,7 @@ class C10_API Scalar {
 
   template <
       typename T,
-      typename std::enable_if_t<c10::is_complex<T>::value, bool>* = nullptr>
+      std::enable_if_t<c10::is_complex<T>::value, bool>* = nullptr>
   Scalar(T vv, bool /*unused*/) : tag(Tag::HAS_z) {
     v.z = convert<decltype(v.z), T>(vv);
   }

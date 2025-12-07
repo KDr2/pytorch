@@ -105,7 +105,7 @@ bool Dict<Key, Value>::empty() const {
 }
 
 template<class Key, class Value>
-typename Dict<Key, Value>::size_type Dict<Key, Value>::size() const {
+Dict<Key, Value>::size_type Dict<Key, Value>::size() const {
   return impl_->dict.size();
 }
 

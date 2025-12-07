@@ -124,7 +124,7 @@ template <
     class Functor,
     bool AllowDeprecatedTypes,
     size_t... ivalue_arg_indices>
-typename c10::guts::infer_function_traits_t<Functor>::return_type
+c10::guts::infer_function_traits_t<Functor>::return_type
 call_torchbind_method_from_stack(
     Functor& functor,
     jit::Stack& stack,
@@ -135,7 +135,7 @@ call_torchbind_method_from_stack(
   constexpr size_t num_ivalue_args = sizeof...(ivalue_arg_indices);
 
   using IValueArgTypes =
-      typename c10::guts::infer_function_traits_t<Functor>::parameter_types;
+      c10::guts::infer_function_traits_t<Functor>::parameter_types;
   // TODO We shouldn't use c10::impl stuff directly here. We should use the
   // KernelFunction API instead.
   return functor(c10::impl::ivalue_to_arg<
@@ -148,7 +148,7 @@ call_torchbind_method_from_stack(
 }
 
 template <class Functor, bool AllowDeprecatedTypes>
-typename c10::guts::infer_function_traits_t<Functor>::return_type
+c10::guts::infer_function_traits_t<Functor>::return_type
 call_torchbind_method_from_stack(Functor& functor, jit::Stack& stack) {
   constexpr size_t num_ivalue_args =
       c10::guts::infer_function_traits_t<Functor>::number_of_parameters;

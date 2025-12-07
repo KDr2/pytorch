@@ -180,7 +180,7 @@ inline scalar_t vec_reduce_all(
 template <
     typename scalar_t,
     typename Op,
-    typename std::enable_if_t<!is_reduced_floating_point_v<scalar_t>, int> = 0>
+    std::enable_if_t<!is_reduced_floating_point_v<scalar_t>, int> = 0>
 inline scalar_t reduce_all(
     const Op& vec_fun,
     const scalar_t* data,
@@ -206,7 +206,7 @@ template <
     typename scalar_t,
     typename Op1,
     typename Op2,
-    typename std::enable_if_t<!is_reduced_floating_point_v<scalar_t>, int> = 0>
+    std::enable_if_t<!is_reduced_floating_point_v<scalar_t>, int> = 0>
 inline std::pair<scalar_t, scalar_t> reduce2_all(
     const Op1& vec_fun1,
     const Op2& vec_fun2,
@@ -240,7 +240,7 @@ template <
     typename scalar_t,
     typename MapOp,
     typename ReduceOp,
-    typename std::enable_if_t<!is_reduced_floating_point_v<scalar_t>, int> = 0>
+    std::enable_if_t<!is_reduced_floating_point_v<scalar_t>, int> = 0>
 inline scalar_t map_reduce_all(
     const MapOp& map_fun,
     const ReduceOp& red_fun,
@@ -268,7 +268,7 @@ template <
     typename scalar_t,
     typename MapOp,
     typename ReduceOp,
-    typename std::enable_if_t<!is_reduced_floating_point_v<scalar_t>, int> = 0>
+    std::enable_if_t<!is_reduced_floating_point_v<scalar_t>, int> = 0>
 inline scalar_t map2_reduce_all(
     const MapOp& map_fun,
     const ReduceOp& red_fun,
@@ -303,7 +303,7 @@ template <
     typename scalar_t,
     typename MapOp,
     typename ReduceOp,
-    typename std::enable_if_t<!is_reduced_floating_point_v<scalar_t>, int> = 0>
+    std::enable_if_t<!is_reduced_floating_point_v<scalar_t>, int> = 0>
 inline scalar_t map3_reduce_all(
     const MapOp& map_fun,
     const ReduceOp& red_fun,
@@ -342,7 +342,7 @@ inline scalar_t map3_reduce_all(
 template <
     typename scalar_t,
     typename Op,
-    typename std::enable_if_t<
+    std::enable_if_t<
         !detail::should_prefer_converting_through_float_v<scalar_t> &&
             std::is_invocable_v<Op, vec::Vectorized<scalar_t>>,
         int> = 0>
@@ -366,7 +366,7 @@ inline void map(
 template <
     typename scalar_t,
     typename Op,
-    typename std::enable_if_t<
+    std::enable_if_t<
         !detail::should_prefer_converting_through_float_v<scalar_t> &&
             std::is_invocable_v<
                 Op,
@@ -398,7 +398,7 @@ inline void map2(
 template <
     typename scalar_t,
     typename Op,
-    typename std::enable_if_t<
+    std::enable_if_t<
         !detail::should_prefer_converting_through_float_v<scalar_t> &&
             std::is_invocable_v<
                 Op,
@@ -434,7 +434,7 @@ inline void map3(
 template <
     typename scalar_t,
     typename Op,
-    typename std::enable_if_t<
+    std::enable_if_t<
         !detail::should_prefer_converting_through_float_v<scalar_t> &&
             std::is_invocable_v<
                 Op,

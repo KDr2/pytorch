@@ -684,7 +684,7 @@ class TORCH_API TensorBase {
     } else {
       ptr = mutable_data_ptr<T>();
     }
-    return GenericPackedTensorAccessor<T,N,PtrTraits,index_t>(static_cast<typename PtrTraits<T>::PtrType>(ptr),sizes().data(),strides().data());
+    return GenericPackedTensorAccessor<T,N,PtrTraits,index_t>(static_cast<PtrTraits<T>::PtrType>(ptr),sizes().data(),strides().data());
   }
   template<typename T, size_t N, template <typename U> class PtrTraits = DefaultPtrTraits, typename index_t = int64_t>
   GenericPackedTensorAccessor<T,N> generic_packed_accessor() && = delete;
