@@ -12,7 +12,6 @@ from torch.testing._internal.logging_tensor import LoggingTensor
 
 # Base class for wrapper-style tensors.
 class WrapperTensor(torch.Tensor):
-    @staticmethod
     def __new__(cls, *args, **kwargs):
         t, kwargs = cls.get_wrapper_properties(*args, **kwargs)
         if "size" not in kwargs:
@@ -297,7 +296,6 @@ subclass_db = {
 }
 
 class SubclassWithTensorFactory(torch.Tensor):
-    @staticmethod
     def __new__(cls, src):
         shape = src.shape
         kwargs = {}

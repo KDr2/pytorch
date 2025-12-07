@@ -9,7 +9,6 @@ from torch.utils._python_dispatch import return_and_correct_aliasing
 
 
 class WrapperSubclass(torch.Tensor):
-    @staticmethod
     def __new__(cls, a, outer_size=None, outer_stride=None):
         if outer_size is None:
             outer_size = a.size()

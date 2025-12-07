@@ -127,6 +127,7 @@ def log_input(name: str, var: object) -> None:
 
 class GatherTraceback(logging.Filter):
     def __init__(self, python=True, script=True, cpp=False):
+        super().__init__()
         self.python = python
         self.script = script
         self.cpp = cpp
