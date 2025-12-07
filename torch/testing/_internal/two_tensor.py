@@ -8,7 +8,6 @@ from torch.utils._python_dispatch import return_and_correct_aliasing
 
 # A simple tensor subclass that holds two tensors internally, and runs every op on both tensors.
 class TwoTensor(torch.Tensor):
-    @staticmethod
     def __new__(cls, a, b, outer_size=None, outer_stride=None, *, requires_grad=None):
         if outer_size is None:
             outer_size = a.size()
@@ -40,6 +39,11 @@ class TwoTensor(torch.Tensor):
     @torch._disable_dynamo
     @mark_subclass_constructor_exportable_experimental
     def __init__(self, a, b, outer_size=None, outer_stride=None, *, requires_grad=None):
+        super().__init__(
+            outer_size=outer_size,
+            outer_stride=outer_stride,
+            requires_grad=requires_grad,
+        )
         self.a = a
         self.b = b
 

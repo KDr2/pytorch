@@ -12,7 +12,6 @@ from torch.testing._internal.logging_tensor import LoggingTensor
 
 # Base class for wrapper-style tensors.
 class WrapperTensor(torch.Tensor):
-    @staticmethod
     def __new__(cls, *args, **kwargs):
         t, kwargs = cls.get_wrapper_properties(*args, **kwargs)
         if "size" not in kwargs:
@@ -61,6 +60,7 @@ class WrapperTensorWithCustomSizes(WrapperTensor):
         return t, {"requires_grad": requires_grad, "dispatch_sizes_strides_policy": "sizes"}
 
     def __init__(self, t, requires_grad=False):
+        super().__init__(requires_grad=requires_grad)
         self.t = t
 
     @classmethod
@@ -90,6 +90,7 @@ class WrapperTensorWithCustomStrides(WrapperTensor):
         return t, {"requires_grad": requires_grad, "dispatch_sizes_strides_policy": "strides"}
 
     def __init__(self, t, requires_grad=False):
+        super().__init__(requires_grad=requires_grad)
         self.t = t
 
     @classmethod
@@ -120,6 +121,7 @@ class DiagTensorBelow(WrapperTensor):
         return diag, {"size": diag.size() + diag.size(), "requires_grad": requires_grad}
 
     def __init__(self, diag, requires_grad=False):
+        super().__init__(requires_grad=requires_grad)
         self.diag = diag
 
     handled_ops = {}
@@ -162,6 +164,7 @@ class SparseTensor(WrapperTensor):
         return values, {"size": size, "requires_grad": requires_grad}
 
     def __init__(self, size, values, indices, requires_grad=False):
+        super().__init__(size=size,requires_grad=requires_grad)
         self.values = values
         self.indices = indices
 
@@ -297,7 +300,6 @@ subclass_db = {
 }
 
 class SubclassWithTensorFactory(torch.Tensor):
-    @staticmethod
     def __new__(cls, src):
         shape = src.shape
         kwargs = {}
