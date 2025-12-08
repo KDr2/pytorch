@@ -254,7 +254,7 @@ memory_pool: Literal["none", "intermediates", "outputs", "combined"] = os.enviro
 benchmark_harness = True
 
 # fuse pointwise into templates epilogues
-epilogue_fusion = True
+epilogue_fusion = False
 
 # fuse pointwise into template prologues
 prologue_fusion = prologue_fusion_enabled()
@@ -464,6 +464,11 @@ use_experimental_benchmarker: bool = Config(
 # then share the results.
 distributed_max_autotune_gemm = (
     os.environ.get("TORCHINDUCTOR_DISTRIBUTED_MAX_AUTOTUNE_GEMM") == "1"
+)
+
+# Pipeline autotuning for max-autotune-gemm. Overlap lowering and benchmarking on GPU
+pipeline_max_autotune_gemm = (
+    os.environ.get("TORCHINDUCTOR_PIPELINE_GEMM_AUTOTUNING") == "1"
 )
 
 # enable slow autotuning passes to select algorithms
