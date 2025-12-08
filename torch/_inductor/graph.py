@@ -662,11 +662,12 @@ class GraphLowering(torch.fx.Interpreter):
         Decide if we should enable layout optimization for this graph based on
         heuristics.
         """
-        if not config.layout_optimization:
-            return False
-
+        # Check force_layout_optimization first so it can override layout_optimization
         if config.force_layout_optimization:
             return True
+
+        if not config.layout_optimization:
+            return False
 
         conv_nodes = [
             n for n in gm.graph.nodes if n.target is torch.ops.aten.convolution.default
