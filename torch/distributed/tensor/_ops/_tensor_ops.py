@@ -179,7 +179,10 @@ def create_like_strategy(op_schema: OpSchema) -> StrategyType:
         output_spec = DTensorSpec(
             mesh=select_strategy.mesh,
             placements=tuple(
-                Replicate() if isinstance(p, Partial) else p
+                Replicate()
+                # empty_like needs to pass Partial() through, o/w nn.Module.to_empty() will lose it
+                if isinstance(p, Partial) and op_schema.op != aten.empty_like.default
+                else p
                 for p in arg_spec.placements
             ),
         )
