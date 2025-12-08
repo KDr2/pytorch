@@ -36,7 +36,6 @@ import threading
 import types
 import warnings
 import weakref
-from collections import OrderedDict
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any, TYPE_CHECKING
 from typing_extensions import is_typeddict
@@ -229,21 +228,22 @@ class UserDefinedClassVariable(UserDefinedVariable):
 
     @staticmethod
     @functools.cache
-    def supported_c_new_functions() -> set[object]:
-        exceptions = [
+    def supported_c_new_functions() -> set[Any]:
+        exceptions: set[Any] = {
             getattr(builtins, name).__new__
             for name in dir(builtins)
             if isinstance(getattr(builtins, name), type)
             and issubclass(getattr(builtins, name), BaseException)
-        ]
-        return {
+        }
+        c_new_fns: set[Any] = {
             object.__new__,
             dict.__new__,
             set.__new__,
             frozenset.__new__,
             tuple.__new__,
             list.__new__,
-        }.union(exceptions)  # type: ignore[arg-type]
+        }
+        return c_new_fns.union(exceptions)
 
     @staticmethod
     def is_supported_new_method(value: object) -> bool:
@@ -551,7 +551,7 @@ class UserDefinedClassVariable(UserDefinedVariable):
             ) -> Any:
                 pass
 
-            bound_args = inspect.BoundArguments(inspect.Signature(), OrderedDict())
+            bound_args = None
             try:
                 bound_args = inspect.signature(deque_signature).bind(*args, **kwargs)
             except TypeError as e:
@@ -565,7 +565,7 @@ class UserDefinedClassVariable(UserDefinedVariable):
                     ],
                     from_exc=e,
                 )
-
+            assert bound_args is not None
             if "iterable" in bound_args.arguments:
                 if not bound_args.arguments["iterable"].has_force_unpack_var_sequence(
                     tx
@@ -733,7 +733,7 @@ class UserDefinedClassVariable(UserDefinedVariable):
                     )
                 items_ret_type: list[VariableTracker] = args[
                     0
-                ].force_unpack_var_sequence(tx)  # type: ignore[union-attr,attr-defined]
+                ].force_unpack_var_sequence(tx)
             else:
                 field_defaults = self.value._field_defaults  # type: ignore[attr-defined]
 
@@ -766,7 +766,7 @@ class UserDefinedClassVariable(UserDefinedVariable):
             return variables.NamedTupleVariable(
                 items_ret_type,
                 self.value,
-                mutation_type=AttributeMutationNew(),  # type: ignore[arg-type]
+                mutation_type=AttributeMutationNew(),
             )
         elif self.value is torch.Size:
             # This simulates `THPSize_pynew`, the C impl for `Size.__new__`.
@@ -776,7 +776,8 @@ class UserDefinedClassVariable(UserDefinedVariable):
             from dataclasses import Field
 
             fields_tuple: tuple[Field[Any], ...] = dataclasses.fields(self.value)  # type: ignore[arg-type,assignment]
-            fields_source = DataclassFieldsSource(self.source)  # type: ignore[arg-type]
+            assert self.source is not None
+            fields_source = DataclassFieldsSource(self.source)
             items_list: list[VariableTracker | None] = list(args)
             items_list.extend([None] * (len(fields_tuple) - len(items_list)))  # type: ignore[assignment,arg-type]
 
@@ -809,7 +810,6 @@ class UserDefinedClassVariable(UserDefinedVariable):
                             # if we are subclass, the constructor could possibly
                             # be missing args
                             continue
-
                     default_kwargs[field.name] = var_tracker  # type: ignore[union-attr,attr-defined]
             kwargs.update(default_kwargs)
 
@@ -1166,7 +1166,7 @@ class UserDefinedObjectVariable(UserDefinedVariable):
 
                 # TODO(anijain2305) - Identity checking should already be a part
                 # of the cmp_eq  polyfill function.
-                return ConstantVariable.create(self.value is other.value)  # type: ignore[union-attr]
+                return ConstantVariable.create(self.value is other.value)
 
             if torch._dynamo.config.enable_faithful_generator_behavior and isinstance(
                 self.value, types.GeneratorType
@@ -1684,9 +1684,9 @@ class UserDefinedObjectVariable(UserDefinedVariable):
             # owner - class object
             owner_var = UserDefinedClassVariable(type(self.value))
             return variables.UserMethodVariable(
-                subobj.__get__.__func__,
+                subobj.__get__.__func__,  # type: ignore[attr-defined]
                 descriptor_var,
-                source=descriptor_get_source,  # type: ignore[attr-defined]
+                source=descriptor_get_source,
             ).call_function(tx, [self, owner_var], {})
         elif isinstance(subobj, types.FunctionType) or (
             isinstance(subobj, types.MethodType)
@@ -1763,7 +1763,8 @@ class UserDefinedObjectVariable(UserDefinedVariable):
         ):
             # Recalculate source for params/buffers
             if name in ("_buffers", "_parameters"):
-                source = UnspecializedParamBufferSource(self.source, name)  # type: ignore[arg-type]
+                assert self.source is not None
+                source = UnspecializedParamBufferSource(self.source, name)
             source = self._wrap_source(source)
 
         if subobj is not NO_SUCH_SUBOBJ:
@@ -2192,8 +2193,10 @@ class UserDefinedDictVariable(UserDefinedObjectVariable):
     def install_dict_keys_match_guard(self) -> None:
         return self._dict_vt.install_dict_keys_match_guard()
 
-    def install_dict_contains_guard(self) -> None:
-        return self._dict_vt.install_dict_contains_guard()  # type: ignore[call-arg]
+    def install_dict_contains_guard(
+        self, tx: "InstructionTranslator", args: list[VariableTracker]
+    ) -> None:
+        return self._dict_vt.install_dict_contains_guard(tx, args)
 
     def is_python_hashable(self):
         raise_on_overridden_hash(self.value, self)
@@ -2273,8 +2276,10 @@ class UserDefinedSetVariable(UserDefinedObjectVariable):
     def install_dict_keys_match_guard(self) -> None:
         return self._set_vt.install_dict_keys_match_guard()
 
-    def install_dict_contains_guard(self) -> None:
-        return self._set_vt.install_dict_contains_guard()  # type: ignore[call-arg]
+    def install_dict_contains_guard(
+        self, tx: "InstructionTranslator", args: list[VariableTracker]
+    ) -> None:
+        return self._set_vt.install_dict_contains_guard(tx, args)
 
     def is_python_hashable(self):
         raise_on_overridden_hash(self.value, self)
