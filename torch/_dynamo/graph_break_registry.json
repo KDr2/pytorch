@@ -2737,6 +2737,14 @@
       ]
     }
   ],
+  "GB6017": [
+    {
+      "Gb_type": "executorch_call_delegate: first arg not supported",
+      "Context": "args: {args}, kwargs: {kwargs}",
+      "Explanation": "executorch_call_delegate expects the first argument to be a nn.Module (got {args[0]})",
+      "Hints": []
+    }
+  ],
   "GB0269": [
     {
       "Gb_type": "Forced graph break on leaf function",
