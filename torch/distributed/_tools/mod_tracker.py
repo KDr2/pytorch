@@ -1,10 +1,12 @@
 # mypy: allow-untyped-defs
+import logging
 import warnings
 import weakref
 from collections.abc import Callable
 from typing import Optional
 
 import torch
+from torch._logging._internal import warning_once
 from torch.autograd.graph import register_multi_grad_hook
 from torch.nn.modules.module import (
     register_module_forward_hook,
@@ -14,6 +16,8 @@ from torch.utils._pytree import tree_flatten
 
 
 __all__ = ["ModTracker"]
+
+log = logging.getLogger(__name__)
 
 
 class ModTracker:
@@ -214,6 +218,10 @@ class ModTracker:
         return fn
 
     def _fw_pre_hook(self, mod, input):
+        if torch._dynamo.eval_frame._is_in_compiled_region():
+            warning_once(log, "ModTracker is currently a no-op under compiled regions.")
+            return
+
         name = self._get_mod_name(mod)
         w_mod = weakref.ref(mod)
         self._get_append_fn(w_mod, name, False)()
@@ -230,6 +238,10 @@ class ModTracker:
                 )
 
     def _fw_post_hook(self, mod, input, output):
+        if torch._dynamo.eval_frame._is_in_compiled_region():
+            warning_once(log, "ModTracker is currently a no-op under compiled regions.")
+            return
+
         name = self._get_mod_name(mod)
         w_mod = weakref.ref(mod)
         if self._user_post_fw_hook is not None:
