@@ -3,10 +3,7 @@
 
 #if AT_CUDNN_ENABLED()
 
-#include <ATen/ATen.h>
 #include <ATen/native/quantized/cudnn/utils.h>
-#include <ATen/native/quantized/PackedParams.h>
-#include <torch/library.h>
 
 #include <tuple>
 

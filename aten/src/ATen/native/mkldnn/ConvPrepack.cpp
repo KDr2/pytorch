@@ -5,9 +5,7 @@
 #include <ATen/native/mkldnn/ConvPrepack.h>
 #include <ATen/native/mkldnn/MKLDNNCommon.h>
 #include <ATen/native/mkldnn/OpContext.h>
-#include <ATen/native/utils/Factory.h>
 #include <ATen/native/utils/ParamUtils.h>
-#include <c10/util/irange.h>
 
 #if AT_MKLDNN_ENABLED()
 

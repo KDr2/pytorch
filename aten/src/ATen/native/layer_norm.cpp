@@ -1,9 +1,7 @@
 #define TORCH_ASSERT_ONLY_METHOD_OPERATORS
 #include <ATen/native/layer_norm.h>
 
-#include <ATen/core/Tensor.h>
 #include <ATen/Dispatch.h>
-#include <ATen/Parallel.h>
 #include <ATen/native/cpu/mixed_data_type.h>
 #include <c10/util/irange.h>
 #include <ATen/OpMathType.h>
@@ -23,7 +21,6 @@
 #include <ATen/ops/native_layer_norm_native.h>
 #include <ATen/ops/pow.h>
 #include <ATen/ops/rsqrt.h>
-#include <ATen/ops/rms_norm.h>
 #include <ATen/ops/zeros_like_native.h>
 #endif
 

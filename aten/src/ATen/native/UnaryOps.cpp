@@ -1,17 +1,11 @@
 #define TORCH_ASSERT_ONLY_METHOD_OPERATORS
-#include <ATen/core/Tensor.h>
-#include <ATen/ExpandUtils.h>
-#include <ATen/MemoryOverlap.h>
 #include <ATen/NamedTensorUtils.h>
-#include <ATen/Parallel.h>
 #include <ATen/ScalarOps.h>
 #include <ATen/TensorIterator.h>
 #include <ATen/TensorOperators.h>
-#include <ATen/WrapDimUtils.h>
 
 #include <ATen/native/Resize.h>
 #include <ATen/native/UnaryOps.h>
-#include <ATen/native/ComplexHelper.h>
 
 #include <c10/util/MathConstants.h>
 

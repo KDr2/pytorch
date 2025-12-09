@@ -1,8 +1,6 @@
 #define TORCH_ASSERT_ONLY_METHOD_OPERATORS
 #include <ATen/Context.h>
-#include <ATen/TensorGeometry.h>
 #include <ATen/TensorUtils.h>
-#include <ATen/core/Tensor.h>
 #include <ATen/cuda/CUDAConfig.h>
 #include <ATen/cuda/EmptyTensor.h>
 #include <ATen/native/ConvUtils.h>

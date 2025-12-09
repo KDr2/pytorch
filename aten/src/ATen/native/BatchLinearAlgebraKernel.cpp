@@ -1,5 +1,4 @@
 #define TORCH_ASSERT_ONLY_METHOD_OPERATORS
-#include <ATen/core/Tensor.h>
 #include <ATen/Config.h>
 #include <ATen/Dispatch.h>
 #include <ATen/Dispatch_v2.h>
@@ -15,7 +14,6 @@
 #include <ATen/NativeFunctions.h>
 #else
 #include <ATen/ops/empty.h>
-#include <ATen/ops/empty_strided.h>
 #endif
 namespace at::native {
 

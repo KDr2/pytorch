@@ -1,12 +1,9 @@
 #include <ATen/native/mkldnn/MKLDNNCommon.h>
 #include <ATen/OpaqueTensorImpl.h>
-#include <c10/core/Allocator.h>
 #include <torch/library.h>
 
 #if AT_MKLDNN_ENABLED()
 
-#include <ideep.hpp>
-#include <dnnl.hpp>
 
 namespace at::native {
 

@@ -9,8 +9,6 @@
 #include <ATen/cudnn/Handle.h>
 #include <ATen/native/quantized/cudnn/utils.h>
 #include <ATen/native/utils/ParamsHash.h>
-#include <ATen/TensorUtils.h>
-#include <c10/core/MemoryFormat.h>
 #include <c10/core/QScheme.h>
 #include <c10/cuda/CUDAFunctions.h>
 #include <c10/util/ArrayRef.h>

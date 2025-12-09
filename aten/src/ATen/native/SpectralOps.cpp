@@ -1,6 +1,4 @@
 #define TORCH_ASSERT_ONLY_METHOD_OPERATORS
-#include <ATen/core/Tensor.h>
-#include <ATen/Config.h>
 #include <ATen/TensorSubclassLikeUtils.h>
 #include <ATen/detail/CUDAHooksInterface.h>
 #include <ATen/native/SpectralOpsUtils.h>
@@ -22,7 +20,6 @@
 #include <ATen/ops/_fft_r2c.h>
 #include <ATen/ops/arange.h>
 #include <ATen/ops/arange_native.h>
-#include <ATen/ops/conj.h>
 #include <ATen/ops/conj_physical.h>
 #include <ATen/ops/constant_pad_nd.h>
 #include <ATen/ops/empty.h>

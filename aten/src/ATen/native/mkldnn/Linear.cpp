@@ -1,7 +1,5 @@
 #define TORCH_ASSERT_ONLY_METHOD_OPERATORS
 #include <ATen/Config.h>
-#include <ATen/Parallel.h>
-#include <ATen/core/Tensor.h>
 #include <torch/library.h>
 #include <ATen/native/mkldnn/Linear.h>
 #include <ATen/native/Resize.h>
@@ -12,7 +10,6 @@
 #else
 #include <ATen/ops/_to_dense_native.h>
 #include <ATen/ops/empty.h>
-#include <ATen/ops/linear.h>
 #include <ATen/ops/mkldnn_linear_backward_input.h>
 #include <ATen/ops/mkldnn_linear_backward_input_native.h>
 #include <ATen/ops/mkldnn_linear_backward_native.h>

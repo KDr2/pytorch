@@ -2,25 +2,15 @@
 #include <utility>
 
 #include <ATen/native/BatchLinearAlgebra.h>
-#include <ATen/core/Tensor.h>
 #include <ATen/Context.h>
-#include <ATen/cuda/CUDAContext.h>
 #include <ATen/Dispatch.h>
-#include <ATen/cuda/PinnedMemoryAllocator.h>
-#include <ATen/cuda/detail/IndexUtils.cuh>
 
 #include <c10/util/Exception.h>
 
 #include <ATen/native/LinearAlgebraUtils.h>
-#include <ATen/native/cuda/MiscUtils.h>
-#include <ATen/native/LinearAlgebra.h>
 #include <ATen/native/cuda/linalg/BatchLinearAlgebraLib.h>
-#include <ATen/native/cuda/linalg/MagmaUtils.h>
-#include <ATen/native/cpu/zmath.h>
 
 #ifndef AT_PER_OPERATOR_HEADERS
-#include <ATen/Functions.h>
-#include <ATen/NativeFunctions.h>
 #else
 #include <ATen/ops/_cholesky_solve_helper_native.h>
 #include <ATen/ops/arange.h>

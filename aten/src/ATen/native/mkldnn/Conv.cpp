@@ -1,7 +1,6 @@
 #define TORCH_ASSERT_ONLY_METHOD_OPERATORS
 #include <ATen/Config.h>
 #include <torch/library.h>
-#include <ATen/core/Tensor.h>
 #include <ATen/native/ConvUtils.h>
 #include <ATen/native/mkldnn/Conv.h>
 #include <ATen/native/utils/ParamUtils.h>
@@ -14,7 +13,6 @@
 #include <ATen/ops/_to_dense_native.h>
 #include <ATen/ops/convolution.h>
 #include <ATen/ops/empty.h>
-#include <ATen/ops/empty_like.h>
 #include <ATen/ops/mkldnn_convolution_native.h>
 #endif
 
