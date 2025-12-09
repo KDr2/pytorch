@@ -2827,9 +2827,6 @@ class AlgorithmSelectorCache(PersistentCache):
 
         if return_multi_template and (config.max_autotune or config.max_autotune_gemm):
             if config.pipeline_max_autotune_gemm:
-                assert not config.epilogue_fusion and not config.prologue_fusion, (
-                    "Pipelined autotuning not compatible yet with fusion benchmarking, will cause contention on gpu"
-                )
                 assert all(
                     not isinstance(c, SubgraphChoiceCaller) for c in choices
                 ), "Pipelined autotuning not compatible yet with subgraph choices"
@@ -4375,6 +4372,7 @@ def autotune_select_algorithm(*args, **kwargs):
         kwargs["return_multi_template"] = (
             torch._inductor.config.benchmark_epilogue_fusion
             or torch._inductor.config.pipeline_max_autotune_gemm
+            or torch._inductor.config.statically_check_epilogue_fusion
         )
 
     if "precompilation_timeout_seconds" not in kwargs:

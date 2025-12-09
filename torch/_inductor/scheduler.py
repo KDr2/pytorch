@@ -2795,6 +2795,9 @@ class Scheduler:
         self.name_to_fused_node = {n.get_name(): n for n in self.nodes}
         self.compute_ancestors()
 
+        if config.benchmark_epilogue_fusion and config.statically_check_epilogue_fusion:
+            raise ValueError("Both benchmarking and statically checking epilogue fusion cannot be true")
+
         # pyrefly: ignore [bad-assignment]
         metrics.ir_nodes_pre_fusion += len(self.nodes)
         from torch._inductor.debug import log_ir_post_fusion, log_ir_pre_fusion
@@ -3593,7 +3596,7 @@ class Scheduler:
         device = nodes[0].get_device()
         self.current_device = device
         backend = self.get_backend(device)
-        with dynamo_timed("benchmark_fused_nodes"):
+        with dynamo_timed("generated_kernel_code_from_nodes"):
             return backend.generate_kernel_code_from_nodes(
                 nodes, benchmark_kernel, hint_override=hint_override
             )
@@ -3607,7 +3610,7 @@ class Scheduler:
         """
         self.current_device = device
         backend = self.get_backend(device)
-        with dynamo_timed("benchmark_fused_nodes"):
+        with dynamo_timed("benchmark_codegened_module"):
             return backend.benchmark_codegened_module(module)
 
     def finalize_multi_template_buffers(self) -> None:
@@ -3870,11 +3873,14 @@ class Scheduler:
             # Eagerly compile and benchmark non-template nodes
             choice_timings = multi_node.choice_timings()
             _, ms1 = multi_node.get_min_choice()
-            ms2, path2 = (
-                self.benchmark_fused_nodes(node_list_2)
-                if epilogue_fusion
-                else self.benchmark_fused_nodes(node_list_1)
-            )
+
+            ms2 = float("inf")
+            if config.benchmark_epilogue_fusion:
+                ms2, path2 = (
+                    self.benchmark_fused_nodes(node_list_2)
+                    if epilogue_fusion
+                    else self.benchmark_fused_nodes(node_list_1)
+                )
 
             # Start compiling choices in parallel
             future_choices: list[tuple[Any, Optional[LambdaFuture], ModuleType]] = []
@@ -3897,7 +3903,7 @@ class Scheduler:
                 ):
                     continue
 
-                if unfused_time >= ms1 + ms2:
+                if config.benchmark_epilogue_fusion and unfused_time >= ms1 + ms2:
                     break
 
                 triton_choices += 1
@@ -3931,21 +3937,36 @@ class Scheduler:
                                 str(e),
                             )
                         continue
-                    # pyrefly: ignore [missing-attribute]
-                    with multi_node.swap_as_triton_caller(choice):
-                        ms_fused, path = self.benchmark_codegened_module(
-                            mod_fused,
-                            # pyrefly: ignore [bad-argument-type]
-                            device,
-                        )
-                        new_timings[choice] = ms_fused
-                        if ms_fused < min_ms_fused:
-                            min_ms_fused = ms_fused
-                            ms_fused_choice = choice
+                    
+                    if not config.benchmark_epilogue_fusion:
+                        args = mod_fused.get_args()
+                        call = mod_fused.call
+                        wrapped_jit_function = mod_fused.triton_
+                        call(wrapped_jit_function.clone_args(*args)[0])
+                        launchers = wrapped_jit_function.launchers
+                        assert len(launchers) == 1
+                        if launchers[0].n_spills > 8:
+                            continue
 
-                log_fusion(min_ms_fused, ms1, ms2)
+                        ms_fused_choice = choice
+                        break
+                    else:
+                        # pyrefly: ignore [missing-attribute]
+                        with multi_node.swap_as_triton_caller(choice):
+                            ms_fused, path = self.benchmark_codegened_module(
+                                mod_fused,
+                                # pyrefly: ignore [bad-argument-type]
+                                device,
+                            )
+                            new_timings[choice] = ms_fused
+                            if ms_fused < min_ms_fused:
+                                min_ms_fused = ms_fused
+                                ms_fused_choice = choice
+                
+                if config.benchmark_epilogue_fusion:
+                    log_fusion(min_ms_fused, ms1, ms2)
 
-                if min_ms_fused < (ms1 + ms2) and ms_fused_choice is not None:
+                if (config.statically_check_epilogue_fusion or min_ms_fused < (ms1 + ms2)) and ms_fused_choice is not None:
                     if config.multi_kernel_hints:
                         hint_override_best_fusion_choice[None] = ms_fused_choice
                         # pyrefly: ignore [missing-attribute]

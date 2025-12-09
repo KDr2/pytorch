@@ -760,6 +760,12 @@ benchmark_epilogue_fusion = (
     os.environ.get("TORCHINDUCTOR_BENCHMARK_EPILOGUE_FUSION", "1") == "1"
 )
 
+# Check epilogue fusion viability for Triton Templates without benchmarking, making sure fusion compiles and
+# without excessive register spillage
+statically_check_epilogue_fusion = (
+    os.environ.get("TORCHINDUCTOR_STATICALY_CHECK_EPILOGUE_FUSION", "1") == "1"
+)
+
 # Take how many of the top triton kernels to benchmark epilogue
 max_epilogue_benchmarked_choices = 1
 
