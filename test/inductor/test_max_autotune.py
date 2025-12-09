@@ -1471,6 +1471,7 @@ class TestMaxAutotune(TestCase):
         max_autotune_gemm_backends="TRITON",
         comprehensive_padding=False,
         shape_padding=False,
+        triton.enable_decompose_k=True,
     )
     def test_max_autotune_decompose_k(self, sizes, dtype, dynamic):
         fp16_red_setting = (
@@ -1509,7 +1510,7 @@ class TestMaxAutotune(TestCase):
         # We assume with the large k dim relative to m, n, decompose_k will be most performant
         out, code = run_and_get_code(compiled_func, a, b)
 
-        if dynamic or torch.version.hip:
+        if dynamic:
             FileCheck().check_not("extern_kernels.bmm_dtype").check_not(
                 "decompose_k"
             ).run(code[0])
@@ -1523,7 +1524,7 @@ class TestMaxAutotune(TestCase):
         # Test adding epilogue also equivalent to eager
         compiled_func = torch.compile(lambda a, b: (a @ b).relu(), dynamic=dynamic)
         out, code = run_and_get_code(compiled_func, a, b)
-        if dynamic or torch.version.hip:
+        if dynamic:
             FileCheck().check_not("extern_kernels.bmm_dtype").check_not(
                 "decompose_k"
             ).run(code[0])
@@ -1543,8 +1544,7 @@ class TestMaxAutotune(TestCase):
         )
         out, code = run_and_get_code(compiled_func, a, b)
 
-        # DecomposeK is not enabled for AMD yet
-        if dynamic or torch.version.hip:
+        if dynamic:
             FileCheck().check_not("extern_kernels.bmm_dtype").check_not(
                 "decompose_k"
             ).run(code[0])
@@ -1568,7 +1568,6 @@ class TestMaxAutotune(TestCase):
         )
 
     @skipIfXpu
-    @unittest.skipIf(TEST_WITH_ROCM, "decompose_k not supported on ROCm")
     @unittest.skipIf(
         config.cpp_wrapper, "decompose_k not supported for cpp_wrapper yet"
     )
@@ -1579,6 +1578,7 @@ class TestMaxAutotune(TestCase):
     @config.patch(
         max_autotune=True,
         max_autotune_gemm_backends="TRITON",
+
     )
     def test_max_autotune_decompose_k_dynamic_input(self):
         def f(a, b):
@@ -1617,7 +1617,6 @@ class TestMaxAutotune(TestCase):
             )
 
     @skipIfXpu
-    @unittest.skipIf(TEST_WITH_ROCM, "decompose_k not supported on ROCm")
     @unittest.skipIf(
         config.cpp_wrapper, "decompose_k not supported for cpp_wrapper yet"
     )
@@ -1628,6 +1627,7 @@ class TestMaxAutotune(TestCase):
     @config.patch(
         max_autotune=True,
         max_autotune_gemm_backends="TRITON",
+        triton.enable_decompose_k=True,
     )
     def test_max_autotune_decompose_k_dynamic_input_bwd(self):
         def f(a, b):
@@ -1668,7 +1668,6 @@ class TestMaxAutotune(TestCase):
             )
 
     @skipIfXpu
-    @unittest.skipIf(TEST_WITH_ROCM, "decompose_k not supported on ROCm")
     @unittest.skipIf(
         config.cpp_wrapper, "decompose_k not supported for cpp_wrapper yet"
     )
@@ -1679,6 +1678,7 @@ class TestMaxAutotune(TestCase):
     @config.patch(
         max_autotune=True,
         max_autotune_gemm_backends="TRITON",
+        triton.enable_decompose_k=True,
     )
     def test_max_autotune_decompose_k_output_stride(self):
         def f(a, b):
@@ -2245,7 +2245,6 @@ class TestMaxAutotune(TestCase):
 
     @fresh_cache()
     @skipIfXpu
-    @unittest.skipIf(TEST_WITH_ROCM, "decompose_k not supported on ROCm")
     @unittest.skipIf(
         config.cpp_wrapper, "decompose_k not supported for cpp_wrapper yet"
     )
@@ -2257,6 +2256,7 @@ class TestMaxAutotune(TestCase):
         max_autotune=True,
         max_autotune_gemm_backends="TRITON",
         autotune_fallback_to_aten=False,
+        triton.enable_decompose_k: True,
     )
     @parametrize("num_decompose_k_splits", (0, 5, 20))
     @parametrize("decompose_k_threshold", (8, 16))
