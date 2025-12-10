@@ -354,7 +354,9 @@ def _do_bench_using_profiling(
 
     with torch.profiler.profile(
         activities=[
-            torch.profiler.ProfilerActivity.CUDA,
+            torch.profiler.ProfilerActivity.XPU
+            if device_type == "xpu"
+            else torch.profiler.ProfilerActivity.CUDA,
         ]
     ) as p:
         # Benchmark
