@@ -298,7 +298,7 @@ inductor_expected_failures_single_sample["xpu"] = {
     # could not create a primitive
     "addmv": {f64},
     # [Begin] Incorrect XPU reference due to new driver.
-    "masked.prod": {b8, i32, i64},
+    "masked.prod": {b8, i64},
     "masked.amin": {i64},
     "masked.amax": {i64},
     "amax": {i64},
