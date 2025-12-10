@@ -768,6 +768,7 @@ def _sfdp_extra_check(scale_factor_op=None, disable_cuda=False):
             disable_cuda
             and "query" in match.kwargs
             and "cuda" in str(match.kwargs["query"].meta["val"].device)
+            and torch.version.hip is None
         ):
             return False
         if scale_factor_op is not None:
