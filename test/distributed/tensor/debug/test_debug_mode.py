@@ -531,7 +531,6 @@ class TestDTensorDebugMode(TestCase):
 
         # check that nn_module doesn't graph break in compiled regions
         fn = torch.compile(mod, backend="eager", fullgraph=True)
-        fn(inp)
         with DebugMode(record_nn_module=True) as debug_mode:
             fn(inp)
 
