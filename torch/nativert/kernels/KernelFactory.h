@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <utility>
 
 #include <torch/csrc/inductor/aoti_torch/proxy_executor.h>
 #include <torch/nativert/executor/DelegateExecutor.h>
@@ -53,7 +54,8 @@ class KernelFactoryHandler {
       std::shared_ptr<Weights> weights,
       const torch::nativert::ExecutorConfig& executorConfig,
       caffe2::serialize::PyTorchStreamReader* pytorchStreamReader) const {
-    return callback_(node, weights, executorConfig, pytorchStreamReader);
+    return callback_(
+        node, std::move(weights), executorConfig, pytorchStreamReader);
   }
 
  private:

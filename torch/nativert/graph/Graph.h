@@ -596,7 +596,7 @@ class Graph {
           tensorsMeta) {
     TORCH_CHECK(!placementApplied_);
 
-    for (auto [name, tensorMeta] : tensorsMeta) {
+    for (const auto& [name, tensorMeta] : tensorsMeta) {
       weightsMeta_.emplace(name, TensorMeta{tensorMeta});
     }
   }
@@ -608,7 +608,7 @@ class Graph {
   std::vector<TensorMeta> userInputsMeta() const {
     std::vector<TensorMeta> userInputsMeta;
     userInputsMeta.reserve(signature_.userInputs().size());
-    for (auto inputName : signature_.userInputs()) {
+    for (const auto& inputName : signature_.userInputs()) {
       userInputsMeta.push_back(tensorValuesMeta_.at(inputName));
     }
     return userInputsMeta;
@@ -619,7 +619,7 @@ class Graph {
           tensorsMeta) {
     TORCH_CHECK(!placementApplied_);
 
-    for (auto [name, tensorMeta] : tensorsMeta) {
+    for (const auto& [name, tensorMeta] : tensorsMeta) {
       tensorValuesMeta_.emplace(name, TensorMeta{tensorMeta});
     }
   }

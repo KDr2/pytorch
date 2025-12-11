@@ -180,7 +180,7 @@ void initJITBindings(PyObject* module) {
   static py::handle exc =
       py::exception<JITException>(m, "JITException").release();
 
-  //NOLINTNEXTLINE(performance-unnecessary-value-param)
+  // NOLINTNEXTLINE(performance-unnecessary-value-param)
   py::register_exception_translator([](std::exception_ptr p) {
     try {
       if (p) {
