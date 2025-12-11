@@ -182,6 +182,24 @@ IF(NOT MKLDNN_FOUND)
     SET(DNNL_GRAPH_CPU_RUNTIME ${MKLDNN_CPU_RUNTIME} CACHE STRING "" FORCE)
     SET(DNNL_GRAPH_LIBRARY_TYPE STATIC CACHE STRING "" FORCE)
     
+    # Handle ARM Compute Library (ACL) for AARCH64
+    SET(CPU_DNNL_USE_ACL OFF)
+    IF(CPU_AARCH64 AND DEFINED ENV{ACL_ROOT_DIR})
+      SET(CPU_DNNL_USE_ACL ON)
+      SET(DNNL_AARCH64_USE_ACL ON CACHE BOOL "" FORCE)
+      MESSAGE(STATUS "Enabling ARM Compute Library support for oneDNN")
+      MESSAGE(STATUS "ACL_ROOT_DIR: $ENV{ACL_ROOT_DIR}")
+      
+      # Find ACL libraries to link later
+      find_package(ACL QUIET)
+      IF(ACL_FOUND)
+        SET(CPU_MKLDNN_ACL_LIBRARIES ${ACL_LIBRARIES})
+        MESSAGE(STATUS "Found ACL libraries: ${ACL_LIBRARIES}")
+      ENDIF()
+    ELSE()
+      SET(DNNL_AARCH64_USE_ACL OFF CACHE BOOL "" FORCE)
+    ENDIF()
+    
     IF(MKLDNN_USE_NATIVE_ARCH)
       SET(CPU_DNNL_ARCH_OPT_FLAGS "HostOpts")
       SET(DNNL_ARCH_OPT_FLAGS "HostOpts" CACHE STRING "" FORCE)
@@ -247,6 +265,7 @@ IF(NOT MKLDNN_FOUND)
           -DDNNL_EXPERIMENTAL_UKERNEL=${CPU_DNNL_EXPERIMENTAL_UKERNEL}
           -DDNNL_GRAPH_CPU_RUNTIME=${MKLDNN_CPU_RUNTIME}
           -DDNNL_GRAPH_LIBRARY_TYPE=STATIC
+          -DDNNL_AARCH64_USE_ACL=${CPU_DNNL_USE_ACL}
       BUILD_COMMAND ${CPU_DNNL_MAKE_COMMAND}
       BUILD_IN_SOURCE 0
       BUILD_BYPRODUCTS "${CPU_MKLDNN_BINARY_DIR}/src/${CPU_DNNL_LIB_NAME}"
@@ -264,6 +283,13 @@ IF(NOT MKLDNN_FOUND)
     add_library(cpu_mkldnn INTERFACE)
     add_dependencies(cpu_mkldnn cpu_mkldnn_proj)
     target_link_libraries(cpu_mkldnn INTERFACE ${CPU_MKLDNN_LIBRARIES})
+    
+    # Link ACL libraries if using AARCH64 with ACL
+    if(CPU_DNNL_USE_ACL AND CPU_MKLDNN_ACL_LIBRARIES)
+      target_link_libraries(cpu_mkldnn INTERFACE ${CPU_MKLDNN_ACL_LIBRARIES})
+      MESSAGE(STATUS "Linking ACL libraries to cpu_mkldnn: ${CPU_MKLDNN_ACL_LIBRARIES}")
+    endif()
+    
     # Use absolute paths directly, no need for BUILD_INTERFACE generator expression
     # since these are already absolute paths
     foreach(include_dir ${CPU_MKLDNN_INCLUDE})
