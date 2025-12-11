@@ -281,7 +281,7 @@ void _load_precompile_entry(
   extra->precompile_entries.push_back(std::move(entry));
 }
 
-void _set_lru_cache(py::object boolean) {
+void _set_lru_cache(const py::object& boolean) {
   if (py::cast<bool>(boolean)) {
     use_lru = true;
   } else {

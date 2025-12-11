@@ -613,7 +613,7 @@ ProcessGroupGloo::ProcessGroupGloo(
         std::to_string(i), underlyingStore);
 
 #ifdef GLOO_SHARED_STORE
-    auto connectStore = store;
+    const auto& connectStore = store;
 #else
     auto& connectStore = *store;
 #endif
@@ -740,6 +740,7 @@ c10::intrusive_ptr<Backend> ProcessGroupGloo::split(
 
   // TODO: we need to get rid of globalRanksInGroup eventually.
   std::vector<uint64_t> globalRanksInGroup;
+  globalRanksInGroup.reserve(ranks.size());
   for (auto rank : ranks) {
     globalRanksInGroup.emplace_back(groupRanks()[rank]);
   }
@@ -1027,7 +1028,7 @@ c10::intrusive_ptr<Work> ProcessGroupGloo::allreduce(
 static c10::intrusive_ptr<ProcessGroupGloo::AsyncWork> makeAllreduceCPUWork(
     std::shared_ptr<gloo::Context> context,
     std::vector<at::Tensor>& inputs,
-    ReduceOp reduceOp,
+    const ReduceOp& reduceOp,
     uint32_t tag,
     uint64_t seq,
     std::chrono::milliseconds timeout) {
@@ -1202,7 +1203,7 @@ class AsyncReduceWork : public ProcessGroupGloo::AsyncWork {
 
  protected:
   template <typename T>
-  void getFunction(gloo::ReduceOptions::Func& fn, const ReduceOp op) {
+  void getFunction(gloo::ReduceOptions::Func& fn, const ReduceOp& op) {
     fn = toFunction<T>(op);
   }
 

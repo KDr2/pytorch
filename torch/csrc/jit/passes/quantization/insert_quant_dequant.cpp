@@ -446,7 +446,7 @@ void insertQuantizationOps(
   auto embedding_bag_name = getEmbeddingBagObsName(module, observer);
   if (isEmbeddingBagOp(observer, embedding_bag_name)) {
     if (isWeight(module, observer_out)) {
-      auto op_name = embedding_bag_name.value();
+      const auto& op_name = embedding_bag_name.value();
       Node* dequant = insertEmbeddingBagOps(observer, op_name);
       observer_out->replaceAllUsesWith(original_val);
       original_val->replaceAllUsesAfterNodeWith(dequant, dequant->output());

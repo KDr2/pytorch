@@ -188,7 +188,7 @@ class AsyncSparseAllreduceCUDAWork : public AsyncSparseAllreduceWork {
 static c10::intrusive_ptr<ProcessGroupGloo::AsyncWork> makeAllreduceCUDAWork(
     std::shared_ptr<gloo::Context> context,
     std::vector<at::Tensor>& inputs,
-    ReduceOp reduceOp,
+    const ReduceOp& reduceOp,
     uint32_t tag,
     uint64_t seq,
     std::chrono::milliseconds timeout) {

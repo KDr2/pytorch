@@ -148,6 +148,7 @@ static std::vector<StrideInput> summarizeInputStrides(const TensorType& tt) {
     return {StrideInput::TENSOR_CONT_CHANNELS_LAST};
   }
   std::vector<StrideInput> stride_inputs;
+  stride_inputs.reserve(sizes.size());
   for (size_t dim = 0; dim < sizes.size(); ++dim) {
     stride_inputs.push_back(
         summarizeStrideDim(sizes, strides, dim, stride_inputs, 0));

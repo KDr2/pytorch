@@ -466,7 +466,7 @@ bool isSingleInputGeneralAtenFunction(Node* n) {
       _fixed_qparams_map.begin(),
       _fixed_qparams_map.end(),
       std::back_inserter(fixed_qparams_aten_funcs),
-      [](auto pair) { return pair.first; });
+      [](const auto& pair) { return pair.first; });
 
   return isSingleInputGeneralValueAtenFunction(n) ||
       isSingleInputGeneralShapeAtenFunction(n) ||

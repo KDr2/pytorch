@@ -1384,7 +1384,7 @@ static Operation createTensorExprOp(const Node* node) {
   std::unordered_map<c10::Symbol, tensorexpr::NNCLoweringFunction>
       custom_lowerings;
   auto subgraph = node->g(attr::Subgraph);
-  IValue sym_strides = node->ival(attr::striding_inputs_desc);
+  const IValue& sym_strides = node->ival(attr::striding_inputs_desc);
 
   // Striding Descriptor is serialized on the node as a vector of vector of
   // strings, translate back to StrideInput enum

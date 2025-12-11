@@ -430,7 +430,7 @@ class SchemaAdapterRegistry {
       const std::string& op_name,
       uint64_t
           applies_to_versions_below, // versions below this need the adapter
-      SchemaAdapterFn adapter) {
+      const SchemaAdapterFn& adapter) {
     adapters_[op_name].emplace_back(applies_to_versions_below, adapter);
     // Sort by version ascending - this allows us to find the first (most
     // specific) match
@@ -464,11 +464,11 @@ class SchemaAdapterRegistry {
 [[maybe_unused]] AOTITorchError register_schema_adapter(
     const char* op_name,
     uint64_t applies_to_versions_below,
-    SchemaAdapterFn adapter_fn) {
+    const SchemaAdapterFn& adapter_fn) {
   AOTI_TORCH_CONVERT_EXCEPTION_TO_ERROR_CODE({
     auto& registry = SchemaAdapterRegistry::instance();
     registry.register_adapter(
-        std::string(op_name), applies_to_versions_below, std::move(adapter_fn));
+        std::string(op_name), applies_to_versions_below, adapter_fn);
   });
 }
 

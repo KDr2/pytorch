@@ -268,7 +268,7 @@ bool SubgraphMatcher::matchNodes(const Node* n1, Node* n2) {
       }
       auto t = n2->output()->type()->expect<ClassType>();
       auto real_typename = t->name()->qualifiedName();
-      auto pattern_typename = n1->s(attr::name);
+      const auto& pattern_typename = n1->s(attr::name);
       if (!endsWith(real_typename, pattern_typename)) {
         GRAPH_DEBUG(
             "Nodes did not match because expected module type is different:\n");

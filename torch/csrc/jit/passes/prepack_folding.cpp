@@ -26,7 +26,7 @@ void PrePackingOpsFolder(
         if (is_foldable_op(n)) {
           auto optional_outputs = runNodeIfInputsAreConstant(n);
           if (optional_outputs) {
-            auto outputs = optional_outputs.value();
+            const auto& outputs = optional_outputs.value();
             TORCH_CHECK(outputs.size() == 1, "Prepack ops have single output");
             auto attr_name = attr_name_base + std::to_string(uid++);
             TORCH_CHECK(

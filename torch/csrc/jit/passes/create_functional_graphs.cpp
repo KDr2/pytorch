@@ -33,7 +33,7 @@ struct FunctionalGraphSlicer {
 
  private:
   bool isEmptyFunctionalGraph(Node* n) {
-    auto g = n->g(attr::Subgraph);
+    const auto& g = n->g(attr::Subgraph);
     return g->inputs().empty() && g->outputs().empty();
   }
 

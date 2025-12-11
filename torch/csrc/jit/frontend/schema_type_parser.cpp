@@ -119,7 +119,7 @@ TypePtr SchemaTypeParser::parseBaseType() {
     if (allow_typevars_ && !text.empty() && islower(text[0])) {
       // lower case identifiers that are not otherwise valid types
       // are treated as type variables
-      return c10::TypeFactory::createNamed<VarType>(std::move(text));
+      return c10::TypeFactory::createNamed<VarType>(text);
     }
     if (text == "double") {
       throw(

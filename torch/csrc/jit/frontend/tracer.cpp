@@ -17,6 +17,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <utility>
 
 namespace torch::jit::tracer {
 
@@ -26,7 +27,7 @@ namespace torch::jit::tracer {
 namespace detail {
 
 template <typename T>
-static void genericAddInput(Node* n, T value) {
+static void genericAddInput(Node* n, const T& value) {
   Value* v = n->owningGraph()->insertConstant(value);
   recordSourceLocation(v->node());
   n->addInput(v);
@@ -65,7 +66,7 @@ std::atomic<bool>& getTracerStateWarnMode() {
 }
 
 std::function<void()> pauseTracing() {
-  std::shared_ptr<tracer::TracingState> state = getTracingState();
+  const std::shared_ptr<tracer::TracingState>& state = getTracingState();
   tracer::setTracingState(nullptr);
 
   return [state]() { tracer::setTracingState(state); };

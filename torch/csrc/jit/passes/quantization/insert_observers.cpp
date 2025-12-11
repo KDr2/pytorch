@@ -1123,7 +1123,7 @@ void InsertObserversHelper::fillBoundaryValueMap(
           if (!m_opt.has_value()) {
             continue;
           }
-          auto m = *m_opt;
+          const auto& m = *m_opt;
           g = m.get_method(n->s(attr::name)).graph();
           input_offset = 0;
         } else {
@@ -1279,7 +1279,7 @@ void InsertObserversHelper::fillValueObserverMap(
   if (!qconfig_opt) {
     return;
   }
-  auto qconfig = *qconfig_opt;
+  const auto& qconfig = *qconfig_opt;
   for (auto* v : graph->inputs()) {
     if (valueNeedsToBeQuantized(v, qconfig)) {
       GRAPH_DEBUG("Recording observer for ", v->debugName());

@@ -180,7 +180,7 @@ void initJITBindings(PyObject* module) {
   static py::handle exc =
       py::exception<JITException>(m, "JITException").release();
 
-  py::register_exception_translator([](std::exception_ptr p) {
+  py::register_exception_translator([](const std::exception_ptr& p) {
     try {
       if (p) {
         std::rethrow_exception(p);
@@ -818,7 +818,7 @@ void initJITBindings(PyObject* module) {
           })
       .def(
           "_jit_nvfuser_set_comparison_callback",
-          [](bool, py::function) {
+          [](bool, const py::function&) {
             TORCH_WARN(
                 "nvfuser is no longer supported in torch script, use _jit_nvfuser_set_comparison_callback is deprecated and a no-op");
           })

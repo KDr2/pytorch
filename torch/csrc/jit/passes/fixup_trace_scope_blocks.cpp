@@ -188,14 +188,14 @@ struct ConvertTracedAttrReferences {
       std::vector<Value*>& unresolved_tracedattrs) {
     auto inp = n->inputs()[inp_idx];
     auto inp_node = inp->node();
-    auto prefix_atoms = prefix.atoms();
+    const auto& prefix_atoms = prefix.atoms();
     if (inp_node->kind() == prim::TracedAttr) {
       auto attr_qualname = c10::QualifiedName(inp_node->s(attr::scope));
       if (prefix.isPrefixOf(attr_qualname)) {
         // Prefix case: the attribute resides in this scope or a
         // sub-scope. Continually emit GetAttr nodes until we've reached
         // the proper attribute.
-        auto attr_atoms = attr_qualname.atoms();
+        const auto& attr_atoms = attr_qualname.atoms();
         Value* replaced_value = self;
         for (const auto i : c10::irange(attr_atoms.size())) {
           if (i < prefix_atoms.size()) {

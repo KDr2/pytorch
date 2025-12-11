@@ -300,7 +300,7 @@ class ShapePropagator : public PropertyPropBase {
   }
 
   IValue representativeValue(Value* v) {
-    TypePtr type_ = v->type();
+    const TypePtr& type_ = v->type();
     // if the value is actually constant, just use it!
     if (auto iv = toIValue(v)) {
       return *iv;
@@ -335,7 +335,7 @@ class ShapePropagator : public PropertyPropBase {
         *types[idx1]->sizes().concrete_sizes(),
         *types[idx2]->sizes().concrete_sizes());
     auto broadcast = [&](size_t input_idx) {
-      TensorTypePtr input_type = types.at(input_idx);
+      const TensorTypePtr& input_type = types.at(input_idx);
       if (input_type->sizes() == expected_size)
         return;
       auto graph = node->owningGraph();
@@ -1960,8 +1960,8 @@ class ShapePropagator : public PropertyPropBase {
       node->output()->setType(tensor_types.at(0)->contiguous());
       return true;
     } else if (node->matches("aten::mm(Tensor self, Tensor mat2) -> Tensor")) {
-      auto lhs_type = tensor_types.at(0);
-      auto rhs_type = tensor_types.at(1);
+      const auto& lhs_type = tensor_types.at(0);
+      const auto& rhs_type = tensor_types.at(1);
       auto lhs_sizes = lhs_type->sizes().concrete_sizes().value();
       auto rhs_sizes = rhs_type->sizes().concrete_sizes().value();
       SHAPE_ASSERT(
@@ -1972,7 +1972,7 @@ class ShapePropagator : public PropertyPropBase {
           at::IntArrayRef{lhs_sizes[0], rhs_sizes[1]}));
       return true;
     } else if (node->matches("aten::t(Tensor self) -> Tensor")) {
-      auto tp = tensor_types.at(0);
+      const auto& tp = tensor_types.at(0);
       auto sizes = tp->sizes().concrete_sizes().value();
       auto strides = tp->strides().concrete_sizes().value();
       SHAPE_ASSERT(sizes.size() == 2);
@@ -1984,7 +1984,7 @@ class ShapePropagator : public PropertyPropBase {
         node->matches(
             "aten::narrow(Tensor self, int dim, int start, int length) -> Tensor",
             /*const_inputs=*/{attr::dim, attr::length})) {
-      auto tp = tensor_types.at(0);
+      const auto& tp = tensor_types.at(0);
       auto sizes = tp->sizes().concrete_sizes().value();
       int64_t dim = node->get<int64_t>(attr::dim).value();
       int64_t length = node->get<int64_t>(attr::length).value();
@@ -2090,7 +2090,7 @@ class ShapePropagator : public PropertyPropBase {
         node->matches(
             "aten::expand(Tensor self, int[] size, *, bool implicit) -> Tensor",
             /*const_inputs=*/attr::size)) {
-      auto tp = tensor_types.at(0);
+      const auto& tp = tensor_types.at(0);
       auto sizesAndStrides = at::inferExpandGeometry_dimvector(
           tp->sizes().concrete_sizes().value(),
           tp->strides().concrete_sizes().value(),
@@ -2102,8 +2102,8 @@ class ShapePropagator : public PropertyPropBase {
         node->matches(
             "aten::index_select(Tensor self, int dim, Tensor index) -> Tensor",
             /*const_inputs=*/attr::dim)) {
-      auto ten = tensor_types.at(0);
-      auto index = tensor_types.at(1);
+      const auto& ten = tensor_types.at(0);
+      const auto& index = tensor_types.at(1);
       int64_t dim = node->get<int64_t>(attr::dim).value();
       SHAPE_ASSERT(*index->sizes().size() == 1);
       SHAPE_ASSERT(dim >= 0 && static_cast<size_t>(dim) < ten->sizes().size());
@@ -2114,7 +2114,7 @@ class ShapePropagator : public PropertyPropBase {
     } else if (node->matches(
                    "aten::chunk(Tensor self, int chunks, int dim) -> Tensor[]",
                    /*const_inputs=*/{attr::chunks, attr::dim})) {
-      auto input_type = tensor_types.at(0);
+      const auto& input_type = tensor_types.at(0);
       auto sizes = input_type->sizes().concrete_sizes().value();
       auto strides = input_type->strides().concrete_sizes().value();
       int64_t dim = node->get<int64_t>(attr::dim).value();

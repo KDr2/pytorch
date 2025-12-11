@@ -167,7 +167,7 @@ static void PrePackingOpsFolder(Block* b) {
     if (is_foldable_op(n)) {
       auto optional_outputs = torch::jit::runNodeIfInputsAreConstant(n);
       if (optional_outputs) {
-        auto outputs = optional_outputs.value();
+        const auto& outputs = optional_outputs.value();
         TORCH_CHECK(outputs.size() == 1, "Prepack ops have single output");
         Value* prepack_op_value = n->output(0);
         auto graph = n->owningGraph();

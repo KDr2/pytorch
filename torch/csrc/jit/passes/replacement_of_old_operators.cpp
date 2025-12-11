@@ -53,7 +53,7 @@ struct OldOpsReplacerWithUpgraders {
             node = graph_it.next();
             continue;
           }
-          auto upgrader_entry_val = upgrader_entry.value();
+          const auto& upgrader_entry_val = upgrader_entry.value();
           auto upgrader_name = upgrader_entry_val.upgrader_name;
           auto upgrader_graph_entry = dump_upgraders_map().find(upgrader_name);
           TORCH_INTERNAL_ASSERT(

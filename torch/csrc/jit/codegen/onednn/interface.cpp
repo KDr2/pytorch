@@ -118,7 +118,7 @@ static Operation createLlgaGuardKernel(const Node* node) {
 #ifdef GRAPH_DEBUG_ENABLED
     GRAPH_DEBUG("Guarding node: ", node->kind().toQualString());
 #endif
-    std::vector<TypePtr> types = node->tys(attr::types);
+    const std::vector<TypePtr>& types = node->tys(attr::types);
     const auto num_inputs = types.size();
 #ifdef GRAPH_DEBUG_ENABLED
     GRAPH_DEBUG("num_inputs to guard: ", num_inputs);

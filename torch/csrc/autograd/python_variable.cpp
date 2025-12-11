@@ -1345,7 +1345,7 @@ static bool get_local_results(
         return at::empty({0}, scalar_type);
       }
     };
-    auto handle_sequence = [&default_tensor, &op, stack](auto sequence) {
+    auto handle_sequence = [&default_tensor, &op, stack](const auto& sequence) {
       c10::List<c10::IValue> result(op.schema().returns().at(0).type());
       for (const auto& item : sequence) {
         TORCH_CHECK(

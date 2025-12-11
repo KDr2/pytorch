@@ -1968,7 +1968,7 @@ class MAPPING_KEYS_MATCH : public LeafGuard {
  public:
   MAPPING_KEYS_MATCH(
       RootGuardManager* root_guard_manager,
-      py::object value,
+      const py::object& value,
       py::object verbose_code_parts)
       : LeafGuard(root_guard_manager, std::move(verbose_code_parts)) {
     // This is ok to stash in the state because we only support
@@ -2848,13 +2848,13 @@ class GuardManager {
   void stash_dict_pointers(
       PyObject* value,
       std::vector<std::pair<PyObject*, uint64_t>> dict_pointers) {
-    _dict_pointers[value] = dict_pointers;
+    _dict_pointers[value] = std::move(dict_pointers);
   }
 
   void stash_tensor_pointers(
       PyObject* value,
       std::vector<PyObject*> tensor_pointers) {
-    _tensor_pointers[value] = tensor_pointers;
+    _tensor_pointers[value] = std::move(tensor_pointers);
   }
 
   void disable_recursive_dict_tag_optimization() {
@@ -3725,7 +3725,7 @@ class RootGuardManager : public GuardManager {
   }
 
   void attach_compile_id(std::string compile_id) {
-    _compile_id = compile_id;
+    _compile_id = std::move(compile_id);
   }
 
   // std::string get_compile_id() {
@@ -4074,7 +4074,7 @@ class DictGuardManager : public GuardManager {
             std::move(source),
             true, // _is_dict
             false, // _is_immutable
-            weak_type),
+            std::move(weak_type)),
         _size(size),
         _expected_type(expected_type),
         _is_exact_dict_type(is_exact_dict_type),
@@ -4334,7 +4334,7 @@ class DISPATCH_KEY_SET_MATCH : public LeafGuard {
  public:
   DISPATCH_KEY_SET_MATCH(
       RootGuardManager* root_guard_manager,
-      py::object value,
+      const py::object& value,
       py::object verbose_code_parts)
       : LeafGuard(root_guard_manager, std::move(verbose_code_parts)) {
     root_guard_manager->set_init_local_state_flag();
@@ -4363,7 +4363,7 @@ class TENSOR_MATCH : public LeafGuard {
       py::object tensor_name,
       py::object verbose_code_parts,
       py::object pytype,
-      py::object dispatch_keys)
+      const py::object& dispatch_keys)
       : LeafGuard(root_guard_manager, std::move(verbose_code_parts)),
         _tensor_name(py::cast<std::string>(std::move(tensor_name))) {
     root_guard_manager->set_init_local_state_flag();
@@ -5336,7 +5336,7 @@ class IndexedGuardAccessor : public GuardAccessor {
  public:
   IndexedGuardAccessor(
       RootGuardManager* root,
-      py::int_ index,
+      const py::int_& index,
       std::string source,
       py::handle example_value,
       py::handle guard_manager_enum)
@@ -7138,24 +7138,20 @@ PyObject* torch_c_dynamo_guards_init() {
       .def(
           "add_mapping_keys_guard",
           [](GuardManager& self,
-             py::object value,
+             const py::object& value,
              py::object verbose_code_parts) -> void {
             SKIP_IF_GUARD_ALREADY_PRESENT("MAPPING_KEYS_MATCH");
             self.add_leaf_guard(std::make_shared<MAPPING_KEYS_MATCH>(
-                self.get_root(),
-                std::move(value),
-                std::move(verbose_code_parts)));
+                self.get_root(), value, std::move(verbose_code_parts)));
           })
       .def(
           "add_dispatch_key_set_guard",
           [](GuardManager& self,
-             py::object value,
+             const py::object& value,
              py::object verbose_code_parts) -> void {
             SKIP_IF_GUARD_ALREADY_PRESENT("DISPATCH_KEY_SET_MATCH");
             self.add_leaf_guard(std::make_shared<DISPATCH_KEY_SET_MATCH>(
-                self.get_root(),
-                std::move(value),
-                std::move(verbose_code_parts)));
+                self.get_root(), value, std::move(verbose_code_parts)));
           })
       .def(
           "add_global_state_guard",
@@ -7259,7 +7255,7 @@ PyObject* torch_c_dynamo_guards_init() {
              py::object tensor_name,
              py::object verbose_code_parts,
              py::object pytype,
-             py::object dispatch_keys) -> void {
+             const py::object& dispatch_keys) -> void {
             SKIP_IF_GUARD_ALREADY_PRESENT("TENSOR_MATCH");
             self.add_leaf_guard(std::make_shared<TENSOR_MATCH>(
                 self.get_root(),
@@ -7269,7 +7265,7 @@ PyObject* torch_c_dynamo_guards_init() {
                 std::move(tensor_name),
                 std::move(verbose_code_parts),
                 std::move(pytype),
-                std::move(dispatch_keys)));
+                dispatch_keys));
           })
 
       // return by reference because GuardManager has the ownership of accessors
@@ -7370,14 +7366,14 @@ PyObject* torch_c_dynamo_guards_init() {
       .def(
           "func_defaults_manager",
           [](GuardManager& self,
-             std::string source,
+             const std::string& source,
              py::object example_value,
              py::handle guard_manager_enum) -> GuardManager* {
             // A unique key is used to save as the accessor key.
             py::str unique_key("__defaults_accessor__");
             return self.get_child_manager<FuncDefaultsGuardAccessor>(
-                std::move(unique_key),
-                std::move(source),
+                unique_key,
+                source,
                 std::move(example_value),
                 guard_manager_enum);
           },
@@ -7391,14 +7387,14 @@ PyObject* torch_c_dynamo_guards_init() {
       .def(
           "func_kwdefaults_manager",
           [](GuardManager& self,
-             std::string source,
+             const std::string& source,
              py::object example_value,
              py::handle guard_manager_enum) -> GuardManager* {
             // A unique key is used to save as the accessor key.
             py::str unique_key("__kwdefaults_accessor__");
             return self.get_child_manager<FuncKwDefaultsGuardAccessor>(
-                std::move(unique_key),
-                std::move(source),
+                unique_key,
+                source,
                 std::move(example_value),
                 guard_manager_enum);
           },
@@ -7421,16 +7417,13 @@ PyObject* torch_c_dynamo_guards_init() {
       .def(
           "type_manager",
           [](GuardManager& self,
-             std::string source,
+             const std::string& source,
              py::handle example_value,
              py::handle guard_manager_enum) -> GuardManager* {
             // A unique key is used to save as the accessor key.
             py::str unique_key("__type_accessor__");
             return self.get_child_manager<TypeGuardAccessor>(
-                std::move(unique_key),
-                std::move(source),
-                example_value,
-                guard_manager_enum);
+                unique_key, source, example_value, guard_manager_enum);
           },
           py::arg("source"),
           py::arg("example_value"),
@@ -7441,16 +7434,13 @@ PyObject* torch_c_dynamo_guards_init() {
       .def(
           "type_dict_manager",
           [](GuardManager& self,
-             std::string source,
+             const std::string& source,
              py::handle example_value,
              py::handle guard_manager_enum) -> GuardManager* {
             // A unique key is used to save as the accessor key.
             py::str unique_key("__type_dict_accessor__");
             return self.get_child_manager<TypeDictGuardAccessor>(
-                std::move(unique_key),
-                std::move(source),
-                example_value,
-                guard_manager_enum);
+                unique_key, source, example_value, guard_manager_enum);
           },
           py::arg("source"),
           py::arg("example_value"),
@@ -7461,16 +7451,13 @@ PyObject* torch_c_dynamo_guards_init() {
       .def(
           "type_mro_manager",
           [](GuardManager& self,
-             std::string source,
+             const std::string& source,
              py::handle example_value,
              py::handle guard_manager_enum) -> GuardManager* {
             // A unique key is used to save as the accessor key.
             py::str unique_key("__type_mro_accessor__");
             return self.get_child_manager<TypeMROGuardAccessor>(
-                std::move(unique_key),
-                std::move(source),
-                example_value,
-                guard_manager_enum);
+                unique_key, source, example_value, guard_manager_enum);
           },
           py::arg("source"),
           py::arg("example_value"),
@@ -7481,16 +7468,13 @@ PyObject* torch_c_dynamo_guards_init() {
       .def(
           "weakref_call_manager",
           [](GuardManager& self,
-             std::string source,
+             const std::string& source,
              py::handle example_value,
              py::handle guard_manager_enum) -> GuardManager* {
             // A unique key is used to save as the accessor key.
             py::str unique_key("__weakref_call_accessor__");
             return self.get_child_manager<WeakRefCallGuardAccessor>(
-                std::move(unique_key),
-                std::move(source),
-                example_value,
-                guard_manager_enum);
+                unique_key, source, example_value, guard_manager_enum);
           },
           py::arg("source"),
           py::arg("example_value"),
@@ -7501,16 +7485,13 @@ PyObject* torch_c_dynamo_guards_init() {
       .def(
           "call_function_no_args_manager",
           [](GuardManager& self,
-             std::string source,
+             const std::string& source,
              py::handle example_value,
              py::handle guard_manager_enum) -> GuardManager* {
             // A unique key is used to save as the accessor key.
             py::str unique_key("__call_function_no_args_accessor__");
             return self.get_child_manager<CallFunctionNoArgsGuardAccessor>(
-                std::move(unique_key),
-                std::move(source),
-                example_value,
-                guard_manager_enum);
+                unique_key, source, example_value, guard_manager_enum);
           },
           py::arg("source"),
           py::arg("example_value"),
@@ -7539,16 +7520,13 @@ PyObject* torch_c_dynamo_guards_init() {
       .def(
           "code_manager",
           [](GuardManager& self,
-             std::string source,
+             const std::string& source,
              py::handle example_value,
              py::handle guard_manager_enum) -> GuardManager* {
             // A unique key is used to save as the accessor key.
             py::str unique_key("__code_accessor__");
             return self.get_child_manager<CodeGuardAccessor>(
-                std::move(unique_key),
-                std::move(source),
-                example_value,
-                guard_manager_enum);
+                unique_key, source, example_value, guard_manager_enum);
           },
           py::arg("source"),
           py::arg("example_value"),
@@ -7559,16 +7537,13 @@ PyObject* torch_c_dynamo_guards_init() {
       .def(
           "closure_manager",
           [](GuardManager& self,
-             std::string source,
+             const std::string& source,
              py::handle example_value,
              py::handle guard_manager_enum) -> GuardManager* {
             // A unique key is used to save as the accessor key.
             py::str unique_key("__closure_accessor__");
             return self.get_child_manager<ClosureGuardAccessor>(
-                std::move(unique_key),
-                std::move(source),
-                example_value,
-                guard_manager_enum);
+                unique_key, source, example_value, guard_manager_enum);
           },
           py::arg("source"),
           py::arg("example_value"),
@@ -7599,16 +7574,13 @@ PyObject* torch_c_dynamo_guards_init() {
       .def(
           "grad_manager",
           [](GuardManager& self,
-             std::string source,
+             const std::string& source,
              py::handle example_value,
              py::handle guard_manager_enum) -> GuardManager* {
             // A unique key is used to save as the accessor key.
             py::str unique_key("__grad_accessor__");
             return self.get_child_manager<GradGuardAccessor>(
-                std::move(unique_key),
-                std::move(source),
-                example_value,
-                guard_manager_enum);
+                unique_key, source, example_value, guard_manager_enum);
           },
           py::arg("source"),
           py::arg("example_value"),
@@ -7619,16 +7591,13 @@ PyObject* torch_c_dynamo_guards_init() {
       .def(
           "get_generic_dict_manager",
           [](GuardManager& self,
-             std::string source,
+             const std::string& source,
              py::handle example_value,
              py::handle guard_manager_enum) -> GuardManager* {
             // A unique key is used to save as the accessor key.
             py::str unique_key("__generic_dict_accessor__");
             return self.get_child_manager<GetGenericDictGuardAccessor>(
-                std::move(unique_key),
-                std::move(source),
-                example_value,
-                guard_manager_enum);
+                unique_key, source, example_value, guard_manager_enum);
           },
           py::arg("source"),
           py::arg("example_value"),
@@ -7785,18 +7754,15 @@ PyObject* torch_c_dynamo_guards_init() {
       .def(
           "getattr_manager",
           [](DictGuardManager& self,
-             py::object attr_name,
-             std::string source,
+             const py::object& attr_name,
+             const std::string& source,
              py::handle example_value,
              py::handle guard_manager_enum) -> GuardManager* {
             TORCH_CHECK(
                 !self.is_exact_dict_type(),
                 "getattr_manager on a DictGuardManager is supported only for dict subclasses");
             return self.get_child_manager<GetAttrGuardAccessor>(
-                std::move(attr_name),
-                std::move(source),
-                example_value,
-                guard_manager_enum);
+                attr_name, source, example_value, guard_manager_enum);
           },
           py::arg("attr"),
           py::arg("source"),
@@ -7811,7 +7777,7 @@ PyObject* torch_c_dynamo_guards_init() {
       "install_storage_overlapping_guard", install_storage_overlapping_guard);
   py_m.def(
       "compute_overlapping_tensors",
-      [](const std::vector<Tensor> tensors, bool symbolic) {
+      [](const std::vector<Tensor>& tensors, bool symbolic) {
         // Pick the correct Meta class, depending on whether we are
         // dealing with symbolic values or not.
         if (symbolic) {

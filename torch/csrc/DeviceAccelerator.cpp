@@ -164,7 +164,7 @@ void initModule(PyObject* module) {
     return at::accelerator::getMemoryInfo(device_index);
   });
 
-  m.def("_accelerator_setAllocatorSettings", [](std::string env) {
+  m.def("_accelerator_setAllocatorSettings", [](const std::string& env) {
     c10::CachingAllocator::setAllocatorSettings(env);
   });
 }

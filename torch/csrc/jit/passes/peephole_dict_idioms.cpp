@@ -187,7 +187,7 @@ class PeepholeOptimizeDictIdiomsImpl {
     if (key_opt == std::nullopt) {
       return std::nullopt;
     }
-    IValue key_ival = *key_opt;
+    const IValue& key_ival = *key_opt;
     if (dict_node.canOptimize()) {
       return dict_node.getOrNullopt(key_ival);
     }

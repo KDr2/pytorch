@@ -43,7 +43,7 @@ bool typeListEqual(
 }
 
 template <typename attribute_type> // int64_t, bool, double
-bool attributesEqual(attribute_type a1, attribute_type a2) {
+bool attributesEqual(const attribute_type& a1, const attribute_type& a2) {
   return a1 == a2;
 }
 
