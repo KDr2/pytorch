@@ -903,7 +903,9 @@ def redistribute_local_tensor(
             elif target.is_partial():
                 if current.is_replicate():
                     partial_spec = cast(Partial, target)
-                    new_local_tensor = partial_spec._partition_value(local_tensor, device_mesh, i)
+                    new_local_tensor = partial_spec._partition_value(
+                        local_tensor, device_mesh, i
+                    )
                 elif current.is_shard():
                     raise RuntimeError(
                         f"redistribute from {current} to {target} not supported yet"

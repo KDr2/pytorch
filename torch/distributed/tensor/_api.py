@@ -220,7 +220,9 @@ class _FromTorchTensor(torch.autograd.Function):
             # for backward replicate -> partial, we skip the transformation
             normalized_placements: list[Placement] = []
             for current, target in zip(current_spec.placements, previous_placement):
-                if (current.is_shard() or current.is_replicate()) and target.is_partial():
+                if (
+                    current.is_shard() or current.is_replicate()
+                ) and target.is_partial():
                     normalized_placements.append(Replicate())
                 else:
                     normalized_placements.append(target)
@@ -232,7 +234,9 @@ class _FromTorchTensor(torch.autograd.Function):
             )
             local_tensor = grad_output._local_tensor
             output = redistribute_local_tensor(
-                local_tensor, current_spec, target_spec,
+                local_tensor,
+                current_spec,
+                target_spec,
             )
             # TODO: return the redistributed local tensor directly without
             # differentiable backward. see if this make sense for all cases.
