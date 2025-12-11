@@ -966,8 +966,12 @@ def tuned_scaled_mm(
                 overriders
             )
 
-        templates_to_use.append(mm_template)
-        kwarg_overrides[mm_template.uid] = overriders
+        if (
+            scale_option_a in epilogue_scaling_types
+            and scale_option_b in epilogue_scaling_types
+        ):
+            templates_to_use.append(mm_template)
+            kwarg_overrides[mm_template.uid] = overriders
 
     # Single unified call for all templates
     choices.extend(
