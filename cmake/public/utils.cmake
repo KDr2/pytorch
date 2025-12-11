@@ -390,7 +390,7 @@ function(torch_compile_options libname)
       endif()
     endif()
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-      list(APPEND private_compile_options -Wextra-semi -Wmove)
+      list(APPEND private_compile_options -Wextra-semi -Wmove -Wmacro-redefined)
     else()
       list(APPEND private_compile_options
         # Considered to be flaky.  See the discussion at
