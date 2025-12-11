@@ -2673,9 +2673,7 @@ inline std::tuple<Tensor, Tensor, int64_t> _take_along_dim_helper(
   indices_broadcasted =
       indices_broadcasted.remainder(self_broadcasted.size(dim));
   return std::make_tuple(
-      std::move(self_broadcasted),
-      std::move(indices_broadcasted),
-      dim);
+      std::move(self_broadcasted), std::move(indices_broadcasted), dim);
 }
 
 inline void checkDevice(CheckedFrom c, const Tensor& t, Device device) {
