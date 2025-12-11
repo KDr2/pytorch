@@ -37,61 +37,82 @@ IF(NOT MKLDNN_FOUND)
   if(NOT DEFINED MKLDNN_XPU_GIT_TAG)
     set(MKLDNN_XPU_GIT_TAG "v3.10.2" CACHE STRING "Git tag for XPU oneDNN")
   endif()
+  
+  # Shared oneDNN source directory
+  set(SHARED_MKLDNN_SOURCE_DIR "${MKLDNN_BUILD_DIR}/shared_mkldnn_source")
+  
+  # Clone oneDNN once if not already cloned
+  if(NOT EXISTS "${SHARED_MKLDNN_SOURCE_DIR}/.git")
+    message(STATUS "Cloning oneDNN repository to ${SHARED_MKLDNN_SOURCE_DIR}")
+    execute_process(
+      COMMAND ${GIT_EXECUTABLE} clone https://github.com/uxlfoundation/oneDNN ${SHARED_MKLDNN_SOURCE_DIR}
+      RESULT_VARIABLE GIT_CLONE_RESULT
+    )
+    if(NOT GIT_CLONE_RESULT EQUAL 0)
+      message(FATAL_ERROR "Failed to clone oneDNN repository")
+    endif()
+  endif()
 
   if(USE_XPU) # Build oneDNN GPU library
     if(WIN32)
       # Windows
-      set(DNNL_HOST_COMPILER "DEFAULT")
-      set(SYCL_CXX_DRIVER "icx")
-      set(DNNL_LIB_NAME "dnnl.lib")
+      set(XPU_DNNL_HOST_COMPILER "DEFAULT")
+      set(XPU_SYCL_CXX_DRIVER "icx")
+      set(XPU_DNNL_LIB_NAME "dnnl.lib")
     elseif(LINUX)
       # Linux
       # g++ is soft linked to /usr/bin/cxx, oneDNN would not treat it as an absolute path
-      set(DNNL_HOST_COMPILER "g++")
-      set(SYCL_CXX_DRIVER "icpx")
-      set(DNNL_LIB_NAME "libdnnl.a")
+      set(XPU_DNNL_HOST_COMPILER "g++")
+      set(XPU_SYCL_CXX_DRIVER "icpx")
+      set(XPU_DNNL_LIB_NAME "libdnnl.a")
     else()
       MESSAGE(FATAL_ERROR "OneDNN for Intel GPU in PyTorch currently supports only Windows and Linux.
                            Detected system '${CMAKE_SYSTEM_NAME}' is not supported.")
     endif()
 
-    set(DNNL_MAKE_COMMAND "cmake" "--build" ".")
+    set(XPU_DNNL_MAKE_COMMAND "cmake" "--build" ".")
     include(ProcessorCount)
     ProcessorCount(proc_cnt)
     if((DEFINED ENV{MAX_JOBS}) AND ("$ENV{MAX_JOBS}" LESS_EQUAL ${proc_cnt}))
-      list(APPEND DNNL_MAKE_COMMAND "-j" "$ENV{MAX_JOBS}")
+      list(APPEND XPU_DNNL_MAKE_COMMAND "-j" "$ENV{MAX_JOBS}")
       if(CMAKE_GENERATOR MATCHES "Make|Ninja")
-        list(APPEND DNNL_MAKE_COMMAND "--" "-l" "$ENV{MAX_JOBS}")
+        list(APPEND XPU_DNNL_MAKE_COMMAND "--" "-l" "$ENV{MAX_JOBS}")
       endif()
     endif()
+    
+    set(XPU_MKLDNN_BINARY_DIR "${MKLDNN_BUILD_DIR}/xpu_mkldnn_build")
+    
+    # Checkout XPU version in shared source
     ExternalProject_Add(xpu_mkldnn_proj
-      GIT_REPOSITORY https://github.com/uxlfoundation/oneDNN
-      GIT_TAG ${MKLDNN_XPU_GIT_TAG}
-      PREFIX ${MKLDNN_BUILD_DIR}/xpu_mkldnn
+      DOWNLOAD_COMMAND ""
+      SOURCE_DIR ${SHARED_MKLDNN_SOURCE_DIR}
+      BINARY_DIR ${XPU_MKLDNN_BINARY_DIR}
+      CONFIGURE_COMMAND ${CMAKE_COMMAND} -E chdir ${SHARED_MKLDNN_SOURCE_DIR} ${GIT_EXECUTABLE} checkout ${MKLDNN_XPU_GIT_TAG}
+        COMMAND ${CMAKE_COMMAND} -E chdir ${SHARED_MKLDNN_SOURCE_DIR} ${GIT_EXECUTABLE} submodule update --init --recursive
+        COMMAND ${CMAKE_COMMAND}
+          -G ${CMAKE_GENERATOR}
+          -S ${SHARED_MKLDNN_SOURCE_DIR}
+          -B ${XPU_MKLDNN_BINARY_DIR}
+          -DCMAKE_C_COMPILER=icx
+          -DCMAKE_CXX_COMPILER=${XPU_SYCL_CXX_DRIVER}
+          -DDNNL_GPU_RUNTIME=SYCL
+          -DDNNL_CPU_RUNTIME=THREADPOOL
+          -DDNNL_BUILD_TESTS=OFF
+          -DDNNL_BUILD_EXAMPLES=OFF
+          -DONEDNN_BUILD_GRAPH=ON
+          -DDNNL_LIBRARY_TYPE=STATIC
+          -DDNNL_DPCPP_HOST_COMPILER=${XPU_DNNL_HOST_COMPILER}
+      BUILD_COMMAND ${XPU_DNNL_MAKE_COMMAND}
       BUILD_IN_SOURCE 0
-      CMAKE_ARGS  -DCMAKE_C_COMPILER=icx
-      -DCMAKE_CXX_COMPILER=${SYCL_CXX_DRIVER}
-      -DDNNL_GPU_RUNTIME=SYCL
-      -DDNNL_CPU_RUNTIME=THREADPOOL
-      -DDNNL_BUILD_TESTS=OFF
-      -DDNNL_BUILD_EXAMPLES=OFF
-      -DONEDNN_BUILD_GRAPH=ON
-      -DDNNL_LIBRARY_TYPE=STATIC
-      -DDNNL_DPCPP_HOST_COMPILER=${DNNL_HOST_COMPILER} # Use global cxx compiler as host compiler
-      -G ${CMAKE_GENERATOR} # Align Generator to Torch
-      BUILD_COMMAND ${DNNL_MAKE_COMMAND}
-      BUILD_BYPRODUCTS "${MKLDNN_BUILD_DIR}/xpu_mkldnn/src/xpu_mkldnn_proj-build/src/${DNNL_LIB_NAME}"
+      BUILD_BYPRODUCTS "${XPU_MKLDNN_BINARY_DIR}/src/${XPU_DNNL_LIB_NAME}"
       INSTALL_COMMAND ""
     )
 
-    # Set paths explicitly to avoid path duplication issues
-    set(XPU_MKLDNN_SOURCE_DIR "${MKLDNN_BUILD_DIR}/xpu_mkldnn/src/xpu_mkldnn_proj")
-    set(XPU_MKLDNN_BINARY_DIR "${MKLDNN_BUILD_DIR}/xpu_mkldnn/src/xpu_mkldnn_proj-build")
-    set(XPU_MKLDNN_LIBRARIES ${XPU_MKLDNN_BINARY_DIR}/src/${DNNL_LIB_NAME})
-    set(XPU_MKLDNN_INCLUDE ${XPU_MKLDNN_SOURCE_DIR}/include ${XPU_MKLDNN_BINARY_DIR}/include)
+    set(XPU_MKLDNN_LIBRARIES ${XPU_MKLDNN_BINARY_DIR}/src/${XPU_DNNL_LIB_NAME})
+    set(XPU_MKLDNN_INCLUDE ${SHARED_MKLDNN_SOURCE_DIR}/include ${XPU_MKLDNN_BINARY_DIR}/include)
     
     # Create placeholder directories to avoid CMake configuration errors
-    file(MAKE_DIRECTORY ${XPU_MKLDNN_SOURCE_DIR}/include)
+    file(MAKE_DIRECTORY ${SHARED_MKLDNN_SOURCE_DIR}/include)
     file(MAKE_DIRECTORY ${XPU_MKLDNN_BINARY_DIR}/include)
     
     # This target would be further linked to libtorch_xpu.so.
@@ -192,40 +213,51 @@ IF(NOT MKLDNN_FOUND)
       SET(DNNL_EXPERIMENTAL_UKERNEL OFF CACHE BOOL "" FORCE)
     ENDIF()
     
-    # Build oneDNN for CPU as external project
+    set(CPU_MKLDNN_BINARY_DIR "${MKLDNN_BUILD_DIR}/cpu_mkldnn_build")
+    
+    # Build oneDNN for CPU using shared source
+    # If XPU is also enabled, ensure sequential build to avoid git conflicts
+    if(USE_XPU)
+      set(CPU_DEPENDS_ON xpu_mkldnn_proj)
+    else()
+      set(CPU_DEPENDS_ON "")
+    endif()
+    
     ExternalProject_Add(cpu_mkldnn_proj
-      GIT_REPOSITORY https://github.com/uxlfoundation/oneDNN
-      GIT_TAG ${MKLDNN_CPU_GIT_TAG}
-      PREFIX ${MKLDNN_BUILD_DIR}/cpu_mkldnn
-      BUILD_IN_SOURCE 0
-      CMAKE_ARGS
-        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-        -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-        -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-        -DDNNL_CPU_RUNTIME=${MKLDNN_CPU_RUNTIME}
-        -DDNNL_BUILD_TESTS=OFF
-        -DDNNL_BUILD_EXAMPLES=OFF
-        -DONEDNN_BUILD_GRAPH=${BUILD_ONEDNN_GRAPH}
-        -DDNNL_LIBRARY_TYPE=STATIC
-        -DDNNL_ENABLE_PRIMITIVE_CACHE=ON
-        -DDNNL_ARCH_OPT_FLAGS=${CPU_DNNL_ARCH_OPT_FLAGS}
-        -DDNNL_EXPERIMENTAL_UKERNEL=${CPU_DNNL_EXPERIMENTAL_UKERNEL}
-        -DDNNL_GRAPH_CPU_RUNTIME=${MKLDNN_CPU_RUNTIME}
-        -DDNNL_GRAPH_LIBRARY_TYPE=STATIC
+      DEPENDS ${CPU_DEPENDS_ON}
+      DOWNLOAD_COMMAND ""
+      SOURCE_DIR ${SHARED_MKLDNN_SOURCE_DIR}
+      BINARY_DIR ${CPU_MKLDNN_BINARY_DIR}
+      CONFIGURE_COMMAND ${CMAKE_COMMAND} -E chdir ${SHARED_MKLDNN_SOURCE_DIR} ${GIT_EXECUTABLE} checkout ${MKLDNN_CPU_GIT_TAG}
+        COMMAND ${CMAKE_COMMAND} -E chdir ${SHARED_MKLDNN_SOURCE_DIR} ${GIT_EXECUTABLE} submodule update --init --recursive
+        COMMAND ${CMAKE_COMMAND}
+          -G ${CMAKE_GENERATOR}
+          -S ${SHARED_MKLDNN_SOURCE_DIR}
+          -B ${CPU_MKLDNN_BINARY_DIR}
+          -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+          -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+          -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+          -DDNNL_CPU_RUNTIME=${MKLDNN_CPU_RUNTIME}
+          -DDNNL_BUILD_TESTS=OFF
+          -DDNNL_BUILD_EXAMPLES=OFF
+          -DONEDNN_BUILD_GRAPH=${BUILD_ONEDNN_GRAPH}
+          -DDNNL_LIBRARY_TYPE=STATIC
+          -DDNNL_ENABLE_PRIMITIVE_CACHE=ON
+          -DDNNL_ARCH_OPT_FLAGS=${CPU_DNNL_ARCH_OPT_FLAGS}
+          -DDNNL_EXPERIMENTAL_UKERNEL=${CPU_DNNL_EXPERIMENTAL_UKERNEL}
+          -DDNNL_GRAPH_CPU_RUNTIME=${MKLDNN_CPU_RUNTIME}
+          -DDNNL_GRAPH_LIBRARY_TYPE=STATIC
       BUILD_COMMAND ${CPU_DNNL_MAKE_COMMAND}
-      BUILD_BYPRODUCTS "${MKLDNN_BUILD_DIR}/cpu_mkldnn/src/cpu_mkldnn_proj-build/src/${CPU_DNNL_LIB_NAME}"
+      BUILD_IN_SOURCE 0
+      BUILD_BYPRODUCTS "${CPU_MKLDNN_BINARY_DIR}/src/${CPU_DNNL_LIB_NAME}"
       INSTALL_COMMAND ""
     )
     
-    # Set paths explicitly to avoid path duplication issues
-    set(CPU_MKLDNN_SOURCE_DIR "${MKLDNN_BUILD_DIR}/cpu_mkldnn/src/cpu_mkldnn_proj")
-    set(CPU_MKLDNN_BINARY_DIR "${MKLDNN_BUILD_DIR}/cpu_mkldnn/src/cpu_mkldnn_proj-build")
     set(CPU_MKLDNN_LIBRARIES ${CPU_MKLDNN_BINARY_DIR}/src/${CPU_DNNL_LIB_NAME})
-    set(CPU_MKLDNN_INCLUDE ${CPU_MKLDNN_SOURCE_DIR}/include ${CPU_MKLDNN_BINARY_DIR}/include)
+    set(CPU_MKLDNN_INCLUDE ${SHARED_MKLDNN_SOURCE_DIR}/include ${CPU_MKLDNN_BINARY_DIR}/include)
     
     # Create placeholder directories to avoid CMake configuration errors
-    # ExternalProject will populate these during build
-    file(MAKE_DIRECTORY ${CPU_MKLDNN_SOURCE_DIR}/include)
+    file(MAKE_DIRECTORY ${SHARED_MKLDNN_SOURCE_DIR}/include)
     file(MAKE_DIRECTORY ${CPU_MKLDNN_BINARY_DIR}/include)
     
     # Create interface library for CPU oneDNN
