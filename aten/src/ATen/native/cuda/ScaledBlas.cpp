@@ -72,9 +72,7 @@ static bool _scaled_mm_allowed_device(bool sm90_only=false, bool sm100_only=fals
 #ifdef USE_ROCM
     static const std::vector<std::string> archs = {
         "gfx942",
-#if ROCM_VERSION >= 60300
         "gfx1200", "gfx1201",
-#endif
 #if ROCM_VERSION >= 60500
         "gfx950"
 #endif

@@ -23,7 +23,6 @@ from torch.distributed._symmetric_memory import (
     restride_A_shard_for_fused_all_gather_matmul,
 )
 from torch.testing._internal.common_cuda import (
-    _get_torch_cuda_version,
     SM100OrLater,
     SM89OrLater,
     SM90OrLater,
@@ -45,7 +44,6 @@ from torch.testing._internal.common_utils import (
     requires_cuda,
     requires_cuda_p2p_access,
     run_tests,
-    TEST_WITH_ROCM,
     TestCase,
 )
 

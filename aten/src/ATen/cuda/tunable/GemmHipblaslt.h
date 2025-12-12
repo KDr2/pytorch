@@ -62,20 +62,12 @@ constexpr hipDataType HipDataTypeFor<c10::Float8_e5m2fnuz>() {
 // Prior to ROCm 6.3, we hard-code the known enum values.
 template <>
 constexpr hipDataType HipDataTypeFor<c10::Float8_e4m3fn>() {
-#if ROCM_VERSION >= 60300
   return HIP_R_8F_E4M3;
-#else
-  return static_cast<hipDataType>(28);
-#endif
 }
 
 template <>
 constexpr hipDataType HipDataTypeFor<c10::Float8_e5m2>() {
-#if ROCM_VERSION >= 60300
   return HIP_R_8F_E5M2;
-#else
-  return static_cast<hipDataType>(29);
-#endif
 }
 
 // This type is not intended for matrix types but rather a scale factor.
