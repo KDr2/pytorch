@@ -4,7 +4,6 @@
 #include <c10/cuda/CUDACachingAllocator.h>
 #include <c10/macros/Export.h>
 
-#if defined(CUDART_VERSION) || defined(USE_ROCM)
 
 namespace at::cuda::solver {
 
@@ -592,7 +591,6 @@ void gesvdaStridedBatched<c10::complex<double>>(
     lwork, info, h_R_nrmF, batchSize
   ));
 }
-#endif
 
 
 template<>
