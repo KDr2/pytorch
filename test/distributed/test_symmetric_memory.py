@@ -1287,10 +1287,6 @@ class LoweringTest(MultiProcContinuousTest):
 class SymmMemSingleProcTest(TestCase):
     @requires_cuda
     @skipIf(
-        not TEST_WITH_ROCM and _get_torch_cuda_version() < (12, 0),
-        "stream_write_value32 currently only supports cuda version>=12.0",
-    )
-    @skipIf(
         not PLATFORM_SUPPORTS_SYMM_MEM, "SymmMem is not supported on this ROCm arch"
     )
     def test_stream_write_value32(self):
