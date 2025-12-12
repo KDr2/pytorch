@@ -1909,6 +1909,78 @@ class TestMaxAutotune(TestCase):
             # Check that contiguous transform was used
             FileCheck().check("contiguous_mm").run(code[0])
 
+    def test_override_template_heuristics_with_custom_class(self):
+        """
+        Test that override_template_heuristics works with a custom heuristic class.
+        Verifies that get_template_heuristic returns an instance of our custom class
+        and that get_template_configs yields the expected configs.
+        """
+        from functools import partial
+
+        from torch._inductor.kernel.mm import MMKernelInputs
+        from torch._inductor.template_heuristics.registry import (
+            get_registered_heuristic_class,
+            get_template_heuristic,
+        )
+
+        template_name = torch._inductor.kernel.mm.mm_template.name
+
+        # Get the base heuristic class that would normally be used for mm_template
+        base_heuristic_class = get_registered_heuristic_class(
+            template_name, GPU_TYPE, "mm"
+        )
+        self.assertIsNotNone(base_heuristic_class)
+
+        # Create dummy kernel inputs for testing
+        mat1 = torch.randn(64, 64, device=GPU_TYPE)
+        mat2 = torch.randn(64, 64, device=GPU_TYPE)
+        kernel_inputs = MMKernelInputs([mat1, mat2])
+        m, n, k = kernel_inputs.mnk_symbolic()
+        dtype_size = kernel_inputs.dtype().itemsize
+
+        # Get the first config from the original heuristic to use as our expected config
+        base_heuristic = base_heuristic_class()
+        original_config_gen = base_heuristic._get_config_generator()
+        expected_triton_config = next(
+            original_config_gen(m, n, k, dtype_size=dtype_size, op_name="mm")
+        )
+
+        # Create a custom heuristic class that only yields the single expected config
+        class CustomMMHeuristic(base_heuristic_class):
+            def _get_config_generator(inner_self):
+                def config_gen(m, n, k, dtype_size, op_name):
+                    yield expected_triton_config
+
+                return partial(config_gen)
+
+        with override_template_heuristics(
+            device_type=GPU_TYPE,
+            template_op_pairs=[(template_name, "mm")],
+            override_heuristic_class=CustomMMHeuristic,
+        ):
+            # Get the heuristic and verify it's our custom class
+            heuristic = get_template_heuristic(template_name, GPU_TYPE, "mm")
+            self.assertIsInstance(heuristic, CustomMMHeuristic)
+            self.assertIsInstance(heuristic, base_heuristic_class)
+
+            # Verify get_template_configs yields only the expected config
+            configs = list(heuristic.get_template_configs(kernel_inputs, "mm"))
+            self.assertEqual(len(configs), 1)
+            config_kwargs = configs[0].to_kwargs()
+            self.assertEqual(
+                config_kwargs["BLOCK_M"], expected_triton_config.kwargs["BLOCK_M"]
+            )
+            self.assertEqual(
+                config_kwargs["BLOCK_N"], expected_triton_config.kwargs["BLOCK_N"]
+            )
+            self.assertEqual(
+                config_kwargs["BLOCK_K"], expected_triton_config.kwargs["BLOCK_K"]
+            )
+            self.assertEqual(
+                config_kwargs["num_stages"], expected_triton_config.num_stages
+            )
+            self.assertEqual(config_kwargs["num_warps"], expected_triton_config.num_warps)
+
     @unittest.skipIf(config.cpp_wrapper, "out_dtype override not supported for AOTI")
     @unittest.skipIf(TEST_WITH_ROCM, "out_dtype override only available on NVIDIA")
     @skipIfXpu(msg="out_dtype override only available on NVIDIA")
