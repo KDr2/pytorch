@@ -1028,15 +1028,6 @@ class Redistribute(torch.autograd.Function):
         if output.dtype != ctx.original_dtype:
             output = output.to(ctx.original_dtype)
 
-        # normalize the target placement to replicate if it is partial
-        normalized_placements: list[Placement] = []
-        for previous_placement in previous_spec.placements:
-            if previous_placement.is_partial():
-                # keep target placement to replicate instead of partial in this case
-                normalized_placements.append(Replicate())
-            else:
-                normalized_placements.append(previous_placement)
-
         spec = DTensorSpec(
             previous_spec.device_mesh,
             tuple(normalized_placements),
