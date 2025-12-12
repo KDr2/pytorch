@@ -168,7 +168,7 @@ class RedistributeTest(DTensorTestBase):
         self.assertEqual(
             grad_input.to_local(), torch.ones(12, 3, dtype=dtype)
         )
-        # Verify no communication in backward (tests the new optimization)
+        # Verify no communication in backward
         self.assertEqual(comm_mode.get_total_counts(), 0)
 
     @with_comms
