@@ -272,7 +272,10 @@ class TestTritonHeuristics(TestCase):
         res = torch.compile(fn)(x)
         self.assertEqual(ref, res)
 
-    @skipIfXpu(msg="https://github.com/intel/torch-xpu-ops/issues/2331")
+    @skipIfXpu(
+        msg="lack _get_exceeding_shared_memory_checker support on Intel GPU, "
+        "https://github.com/intel/torch-xpu-ops/issues/2331"
+    )
     @skipIfRocm
     @skipUnless(HAS_GPU_AND_TRITON, "requires gpu and triton")
     @parametrize("do_pruning", [False, True])
