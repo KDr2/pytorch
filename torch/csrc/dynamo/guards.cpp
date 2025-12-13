@@ -318,8 +318,8 @@ static void TensorGuards_dealloc(TensorGuards* self) {
 
 static PyObject* TensorGuards_new(
     PyTypeObject* type,
-    PyObject* args,
-    PyObject* kwds) {
+    PyObject* /*args*/,
+    PyObject* /*kwds*/) {
   TensorGuards* self = (TensorGuards*)type->tp_alloc(type, 0);
   if (self != nullptr) {
     self->checks = new ChecksList();
@@ -442,7 +442,7 @@ static int TensorGuards_init(
 PyObject* TensorGuards_check(
     TensorGuards* self,
     PyObject* args,
-    PyObject* kwargs) {
+    PyObject* /*kwargs*/) {
   if (!PyTuple_CheckExact(args)) {
     PyErr_SetString(PyExc_TypeError, "expected tuple()");
     return nullptr;
@@ -758,16 +758,16 @@ struct GlobalStateGuard {
 
 int GlobalStateGuard_init(
     GlobalStateGuard* self,
-    PyObject* args,
-    PyObject* kwargs) {
+    PyObject* /*args*/,
+    PyObject* /*kwargs*/) {
   self->init();
   return 0;
 }
 
 PyObject* GlobalStateGuard_check(
     GlobalStateGuard* self,
-    PyObject* args,
-    PyObject* kwargs) {
+    PyObject* /*args*/,
+    PyObject* /*kwargs*/) {
   if (self->check()) {
     Py_RETURN_TRUE;
   } else {
@@ -777,22 +777,22 @@ PyObject* GlobalStateGuard_check(
 
 PyObject* GlobalStateGuard_reason(
     GlobalStateGuard* self,
-    PyObject* args,
-    PyObject* kwargs) {
+    PyObject* /*args*/,
+    PyObject* /*kwargs*/) {
   return PyUnicode_FromString(self->reason().c_str());
 }
 
 PyObject* GlobalStateGuard_dump(
     GlobalStateGuard* self,
-    PyObject* args,
-    PyObject* kwargs) {
+    PyObject* /*args*/,
+    PyObject* /*kwargs*/) {
   return PyUnicode_FromString(nlohmann::json(*self).dump().c_str());
 }
 
 PyObject* GlobalStateGuard_load(
     GlobalStateGuard* self,
     PyObject* args,
-    PyObject* kwargs) {
+    PyObject* /*kwargs*/) {
   char* json;
   TORCH_CHECK(
       PyArg_ParseTuple(args, "s", &json), "Cannot parse as json string.");
@@ -822,7 +822,7 @@ static PyMethodDef GlobalStateGuard_methods[] = {
 static PyTypeObject GlobalStateGuardType = {PyVarObject_HEAD_INIT(nullptr, 0)
 };
 
-static PyObject* check_type_id(PyObject* dummy, PyObject* args) {
+static PyObject* check_type_id(PyObject* /*dummy*/, PyObject* args) {
   // faster `lambda obj, expected: id(type(obj)) == expected`
   PyObject* obj = nullptr;
   unsigned long long expected = 0;
@@ -837,7 +837,7 @@ static PyObject* check_type_id(PyObject* dummy, PyObject* args) {
   }
 }
 
-static PyObject* check_obj_id(PyObject* dummy, PyObject* args) {
+static PyObject* check_obj_id(PyObject* /*dummy*/, PyObject* args) {
   // faster `lambda obj, expected: id(obj) == expected`
   PyObject* obj = nullptr;
   unsigned long long expected = 0;
@@ -861,8 +861,8 @@ static uint64_t global_dict_version_id = 1;
 static int dict_version_watch_callback(
     PyDict_WatchEvent event,
     PyObject* dict,
-    PyObject* key,
-    PyObject* new_value) noexcept {
+    PyObject* /*key*/,
+    PyObject* /*new_value*/) noexcept {
   if (event == PyDict_EVENT_DEALLOCATED) {
     dict_version_map.erase(dict);
   } else if (event != PyDict_EVENT_CLONED) {
@@ -891,7 +891,7 @@ static uint64_t get_dict_version_unchecked(PyObject* dict) {
 #endif
 }
 
-static PyObject* dict_version(PyObject* dummy, PyObject* args) {
+static PyObject* dict_version(PyObject* /*dummy*/, PyObject* args) {
   // Retrieves the version of a dictionary.
   PyObject* obj = nullptr;
   if (!PyArg_ParseTuple(args, "O", &obj)) {
@@ -903,7 +903,7 @@ static PyObject* dict_version(PyObject* dummy, PyObject* args) {
   return THPUtils_packUInt64(get_dict_version_unchecked(obj));
 }
 
-static PyObject* assert_size_stride(PyObject* dummy, PyObject* args) {
+static PyObject* assert_size_stride(PyObject* /*dummy*/, PyObject* args) {
   /*
    Assert that a given tensor has a given size/stride, but ignore strides
    of size==1 dimensions.  Implemented in C++ as this is on the hot path.
@@ -984,7 +984,7 @@ static PyObject* assert_size_stride(PyObject* dummy, PyObject* args) {
   Py_RETURN_TRUE;
 }
 
-static PyObject* assert_alignment(PyObject* dummy, PyObject* args) {
+static PyObject* assert_alignment(PyObject* /*dummy*/, PyObject* args) {
   /*
    * Asserts that a given tensor meets certain alignment.
    * This C++ version of torch._inductor.utils.tensor_is_aligned
@@ -1063,7 +1063,6 @@ static void _parse_empty_strided_args(
 }
 
 static PyObject* _empty_strided_device(
-    PyObject* dummy,
     PyObject* args,
     c10::DeviceType device_type,
     bool is_pinned = false) {
@@ -1105,31 +1104,30 @@ static PyObject* _empty_strided_device(
 static PyObject* _empty_strided_cpu(PyObject* dummy, PyObject* args) {
   // at::empty_strided is surprising slow.  This is a lower-overhead
   // version that saves ~2us on every allocation.
-  return _empty_strided_device(dummy, args, c10::DeviceType::CPU);
+  return _empty_strided_device(args, c10::DeviceType::CPU);
 }
 
 static PyObject* _empty_strided_cpu_pinned(PyObject* dummy, PyObject* args) {
   // at::empty_strided is surprising slow.  This is a lower-overhead
   // version that saves ~2us on every allocation.
-  return _empty_strided_device(
-      dummy, args, c10::DeviceType::CPU, /*is_pinned=*/true);
+  return _empty_strided_device(args, c10::DeviceType::CPU, /*is_pinned=*/true);
 }
 
 static PyObject* _empty_strided_cuda(PyObject* dummy, PyObject* args) {
   // at::empty_strided is surprising slow.  This is lower-overhead.
-  return _empty_strided_device(dummy, args, c10::DeviceType::CUDA);
+  return _empty_strided_device(args, c10::DeviceType::CUDA);
 }
 
 static PyObject* _empty_strided_xpu(PyObject* dummy, PyObject* args) {
   // at::empty_strided is surprising slow.  This is lower-overhead.
-  return _empty_strided_device(dummy, args, c10::DeviceType::XPU);
+  return _empty_strided_device(args, c10::DeviceType::XPU);
 }
 
 static PyObject* _empty_strided_mtia(PyObject* dummy, PyObject* args) {
-  return _empty_strided_device(dummy, args, c10::DeviceType::MTIA);
+  return _empty_strided_device(args, c10::DeviceType::MTIA);
 }
 
-static PyObject* _reinterpret_tensor(PyObject* dummy, PyObject* args) {
+static PyObject* _reinterpret_tensor(PyObject* /*dummy*/, PyObject* args) {
   HANDLE_TH_ERRORS;
   static PythonArgParser parser(
       {"_reinterpret_tensor(Tensor base, IntArrayRef sizes, IntArrayRef strides, int64_t offset_increment=0)"},
@@ -2001,7 +1999,7 @@ class DEFAULT_DEVICE : public LeafGuard {
   }
 
   template <typename T>
-  bool check_nopybind_template(T* value) { // borrowed ref
+  bool check_nopybind_template() { // borrowed ref
     // Create a static interned string. Interned string is faster than creating
     // a new string every time. Even though its a new reference, we don't dec
     // ref it. Interned strings are used for things like variable names and are
@@ -2058,17 +2056,17 @@ class GLOBAL_STATE : public LeafGuard {
     }
   }
 
-  bool check_nopybind(PyObject* value) override { // borrowed ref
+  bool check_nopybind(PyObject* /*value*/) override { // borrowed ref
     // Ignore value arg, this is just to satisfy the interface.
     return _guard->check();
   }
 
-  bool check_nopybind(FrameLocalsMapping* value) override {
+  bool check_nopybind(FrameLocalsMapping* /*value*/) override {
     // Ignore value arg, this is just to satisfy the interface.
     return _guard->check();
   }
 
-  GuardDebugInfo check_verbose_nopybind(PyObject* value) override {
+  GuardDebugInfo check_verbose_nopybind(PyObject* /*value*/) override {
     if (!_guard->check()) {
       return GuardDebugInfo(
           false, "GLOBAL_STATE changed: " + _guard->reason(), 0);
@@ -2203,12 +2201,12 @@ class DUAL_LEVEL_MATCH : public LeafGuard {
     forward_ad_module = py::module_::import("torch.autograd.forward_ad");
   }
 
-  bool check_nopybind(PyObject* value) override { // borrowed ref
+  bool check_nopybind(PyObject* /*value*/) override { // borrowed ref
     // Ignore value arg, this is just to satisfy the interface.
     return _check();
   }
 
-  bool check_nopybind(FrameLocalsMapping* value) override {
+  bool check_nopybind(FrameLocalsMapping* /*value*/) override {
     // Ignore value arg, this is just to satisfy the interface.
     return _check();
   }
@@ -3116,7 +3114,7 @@ class GuardManager {
 
   static PyObject* disable_dict_tag_matching_callback(
       PyObject* self_capsule,
-      PyObject* weakref) {
+      PyObject* /*weakref*/) {
     if (!PyCapsule_IsValid(self_capsule, "GuardManager*")) {
       Py_RETURN_NONE;
     }
@@ -4030,13 +4028,13 @@ class DictGuardManager : public GuardManager {
   }
 
   void fail_on_get_child_manager(
-      const py::object& a,
-      const std::string& source,
-      const py::object& b) {
+      const py::object& /*a*/,
+      const std::string& /*source*/,
+      const py::object& /*b*/) {
     TORCH_CHECK(false, "Can not add an accessor to DictGuardManager");
   }
 
-  void add_leaf_guard(std::shared_ptr<LeafGuard> leaf_guard) override {
+  void add_leaf_guard(std::shared_ptr<LeafGuard> /*leaf_guard*/) override {
     // If you are calling this, you probably want to go through a key, value
     // child manager and then add a leaf guard on them. DictGuardManager already
     // has TYPE_MATCH and LENGTH_CHECK built in.
@@ -4183,8 +4181,8 @@ void add_relational_guard_resetter_to_cloned_root(
 static int dict_recursive_tag_watch_callback(
     PyDict_WatchEvent event,
     PyObject* dict,
-    PyObject* key,
-    PyObject* new_value) noexcept {
+    PyObject* /*key*/,
+    PyObject* /*new_value*/) noexcept {
   if (event != PyDict_EVENT_CLONED) {
     auto it = dict_to_guard_managers.find(dict);
     if (it != dict_to_guard_managers.end()) {
@@ -4296,7 +4294,7 @@ class TORCH_FUNCTION_MODE_STACK : public LeafGuard {
   }
 
   template <typename T>
-  bool check_nopybind_template(T* value) {
+  bool check_nopybind_template() {
     // Ignore value arg, only used to satisfy the interface
     const size_t len = (size_t)at::impl::PythonTorchFunctionTLS::stack_len();
     const size_t ref_stack_size = this->_ref_stack.size();
@@ -4466,7 +4464,7 @@ class GetAttrGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     PyObject* x = PyObject_GetAttr(obj, _attr_name); // new ref
     if (x == nullptr) {
@@ -4546,7 +4544,7 @@ class GenericGetAttrGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     PyObject* x = PyObject_GenericGetAttr(obj, _attr_name); // new ref
     if (x == nullptr) {
@@ -4624,7 +4622,7 @@ class GetGenericDictGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     // NOTE for future guard optimization developers - We tried saving the dict
     // pointer and weakref of the original object to avoid calling
@@ -4700,7 +4698,7 @@ class GetItemGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     PyObject* x = PyObject_GetItem(obj, _attr_name); // new ref
     if (x == nullptr) {
@@ -4985,7 +4983,7 @@ class ListGetItemGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     PyObject* x = PyList_GetItem(obj, _index); // borrowed ref
     if (x == nullptr) {
@@ -5055,7 +5053,7 @@ class SetGetItemGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
 
     PyObject* lst = PySequence_List(obj);
@@ -5132,7 +5130,7 @@ class TupleGetItemGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     PyObject* x = PyTuple_GetItem(obj, _index); // borrowed ref
     if (x == nullptr) {
@@ -5225,7 +5223,7 @@ class TensorPropertyGuardAccessor : public GuardAccessor {
   }
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     // We need to check here to ensure that `obj` is a tensor
     // Usually we have a TENSOR_MATCH in the parent guard manager
@@ -5349,7 +5347,7 @@ class IndexedGuardAccessor : public GuardAccessor {
         _index(index) {}
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     PyObject* tuple = PyTuple_Pack(2, _index.ptr(), obj); // New reference
     bool result = _guard_manager->check_nopybind(tuple);
@@ -5411,7 +5409,7 @@ class GradGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     // check that its a tensor
     if (!THPVariable_CheckExact(obj) && !THPVariable_Check(obj)) {
@@ -5480,7 +5478,7 @@ class FuncDefaultsGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     PyObject* func = obj;
     if (PyMethod_Check(obj)) {
@@ -5555,7 +5553,7 @@ class FuncKwDefaultsGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     PyObject* func = obj;
     if (PyMethod_Check(obj)) {
@@ -5633,7 +5631,7 @@ class GlobalsGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* /*obj*/, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     // Ignore the obj arg. This is required to satisfy the function signature.
     // Just pass on the globals dict to the child manager.
@@ -5641,7 +5639,7 @@ class GlobalsGuardAccessor : public GuardAccessor {
   }
 
   GuardDebugInfo check_verbose_nopybind(
-      PyObject* obj) override { // borrowed ref
+      PyObject* /*obj*/) override { // borrowed ref
     // Ignore the obj arg. This is required to satisfy the function signature.
     // Just pass on the globals dict to the child manager.
     return _guard_manager->check_verbose_nopybind(_globals_dict);
@@ -5651,7 +5649,8 @@ class GlobalsGuardAccessor : public GuardAccessor {
     return "GlobalsGuardAccessor";
   }
 
-  bool check_nopybind(FrameLocalsMapping* map, bool matches_dict_tag) override {
+  bool check_nopybind(FrameLocalsMapping* /*map*/, bool /*matches_dict_tag*/)
+      override {
     // Ensure that we don't construct the framelocals to dict here.
     return _guard_manager->check_nopybind(_globals_dict);
   }
@@ -5699,7 +5698,7 @@ class TypeGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     PyObject* x = (PyObject*)Py_TYPE(obj); // borrowed ref
     return _guard_manager->check_nopybind(x);
@@ -5751,7 +5750,7 @@ class TypeDictGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     PyObject* x = ((PyTypeObject*)obj)->tp_dict; // borrowed ref
     if (x == nullptr) {
@@ -5811,7 +5810,7 @@ class TypeMROGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     PyObject* x = ((PyTypeObject*)obj)->tp_mro; // borrowed ref
     return _guard_manager->check_nopybind(x);
@@ -5863,7 +5862,7 @@ class TupleIteratorGetItemAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     _PyTupleIterObject* it = (_PyTupleIterObject*)obj;
     PyObject* x =
@@ -5942,7 +5941,7 @@ class GlobalWeakRefGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     // obj is globals dict because GlobalWeakRefGuardAccessor has to be a
     // child of GlobalsGuardAccessor.
@@ -6052,7 +6051,7 @@ class WeakRefCallGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     if (!PyWeakref_Check(obj)) {
       return false;
@@ -6138,7 +6137,7 @@ class CodeGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     PyObject* func = obj;
     if (PyMethod_Check(obj)) {
@@ -6214,7 +6213,7 @@ class ClosureGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     PyObject* func = obj;
     if (PyMethod_Check(obj)) {
@@ -6289,7 +6288,7 @@ class CallFunctionNoArgsGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     if (!PyCallable_Check(obj)) {
       return false;
@@ -6371,7 +6370,7 @@ class PythonLambdaGuardAccessor : public GuardAccessor {
 
   // NB: Intentional duplication between check_nopybind and
   // check_verbose_nopybind.
-  bool check_nopybind(PyObject* obj, bool matches_dict_tag = false)
+  bool check_nopybind(PyObject* obj, bool /*matches_dict_tag*/ = false)
       override { // borrowed ref
     PyObject* x = PyObject_CallOneArg(_accessor_fn.ptr(), obj); // new ref
     if (x == nullptr) {
