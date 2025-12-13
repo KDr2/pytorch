@@ -591,6 +591,7 @@ void gesvdaStridedBatched<c10::complex<double>>(
     lwork, info, h_R_nrmF, batchSize
   ));
 }
+#endif
 
 
 template<>
@@ -2549,5 +2550,3 @@ void xsyevBatched<c10::complex<double>, double>(
 #endif // USE_CUSOLVER_64_BIT_XSYEV_BATCHED
 
 } // namespace at::cuda::solver
-
-#endif // CUDART_VERSION
