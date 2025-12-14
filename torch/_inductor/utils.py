@@ -323,18 +323,31 @@ def _do_bench_using_profiling(
         may_ban_benchmarking()
 
     fn()
-    torch.cuda.synchronize()
-    cache = torch.empty(int(256e6 // 4), dtype=torch.int, device="cuda")
+    torch.accelerator.synchronize()
+    device_type = (
+        acc.type
+        if (acc := torch.accelerator.current_accelerator(check_available=True))
+        else "cpu"
+    )
+    cache = torch.empty(int(256e6 // 4), dtype=torch.int, device=device_type)
 
     # Estimate the runtime of the function
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
+    start_event = (
+        torch.xpu.Event(enable_timing=True)
+        if device_type == "xpu"
+        else torch.cuda.Event(enable_timing=True)
+    )
+    end_event = (
+        torch.xpu.Event(enable_timing=True)
+        if device_type == "xpu"
+        else torch.cuda.Event(enable_timing=True)
+    )
     start_event.record()
     for _ in range(5):
         cache.zero_()
         fn()
     end_event.record()
-    torch.cuda.synchronize()
+    torch.accelerator.synchronize()
     estimate_ms = start_event.elapsed_time(end_event) / 5
 
     # compute number of warmup and repeat
@@ -345,11 +358,13 @@ def _do_bench_using_profiling(
     for _ in range(n_warmup):
         fn()
 
-    torch.cuda.synchronize()
+    torch.accelerator.synchronize()
 
     with torch.profiler.profile(
         activities=[
-            torch.profiler.ProfilerActivity.CUDA,
+            torch.profiler.ProfilerActivity.XPU
+            if device_type == "xpu"
+            else torch.profiler.ProfilerActivity.CUDA,
         ]
     ) as p:
         # Benchmark
@@ -359,7 +374,7 @@ def _do_bench_using_profiling(
             # record time of `fn`
             fn()
         # Record clocks
-        torch.cuda.synchronize()
+        torch.accelerator.synchronize()
 
     log.debug("raw events")
     log.debug(p.key_averages().table(sort_by="self_device_time_total", row_limit=-1))
