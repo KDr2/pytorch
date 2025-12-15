@@ -4,7 +4,7 @@ import dataclasses
 import itertools
 import math
 import os
-from functools import partial
+from functools import cache, partial
 from threading import Lock
 from typing import Any, Optional, TYPE_CHECKING
 
@@ -209,6 +209,13 @@ class BaseHeuristicSingleton(type):
                 instance = super().__call__()
                 cls._instances[cls] = instance
             return cls._instances[cls]
+
+
+@cache
+def _lazy_import_config() -> type[TritonConfig]:
+    """Import has a cache, but this is faster."""
+    from triton import Config as TritonConfig
+    return TritonConfig
 
 
 class BaseConfigHeuristic(metaclass=BaseHeuristicSingleton):
@@ -625,18 +632,26 @@ class BaseConfigHeuristic(metaclass=BaseHeuristicSingleton):
             )
 
             for c in configs:
-                scaled_config = dataclasses.replace(
-                    c,
-                    block_m=max(min(int(c.block_m * scale), m_hint), min_block_size),
-                    block_n=max(min(int(c.block_n * scale), n_hint), min_block_size),
-                    block_k=max(min(int(c.block_k * scale), k_hint), min_block_size_k),
-                    hint_override=hint_override,
-                )
+                block_m = max(min(int(c.block_m * scale), m_hint), min_block_size)
+                block_n = max(min(int(c.block_n * scale), n_hint), min_block_size)
+                block_k = max(min(int(c.block_k * scale), k_hint), min_block_size_k)
+                if not exclude(block_m, block_n, block_k):
+                    # This copy is expensive, so avoid it if we can.
+                    if (block_m, block_n, block_k, hint_override) != (
+                        c.block_m,
+                        c.block_n,
+                        c.block_k,
+                        c.hint_override,
+                    ):
+                        c = dataclasses.replace(
+                            c,
+                            block_m=block_m,
+                            block_n=block_n,
+                            block_k=block_k,
+                            hint_override=hint_override,
+                        )
 
-                if not exclude(
-                    scaled_config.block_m, scaled_config.block_n, scaled_config.block_k
-                ):
-                    scaled_configs.append(scaled_config)
+                    scaled_configs.append(c)
 
         return scaled_configs
 
@@ -753,9 +768,7 @@ class BaseConfigHeuristic(metaclass=BaseHeuristicSingleton):
     def triton_config(
         self, num_stages: int, num_warps: int, **kwargs: Any
     ) -> TritonConfig:
-        from triton import Config as TritonConfig  # type: ignore[attr-defined]
-
-        return TritonConfig(kwargs, num_stages=num_stages, num_warps=num_warps)
+        return _lazy_import_config()(kwargs, num_stages=num_stages, num_warps=num_warps)
 
     def get_mm_configs(self) -> partial[Generator[TritonConfig, None, None]]:
         return partial(self.preprocess_mm_configs, configs=self.mm_configs)
@@ -1667,9 +1680,9 @@ class MMTemplateConfigMixin(GemmMaxAutotuneTemplateConfigHeuristics):
     def _convert_config_to_template_kwargs(
         self,
         triton_config: TritonConfig,
-        m: sympy.Integer,
-        n: sympy.Integer,
-        k: sympy.Integer,
+        m: sympy.Integer | sympy.Symbol,
+        n: sympy.Integer | sympy.Symbol,
+        k: sympy.Integer | sympy.Symbol,
         out_dtype: torch.dtype,
     ) -> dict[str, Any]:
         """
@@ -1677,11 +1690,7 @@ class MMTemplateConfigMixin(GemmMaxAutotuneTemplateConfigHeuristics):
         Moved from mm_common.mm_options.
         """
         # Calculate EVEN_K symbolic
-        even_k_symbolic = (
-            # it isn't worth guarding on this
-            sympy.gcd(k, triton_config.kwargs["BLOCK_K"])
-            == triton_config.kwargs["BLOCK_K"]
-        )
+        even_k_symbolic = (k % triton_config.kwargs["BLOCK_K"]) == 0
 
         # Build options dict
 
