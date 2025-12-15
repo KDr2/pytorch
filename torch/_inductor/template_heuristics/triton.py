@@ -61,6 +61,7 @@ class BaseConfig:
     hint_override: Optional[int] = dataclasses.field(kw_only=True, default=None)
 
 
+
 @dataclasses.dataclass
 class GemmConfig(BaseConfig):
     """
@@ -72,6 +73,18 @@ class GemmConfig(BaseConfig):
 
 ConvConfig = BaseConfig
 
+
+
+@dataclasses.dataclass
+class BlackwellGPUGemmConfig(GemmConfig):
+    """
+    Gemm configuration used for templates with features explicitly
+    targeting Nvidia Blackwell GPUs
+    """
+
+    epilogue_subtile: bool = dataclasses.field(kw_only=True, default=False)
+    warp_specialize: bool = dataclasses.field(kw_only=True, default=True)
+    flatten: bool = dataclasses.field(kw_only=True, default=True)
 
 # FlexAttention Configs
 @dataclasses.dataclass
@@ -311,17 +324,17 @@ class BaseConfigHeuristic(metaclass=BaseHeuristicSingleton):
         ]
 
         self.blackwell_persistent_mm_configs: list[BaseConfig] = [
-            GemmConfig(128, 256, 64, 4, 8),
-            GemmConfig(256, 128, 64, 3, 8),
-            GemmConfig(128, 256, 128, 2, 8),
-            GemmConfig(128, 256, 64, 3, 8),
-            GemmConfig(128, 128, 128, 3, 4),
-            GemmConfig(256, 128, 64, 3, 8),
-            GemmConfig(128, 128, 128, 3, 8),
+            BlackwellGPUGemmConfig(128, 256, 64, 4, 8, epilogue_subtile=True, warp_specialize=True, flatten=True),
+            BlackwellGPUGemmConfig(256, 128, 64, 3, 8, epilogue_subtile=True, warp_specialize=True, flatten=True),
+            BlackwellGPUGemmConfig(128, 256, 128, 2, 8, epilogue_subtile=True, warp_specialize=True, flatten=True),
+            BlackwellGPUGemmConfig(128, 256, 64, 3, 8, epilogue_subtile=True, warp_specialize=True, flatten=True),
+            BlackwellGPUGemmConfig(128, 128, 128, 3, 4, epilogue_subtile=True, warp_specialize=True, flatten=True),
+            BlackwellGPUGemmConfig(256, 128, 64, 3, 8, epilogue_subtile=True, warp_specialize=True, flatten=True),
+            BlackwellGPUGemmConfig(128, 128, 128, 3, 8, epilogue_subtile=True, warp_specialize=True, flatten=True),
         ]
 
         self.blackwell_persistent_addmm_configs: list[BaseConfig] = [
-            GemmConfig(256, 128, 64, 2, 4),
+            BlackwellGPUGemmConfig(256, 128, 64, 2, 4, epilogue_subtile=True, warp_specialize=True, flatten=True),
         ]
 
         self.scaled_mm_configs: list[BaseConfig] = [
@@ -560,7 +573,7 @@ class BaseConfigHeuristic(metaclass=BaseHeuristicSingleton):
                 max_mm_configs is None or len(used) < max_mm_configs
             ):
                 used.add(key)
-                kwargs = {
+                kwargs: dict[str, Any] = {
                     "BLOCK_M": conf.block_m,
                     "BLOCK_N": conf.block_n,
                     "BLOCK_K": conf.block_k,
@@ -568,6 +581,13 @@ class BaseConfigHeuristic(metaclass=BaseHeuristicSingleton):
                 }
                 if group_m is not None:
                     kwargs["GROUP_M"] = group_m
+
+                # Add BlackwellGPUGemmConfig specific fields if present
+                if isinstance(conf, BlackwellGPUGemmConfig):
+                    kwargs["EPILOGUE_SUBTILE"] = conf.epilogue_subtile
+                    kwargs["WARP_SPECIALIZE"] = conf.warp_specialize
+                    kwargs["FLATTEN"] = conf.flatten
+
                 yield self.triton_config(conf.num_stages, num_warps, **kwargs)
 
     def _scale_mm_configs(
@@ -1822,11 +1842,6 @@ class BlackwellTMATemplateConfigMixin(TMATemplateConfigMixin):
         """
         Generate TMA template configs by calling super and adding TMA-specific options.
         """
-        base_ops = {
-            "NUM_SMS": get_num_sms(),
-            # TODO: Consider making this tunable.
-            "FLATTEN": True,
-        }
         # Get base template configs from superclass
         for template_kwargs in super()._get_template_configs_impl(
             kernel_inputs,
@@ -1835,14 +1850,16 @@ class BlackwellTMATemplateConfigMixin(TMATemplateConfigMixin):
             # Some Triton versions requires num_warps >= 4 for WS
             # to avoid compilation issues. Triton disables WS if num_warps < 4
             # or num_stages < 2. Similar issues have been seen with num_stages=1
-            ws = (
-                template_kwargs["num_warps"] >= 4 and template_kwargs["num_stages"] >= 2
+            constraints_violated = (
+                template_kwargs["num_warps"] < 4 or template_kwargs["num_stages"] < 2
             )
+            ws = template_kwargs.get("WARP_SPECIALIZE", True) and not constraints_violated
+            flatten = template_kwargs.get("FLATTEN", True) and not constraints_violated
             yield {
                 **template_kwargs,
-                **base_ops,
+                "NUM_SMS": get_num_sms(),
                 "WARP_SPECIALIZE": ws,
-                "EPILOGUE_SUBTILE": config.triton.enable_epilogue_subtiling,
+                "FLATTEN": flatten,
             }
 
 
