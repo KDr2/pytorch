@@ -3426,6 +3426,10 @@ def persistent_reduction(
     configs = _maybe_filter_configs_for_tma_restrictions(inductor_meta, configs)
     inductor_meta.pop(persistent_reduction_key)
 
+    max_autotune_enabled = inductor_meta.get("max_autotune") or inductor_meta.get(
+        "max_autotune_pointwise"
+    )
+
     if inductor_meta.get("RSPLIT_SIZE"):
         new_configs = []
         rsplit_size = inductor_meta.get("RSPLIT_SIZE")
@@ -3452,21 +3456,21 @@ def persistent_reduction(
                 c.num_warps = max(c.num_warps, 1)
                 new_configs.append(c)
 
-                # less warps so potentially each sm can run more thread blocks
-                # Inside each thread block, we handle the split sequentially,
-                # more thread blocks is beneficial here.
-                newc = copy.deepcopy(c)
-                newc.num_warps = 2
-                new_configs.append(newc)
+                if max_autotune_enabled:
+                    # less warps so potentially each sm can run more thread blocks
+                    # Inside each thread block, we handle the split sequentially,
+                    # more thread blocks is beneficial here.
+                    newc = copy.deepcopy(c)
+                    newc.num_warps = 2
+                    new_configs.append(newc)
             else:
                 # more warps for larger rows
                 new_configs.append(c)
 
-                if c.num_warps < 32:
+                if max_autotune_enabled and c.num_warps < 32:
                     newc = copy.deepcopy(c)
                     newc.num_warps *= 2
                     new_configs.append(newc)
-
         configs = unique_configs(new_configs)
 
     configs = filter_reduction_configs_for_determinism(inductor_meta, configs)
