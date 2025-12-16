@@ -188,7 +188,6 @@ def split_const_subgraphs(
             if node.op == "call_function" and node.is_impure():
                 return True
             if (
-
                 node.op == "call_module"
                 # pyrefly: ignore [not-callable]
                 and (submodule := module.get_submodule(node.target))
@@ -228,7 +227,6 @@ def split_const_subgraphs(
 
         # Skip folding submodules that have impure ops
         if (
-
             node.op == "call_module"
             # pyrefly: ignore [not-callable]
             and (target_mod := mod_traced.get_submodule(node.target))
