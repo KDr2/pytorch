@@ -1194,7 +1194,7 @@ class TorchInGraphFunctionVariable(BaseTorchVariable):
                 return
 
             return variables.ConstantVariable.create(
-                # pyrefly: ignore [bad-argument-type]
+
                 torch.fx.experimental.symbolic_shapes.has_static_value(val)
             )
 

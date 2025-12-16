@@ -700,7 +700,7 @@ def remove_parametrizations(
     # Fetch the original tensor
     assert isinstance(module.parametrizations, ModuleDict)  # Make mypy happy
     parametrizations = module.parametrizations[tensor_name]
-    # pyrefly: ignore [invalid-argument]
+
     if parametrizations.is_tensor:
         original = parametrizations.original
         assert isinstance(original, torch.Tensor), "is_tensor promised us a Tensor"
