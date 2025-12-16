@@ -643,7 +643,7 @@ class UserFunctionVariable(BaseUserFunctionVariable):
                         "`torch.compile` region",
                     ],
                 )
-            # pyrefly: ignore[missing-attribute]
+
             fn = fn_var.fn
             return variables.TorchInGraphFunctionVariable(fn, nonstrict_traceable=True)
 
@@ -2452,7 +2452,7 @@ class PolyfilledFunctionVariable(VariableTracker):
             raise RuntimeError(
                 f"Polyfill handler {handler} does not have a traceable function"
             )
-        # pyrefly: ignore[invalid-type-var]
+
         self.wrapped_fn = handler
         # pyrefly: ignore[invalid-type-var]
         self.traceable_fn: _F = traceable_fn

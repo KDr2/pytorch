@@ -992,13 +992,13 @@ class Module:
                     ) from e
                 out_param = param
             elif p_should_use_set_data:
-                # pyrefly: ignore [bad-assignment]
+
                 param.data = param_applied
                 out_param = param
             else:
                 assert isinstance(param, Parameter)
                 assert param.is_leaf
-                # pyrefly: ignore [bad-argument-type]
+
                 out_param = Parameter(param_applied, param.requires_grad)
                 self._parameters[key] = out_param
 
@@ -1335,7 +1335,7 @@ class Module:
 
         """
         device, dtype, non_blocking, convert_to_format = torch._C._nn._parse_to(
-            # pyrefly: ignore [not-iterable]
+
             *args,
             **kwargs,
         )
