@@ -2098,7 +2098,6 @@ class _ModuleStackTracer(PythonKeyTracer):
                 if not isinstance(attr_val, Module):
                     return attr_val
 
-
                 return AttrProxy(attr_val, tracer.proxy_paths[self] + "." + name)
 
             def get_base(self) -> Module:

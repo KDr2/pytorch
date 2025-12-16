@@ -1193,7 +1193,6 @@ class TorchInGraphFunctionVariable(BaseTorchVariable):
                 return
 
             return variables.ConstantVariable.create(
-
                 torch.fx.experimental.symbolic_shapes.has_static_value(val)
             )
 
