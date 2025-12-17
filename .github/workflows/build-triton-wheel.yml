@@ -156,7 +156,7 @@ jobs:
               docker exec -t "${container_name}" "${PYTHON_EXECUTABLE}"  -m pip install -U cmake --force-reinstall
           fi
 
-          if [[ ("${{ matrix.device }}" == "cuda" || "${{ matrix.device }}" == rocm* || "${{ matrix.device }}" == "aarch64" ) ]]; then
+          if [[ "${{ matrix.device }}" == "cuda" || "${{ matrix.device }}" == rocm* || "${{ matrix.device }}" == "aarch64" ]]; then
             # With this install, it gets clang 16.0.6.
             docker exec -t "${container_name}" dnf install clang lld -y
             WITH_CLANG_LDD="--with-clang-ldd"
@@ -164,7 +164,7 @@ jobs:
 
           docker exec -t "${container_name}" bash -c "${PYTHON_EXECUTABLE} /pytorch/.github/scripts/build_triton_wheel.py --device=$BUILD_DEVICE --rocm-version='${{ matrix.rocm_version }}' $RELEASE $WITH_CLANG_LDD"
 
-          if [[ ("${{ matrix.device }}" == "cuda" || "${{ matrix.device }}" == "xpu") ]]; then
+          if [[ "${{ matrix.device }}" == "cuda" || "${{ matrix.device }}" == "xpu" ]]; then
             docker exec -t "${container_name}"  bash -c "auditwheel repair --plat ${PLATFORM} //artifacts/*.whl"
           else
             docker exec -t "${container_name}"  bash -c "mkdir //artifacts/wheelhouse"
