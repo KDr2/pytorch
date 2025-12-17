@@ -2012,8 +2012,11 @@ def solve_min_cut(
         if is_sym_node(node):
             weight = float(sym_node_size(node))
         elif is_non_tensor_node:
+            val = node.meta.get("val")
+            # FakeScriptObjects (opaque objects) should have weight 0.0 so they can be
+            # properly partitioned between forward and backward, like BackwardState.
             weight = (
-                0.0 if isinstance(node.meta.get("val"), BackwardState) else math.inf
+                0.0 if isinstance(val, BackwardState) or type(val).__name__ == "FakeScriptObject" else math.inf
             )
         else:
             weight = get_node_weight(node, node_info.static_lifetime_input_nodes)

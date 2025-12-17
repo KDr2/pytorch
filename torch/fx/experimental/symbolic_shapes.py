@@ -49,7 +49,7 @@ from typing import (
     Union,
 )
 from typing_extensions import deprecated, ParamSpec
-
+from torch._library.fake_class_registry import FakeScriptObject
 import torch
 import torch.fx
 import torch.fx.traceback as fx_traceback
@@ -939,6 +939,8 @@ def _iterate_exprs(val: IterateExprs) -> Iterator[sympy.Basic]:
         pass
     # see Note: [Generator arguments in AOTDispatcher]
     elif isinstance(val, torch.Generator):
+        pass
+    elif isinstance(val, FakeScriptObject):
         pass
     else:
         raise AssertionError(f"cannot extract sympy expressions from {val} {type(val)}")

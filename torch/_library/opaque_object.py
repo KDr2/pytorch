@@ -95,6 +95,15 @@ def get_opaque_type_name(cls: Any) -> str:
     return _OPAQUE_TYPES[cls].class_name
 
 
+def try_register_opaque_type(cls: Any, *, typ: str) -> None:
+    """
+    A wrapper around register_opaque_type that is a no-op if the class is already registered
+    """
+    if is_opaque_type(cls):
+        return
+    return register_opaque_type(cls, typ=typ)
+
+
 def register_opaque_type(cls: Any, *, typ: str) -> None:
     """
     Registers the given type as an opaque type which allows this to be consumed

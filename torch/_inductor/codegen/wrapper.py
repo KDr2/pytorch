@@ -27,7 +27,11 @@ from torch._dynamo.utils import counters, dynamo_timed
 from torch._inductor.codegen.debug_utils import DebugPrinterManager
 from torch._inductor.codegen.multi_kernel import MultiKernelState
 from torch._inductor.runtime.runtime_utils import cache_dir
-from torch._library.opaque_object import get_opaque_obj_repr, is_opaque_value_type
+from torch._library.opaque_object import (
+    get_opaque_obj_repr,
+    is_opaque_type,
+    is_opaque_value_type,
+)
 from torch._logging import trace_structured
 from torch.fx.experimental.symbolic_shapes import (
     CallMethodKey,
@@ -2196,7 +2200,7 @@ class PythonWrapperCodegen(CodeGen):
 
             import pickle
 
-            assert isinstance(value, torch.ScriptObject)
+            assert isinstance(value, torch.ScriptObject) or is_opaque_type(type(value))
 
             output.writeline(f"{name} = pickle.loads({pickle.dumps(value)!r})")
 

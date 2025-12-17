@@ -3891,6 +3891,35 @@ class SourcelessBuilder:
         ):
             proxy = tx.output.bound_symbols[value.node.expr]
             return SymNodeVariable.create(tx, proxy)
+        elif TorchScriptObjectVariable.is_matching_cls(value_type):
+            # Handle opaque types (registered via register_opaque_type) and TorchBind objects
+            # extracted from containers during tracing.
+            # Create a proxy by embedding the object as an external object.
+            from torch._dynamo.source import ConstantSource
+
+            # Create a constant source for the object
+            const_name = f"__opaque_const_{id(value)}"
+            source = ConstantSource(const_name)
+
+            # Convert to fake object for proper tracing (needed for method patching to work)
+            fake_value = torch._library.fake_class_registry.maybe_to_fake_obj(
+                tx.output.fake_mode, value
+            )
+            if fake_value is None:
+                fake_value = value
+
+            # Register the object and create a proxy to retrieve it
+            index = register_user_object(value, source)
+            proxy = tx.output.create_proxy(
+                "call_function", get_external_object_by_index, (index,), {}
+            )
+            set_example_value(proxy.node, fake_value)
+
+            return TorchScriptObjectVariable.create(
+                proxy,
+                fake_value,
+                source=source,
+            )
         unimplemented(
             gb_type="Unexpected type in sourceless builder",
             context=f"{value_type.__module__}.{value_type.__qualname__}",
