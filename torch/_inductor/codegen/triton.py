@@ -192,6 +192,15 @@ def gen_common_triton_imports() -> str:
         import triton.language as tl
         """
     )
+    try:
+        import triton.language.extra.tlx as tlx  # type: ignore
+        imports.splice(
+           """
+           import triton.language.extra.tlx as tlx  # type: ignore 
+           """
+        )
+    except ImportError :
+        pass
     if attr_desc := gen_attr_descriptor_import():
         imports.writeline(attr_desc)
 

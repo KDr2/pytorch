@@ -1703,6 +1703,8 @@ class triton:
         == "1"
     )
 
+    enable_tlx_templates: bool = os.environ.get("TORCHINDUCTOR_ENABLE_TLX_TEMPLATES", "1") == "1"
+
 
 class aot_inductor:
     """
