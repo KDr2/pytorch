@@ -1447,6 +1447,30 @@ class TritonTensorDescriptorTestCUDA(BlockDescriptorTestBase):
         transpose_count = code.count("tl.trans")
         self.assertEqual(transpose_count, 1 if expect_transpose else 0)
 
+    def test_rms_norm_backward_does_not_crash_with_tma(self):
+        B, S, D = 1, 1024, 40096
+        with self.device:
+            x = torch.randn(B, S, D, dtype=torch.bfloat16, requires_grad=True)
+            x_ref = x.detach().clone().requires_grad_(True)
+            w = torch.randn(D, dtype=torch.bfloat16, requires_grad=True)
+            w_ref = w.detach().clone().requires_grad_(True)
+
+        def f(x: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
+            y = torch.rms_norm(x, (D,), w, 1e-5)
+            return (y * 0.1).sum()
+
+        loss_ref = f(x_ref, w_ref)
+        loss_ref.backward()
+
+        compiled_f = torch.compile(f, backend="inductor", fullgraph=True)
+        loss = compiled_f(x, w)
+        torch.testing.assert_close(loss, loss_ref, atol=1e-2, rtol=1e-2)
+        loss.backward()
+        self.assertIsNotNone(x.grad)
+        self.assertIsNotNone(w.grad)
+        torch.testing.assert_close(x.grad, x_ref.grad, atol=2e-2, rtol=2e-2)
+        torch.testing.assert_close(w.grad, w_ref.grad, atol=2e-2, rtol=2e-2)
+
 
 test_torchinductor.copy_tests(
     CommonTemplate,
