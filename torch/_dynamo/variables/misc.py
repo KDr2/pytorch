@@ -549,7 +549,7 @@ class ExceptionVariable(VariableTracker):
     def __init__(
         self,
         exc_type: Any,
-        args: Sequence[VariableTracker],
+        args: tuple[VariableTracker, ...],
         init_kwargs: dict[str, VariableTracker] | None = None,
         source: Source | None = None,
         mutation_type: MutationType | None = None,
