@@ -20,7 +20,6 @@ from torch.testing._internal.common_cuda import SM80OrLater, tf32_on_and_off
 from torch.testing._internal.common_utils import (
     IS_FBCODE,
     skipIfRocm,
-    skipIfXpu,
     TEST_WITH_SLOW_GRADCHECK,
 )
 
@@ -788,7 +787,6 @@ class OptimizeForInferenceTemplate(TestCase):
                 mod_eager = mod(x)
                 self.assertEqual(foo(mod, x), mod_eager)
 
-    @skipIfXpu
     @unittest.skipIf(IS_FBCODE, "Not yet runnable in fbcode")
     @unittest.skipIf(
         TEST_WITH_SLOW_GRADCHECK,
