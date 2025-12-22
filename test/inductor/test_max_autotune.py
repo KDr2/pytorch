@@ -3736,12 +3736,10 @@ class TestEpilogueFusionStaticAnalysis(TestCase):
 
 
 class TestMaxAutotuneAsyncPipelined(TestMaxAutotune):
-    """Standalone tests for AsyncAutotuner caching behavior."""
+    """Tests for AsyncPipelinedAutotuning path."""
 
     SKIP_TESTS = {
         "test_max_autotune_decompose_k": "Subgraphs not supported with async pipelining",
-        "test_cat_max_autotune_triton": "Fusions not supported with async pipelining",
-        "test_linear_and_cel": "Fusions not supported with async pipelining",
         "test_inf_timing": "Logs not consistent with async pipelined autotuning",
         "test_non_contiguous_input_mm_plus_mm": "Flaky on trunk",
         "test_autotune_device_guard": "Flaky on trunk",
@@ -3761,8 +3759,7 @@ class TestMaxAutotuneAsyncPipelined(TestMaxAutotune):
         cls._async_config = config.patch(
             {
                 "pipeline_max_autotune_gemm": True,
-                "epilogue_fusion": False,
-                "prologue_fusion": False,
+                "benchmark_epilogue_fusion": False,
             }
         )
         cls._async_config.__enter__()
