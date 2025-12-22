@@ -47,6 +47,8 @@ from torch._inductor.select_algorithm import (
 )
 from torch._inductor.template_heuristics.registry import override_template_heuristics
 from torch._inductor.template_heuristics.triton import (
+    CUDAAddmmPersistentTMATemplateConfigHeuristic,
+    CUDAAddMMTemplateConfigHeuristic,
     CUDAMMTemplateConfigHeuristic,
     CUDAPersistentTMATemplateConfigHeuristic,
     GemmConfig,
@@ -2373,6 +2375,86 @@ class TestMaxAutotune(TestCase):
 
         self.assertObjectIn(k, (15, 16))
         self.assertEqual("'EVEN_K': True" in cache_key, k == 16 and not dynamic)
+
+    @unittest.skipIf(not has_triton_tma_device(), "Need TMA support in Triton")
+    def test_shared_memory_pruning_addmm_and_tma(self):
+        def addmm_op(bias, mat1, mat2):
+            return torch.addmm(bias, mat1, mat2)
+
+        def mm_op(mat1, mat2):
+            return mat1 @ mat2
+
+        M, K, N = 4608, 256, 6144
+
+        addmm_tma_heuristic = CUDAAddmmPersistentTMATemplateConfigHeuristic()
+        addmm_heuristic = CUDAAddMMTemplateConfigHeuristic()
+        mm_tma_heuristic = CUDAPersistentTMATemplateConfigHeuristic()
+        mm_heuristic = CUDAMMTemplateConfigHeuristic()
+
+        # Save original configs to restore later
+        original_tma_mm_configs = mm_tma_heuristic.mm_configs
+        original_mm_mm_configs = mm_heuristic.mm_configs
+        original_addmm_tma_configs = addmm_tma_heuristic.mm_configs
+        original_addmm_configs = addmm_heuristic.mm_configs
+
+        bad_addmm_tma_config = GemmConfig(256, 128, 64, 4, 8, group_m=8)
+        bad_mm_tma_config = GemmConfig(128, 256, 64, 4, 8, group_m=8)
+
+        exceeds_checker = addmm_tma_heuristic._get_exceeding_shared_memory_checker(
+            "addmm"
+        )
+        self.assertTrue(exceeds_checker(bad_addmm_tma_config, 2))
+        exceeds_checker = mm_tma_heuristic._get_exceeding_shared_memory_checker(
+            "mm", persistent=True
+        )
+        self.assertTrue(exceeds_checker(bad_mm_tma_config, 2))
+
+        try:
+            mm_tma_heuristic.mm_configs = [
+                bad_mm_tma_config,
+            ]
+            addmm_tma_heuristic.mm_configs = [
+                bad_addmm_tma_config,
+            ]
+            mm_heuristic.mm_configs = []
+            addmm_heuristic.mm_configs = []
+            bias_1d = torch.randn(N, dtype=torch.bfloat16, device=GPU_TYPE)
+            mat1 = torch.randn(M, K, dtype=torch.bfloat16, device=GPU_TYPE)
+            mat2_t = torch.randn(N, K, dtype=torch.bfloat16, device=GPU_TYPE)
+            mat2 = mat2_t.t()
+
+            with (
+                config.patch(
+                    {
+                        "max_autotune_prune_choices_based_on_shared_mem": True,
+                        "triton.enable_persistent_tma_matmul": True,
+                    }
+                ),
+                fresh_cache(),
+            ):
+                # Test addmm pruning
+                compiled_fn = torch.compile(addmm_op, mode="max-autotune")
+                run_and_get_code(compiled_fn, bias_1d, mat1, mat2)
+                self.assertEqual(
+                    counters["inductor"]["benchmarking.TritonBenchmarker.benchmark"], 2
+                )
+
+                # Test mm pruning
+                counters.clear()
+                compiled_fn = torch.compile(mm_op, mode="max-autotune")
+                run_and_get_code(compiled_fn, mat1, mat2)
+                # No benchmarking, config pruned
+                self.assertTrue(
+                    "benchmarking.TritonBenchmarker.benchmark"
+                    not in counters["inductor"]
+                )
+        finally:
+            # Restore original configs
+            addmm_tma_heuristic.mm_configs = original_addmm_tma_configs
+            addmm_heuristic.mm_configs = original_addmm_configs
+
+            mm_tma_heuristic.mm_configs = original_tma_mm_configs
+            mm_heuristic.mm_configs = original_mm_mm_configs
 
 
 class TestMaxAutotunePrecompile(TestCase):
