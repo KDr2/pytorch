@@ -13,7 +13,7 @@ import logging
 import pickle
 import shutil
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from hashlib import sha256
 from os import PathLike
 from pathlib import Path
@@ -84,6 +84,92 @@ class CacheEntry:
 
     encoded_params: object
     encoded_result: object
+
+
+@dataclass
+class DeferredRecording:
+    """Signals that recording should happen at a later time.
+
+    When returned from a custom_result_encoder, the memoizer will:
+    1. Skip immediate caching
+    2. Register a completion callback on this object
+
+    The encoder is responsible for calling `complete(encoded_result)`
+    when the actual result is ready to be cached. This is useful when
+    the function returns a Future or other deferred computation, allowing
+    the expensive work to remain hidden while still enabling caching.
+
+    This class handles the race condition where the Future might complete
+    before the memoizer has registered its callback. If complete() is called
+    first, the result is stored and the callbacks are invoked when registered.
+
+    Multiple callbacks can be registered - they will all be invoked when
+    complete() is called (or immediately if already completed).
+
+    Example usage in an encoder:
+        def my_future_encoder(*args, **kwargs):
+            def encode(future_result: Future[ExpensiveResult]) -> DeferredRecording:
+                deferred = DeferredRecording()
+
+                def on_complete(completed_future):
+                    actual_result = completed_future.result()
+                    encoded = _encode_expensive_result(actual_result)
+                    deferred.complete(encoded)
+
+                future_result.add_done_callback(on_complete)
+                return deferred
+
+            return encode
+
+    Attributes:
+        _callbacks: List of callbacks to invoke when complete() is called.
+        _completed: Whether complete() has already been called.
+        _completed_result: The result passed to complete() if called before callback registration.
+    """
+
+    _callbacks: list[Callable[[object], None]] = field(default_factory=list, repr=False)
+    _completed: bool = field(default=False, repr=False)
+    _completed_result: object = field(default=None, repr=False)
+
+    def complete(self, encoded_result: object) -> None:
+        """Complete the deferred recording with the final encoded result.
+
+        This method should be called by the encoder (typically via a Future callback)
+        when the actual result is ready to be cached.
+
+        All registered callbacks are invoked with the encoded result.
+        If no callbacks are registered yet, the result is stored and callbacks
+        will be invoked when registered.
+
+        Args:
+            encoded_result: The encoded result to cache.
+        """
+        if self._completed:
+            return  # Already completed, ignore duplicate calls
+
+        self._completed = True
+        self._completed_result = encoded_result
+
+        for callback in self._callbacks:
+            callback(encoded_result)
+
+    def register_callback(self, callback: Callable[[object], None]) -> None:
+        """Register a completion callback.
+
+        This method is called by memoizers to register callbacks that
+        will insert cache entries. Multiple callbacks can be registered.
+
+        If complete() has already been called (e.g., the Future was fast),
+        the callback is invoked immediately with the stored result.
+
+        Args:
+            callback: The function to call with the encoded result.
+        """
+        self._callbacks.append(callback)
+
+        # If already completed, invoke the callback immediately
+        if self._completed:
+            callback(self._completed_result)
 
 
 class _BaseMemoizer:
@@ -265,6 +351,8 @@ class Memoizer(_BaseMemoizer):
         )
         # Optional sub_key for nested cache structure
         self._sub_key: str | None = sub_key
+        # Track pending deferred recordings by cache key
+        self._pending_deferred: dict[str, DeferredRecording] = {}
         # Register atexit handler to dump cache on program exit
         if config.IS_DUMP_MEMOIZER_CACHE_ENABLED():
             atexit.register(self._dump_to_disk)
@@ -280,6 +368,45 @@ class Memoizer(_BaseMemoizer):
         the fresh_cache() context manager via clear_on_fresh_cache registration.
         """
         self._cache._memory.clear()
+
+    def _complete_deferred_recording(
+        self,
+        cache_key: str,
+        encoded_params: object,
+        final_encoded_result: object,
+    ) -> None:
+        """Complete a deferred recording by inserting the cache entry.
+
+        This method is called when a DeferredRecording's complete() method is invoked.
+        It creates the cache entry and inserts it into the in-memory cache.
+
+        Args:
+            cache_key: The cache key for the entry.
+            encoded_params: The encoded function parameters.
+            final_encoded_result: The final encoded result to cache.
+        """
+        # Remove from pending tracking
+        self._pending_deferred.pop(cache_key, None)
+        # Insert into cache
+        cache_entry = CacheEntry(
+            encoded_params=encoded_params,
+            encoded_result=final_encoded_result,
+        )
+        self._cache.insert(cache_key, cache_entry)
+
+    def _get_pending_deferred(self, cache_key: str) -> DeferredRecording | None:
+        """Get a pending deferred recording for the given cache key.
+
+        This allows other layers (e.g., PersistentMemoizer) to check if a
+        deferred recording was created and register additional callbacks.
+
+        Args:
+            cache_key: The cache key to check.
+
+        Returns:
+            The DeferredRecording if one is pending for this key, None otherwise.
+        """
+        return self._pending_deferred.get(cache_key)
 
     @functools.cached_property
     def _shared_cache_filepath(self) -> Path:
@@ -600,6 +727,20 @@ class Memoizer(_BaseMemoizer):
                 else:
                     encoded_result = result
 
+                # Check for deferred recording
+                if isinstance(encoded_result, DeferredRecording):
+                    # Track the pending deferred recording
+                    self._pending_deferred[cache_key] = encoded_result
+                    # Register the callback - handles race condition if Future already completed
+                    encoded_result.register_callback(
+                        functools.partial(
+                            self._complete_deferred_recording,
+                            cache_key,
+                            encoded_params,
+                        )
+                    )
+                    return result  # Return without caching
+
                 # Store CacheEntry in cache
                 cache_entry = CacheEntry(
                     encoded_params=encoded_params,
@@ -760,6 +901,10 @@ class PersistentMemoizer(_BaseMemoizer):
         with custom encoding/decoding logic. Results are stored in both
         the in-memory cache and the on-disk cache.
 
+        This method delegates to the underlying Memoizer for memory caching,
+        then adds disk persistence. For deferred recordings, it registers
+        an additional callback to persist to disk when the recording completes.
+
         Args:
             custom_params_encoder: Optional encoder for function parameters.
                                   If None, parameters are pickled directly.
@@ -807,27 +952,58 @@ class PersistentMemoizer(_BaseMemoizer):
                 Returns:
                     The result of calling the original function.
                 """
-                # Call the memory-cached version (which calls fn and caches in memory)
+                # Delegate to memoizer (handles function call + memory caching)
                 result = memory_record_fn(*args, **kwargs)
 
-                # Also store in disk cache
+                # Generate cache key to check what happened
                 cache_key = self._make_key(custom_params_encoder, *args, **kwargs)
 
-                # Get the cache entry from memory cache
-                # We know it must be there since memory_record_fn just cached it
-                cached_hit = self._memoizer._cache.get(cache_key)
-                assert cached_hit, "Cache entry must exist in memory cache"
-                cache_entry = cast(CacheEntry, cached_hit.value)
+                # Check if this was a deferred recording
+                pending = self._memoizer._get_pending_deferred(cache_key)
+                if pending is not None:
+                    # Deferred recording - register our own callback for disk persistence
+                    # By the time our callback runs, Memoizer's callback will have
+                    # already inserted the cache entry, so we just read and persist it
+                    pending.register_callback(
+                        functools.partial(self._persist_to_disk, cache_key)
+                    )
+                    return result
 
-                # Store the full CacheEntry in disk cache for easier debugging
-                pickled_entry: bytes = pickle.dumps(cache_entry)
-                self._disk_cache.insert(cache_key, pickled_entry)
+                # Persist the cache entry to disk
+                self._persist_to_disk(cache_key)
 
                 return result
 
             return inner
 
         return wrapper
+
+    def _persist_to_disk(
+        self,
+        cache_key: str,
+        _callback_result: object = None,
+    ) -> None:
+        """Persist a cache entry to disk.
+
+        This method handles disk persistence for both immediate and deferred recordings:
+        - For immediate recordings: called directly after memory caching
+        - For deferred recordings: registered as a callback that runs after the
+          Memoizer's callback has inserted the entry into memory
+
+        Args:
+            cache_key: The cache key for the entry.
+            _callback_result: Unused. When called as a callback from DeferredRecording,
+                             this receives the encoded result, but we ignore it and
+                             read the full CacheEntry from the Memoizer's cache instead.
+        """
+        # Always read from memory cache - Memoizer's callback has already inserted it
+        cached_hit = self._memoizer._cache.get(cache_key)
+        assert cached_hit, "Cache entry must exist in memory cache"
+        cache_entry = cast(CacheEntry, cached_hit.value)
+
+        # Store the full CacheEntry in disk cache for easier debugging
+        pickled_entry: bytes = pickle.dumps(cache_entry)
+        self._disk_cache.insert(cache_key, pickled_entry)
 
     def replay(
         self,
