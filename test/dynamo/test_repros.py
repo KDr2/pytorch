@@ -8555,8 +8555,7 @@ class ReproTestsDevice(torch._dynamo.test_case.TestCase):
         linear.compile()
         linear(torch.randn(1, 2, device=device))
 
-        # TODO @azahed98: We wish to test that there are no weakrefs, but there are known issues
-        # with weakrefs from
+        # After compile there are still WeakIDRefs from
         # 1. TracingContext.tensor_to_context
         # 2. MetaTensorDescriber.lookup_tensor
 
@@ -8564,10 +8563,11 @@ class ReproTestsDevice(torch._dynamo.test_case.TestCase):
         t1 = linear.weight
         self.assertEqual(len(weakref.getweakrefs(t1)), 2)
 
-        # TODO @azahed98: Once the aforementioned issue is fixed, we can remove the self.assertRaises
-        # with self.assertRaises(RuntimeError):
-        # Move to cpu. Should work with no weakrefs
+        # Move to cpu. swap_tensors will clear the WeakIDRefs form their respective dictionaries
         linear.cpu()
+
+        # Check for weakrefs
+        self.assertEqual(len(weakref.getweakrefs(t1)), 0)
 
         # Move back to cuda and check that there is no recompile
         linear.to(device)
