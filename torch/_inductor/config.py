@@ -1707,6 +1707,21 @@ class triton:
         os.environ.get("TORCHINDUCTOR_ENABLE_TLX_TEMPLATES", "0") == "1"
     )
 
+    proton_profiling: bool = (
+        os.environ.get("TORCHINDUCTOR_TRITON_PROTON_PROFILING", "0") == "1"
+    )
+    proton_output_dir: str = os.environ.get(
+        "TORCHINDUCTOR_TRITON_PROTON_OUTPUT_DIR", ""
+    )
+    # Group CTAs by SM in proton trace files.
+    proton_group_by_sm: bool = (
+        os.environ.get("TORCHINDUCTOR_TRITON_PROTON_GROUP_BY_SM", "1") == "1"
+    )
+    # Split proton trace files by kernel invocation.
+    proton_split_invocations: bool = (
+        os.environ.get("TORCHINDUCTOR_TRITON_PROTON_SPLIT_INVOCATIONS", "1") == "1"
+    )
+
 
 class aot_inductor:
     """
