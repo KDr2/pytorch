@@ -238,7 +238,9 @@ class MetaTensorDescriber:
         self.next_tensor_id: MetaTensorId = MetaTensorId(0)
         self.next_storage_id: MetaStorageId = MetaStorageId(0)
         # Tensor -> int
-        self.lookup_tensor = WeakIdKeyDictionary()
+        # allow_weakref_clear=True allows swap_tensors to clear weakrefs from
+        # this dictionary before swapping tensors.
+        self.lookup_tensor = WeakIdKeyDictionary(allow_weakref_clear=True)
         # Storage -> int
         self.lookup_storage = WeakIdKeyDictionary()
         self.copy_data = copy_data

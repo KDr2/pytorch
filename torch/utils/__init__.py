@@ -39,32 +39,18 @@ def _clear_weak_id_refs(obj):
     This is used to remove weakrefs held by TracingContext.tensor_to_context and
     MetaTensorDescriber.lookup_tensor before swapping tensors.
 
-    We directly access the WeakIdKeyDictionary through the callback's default
-    arguments and use pop() to remove the entry. This avoids needing gc.collect()
-    because we directly clear the dictionary entry.
+    Each WeakIdRef stores a weak reference to its dictionary (_dict_ref) and
+    provides a remove_from_dict() method to remove itself. This avoids needing
+    gc.collect() because we directly clear the dictionary entry.
 
     This is in a separate function so that all local variables (including the loop
     variable and the list from getweakrefs) are cleaned up when the function returns.
     """
-    from torch.utils.weak import WeakIdRef, WeakIdKeyDictionary
+    from torch.utils.weak import WeakIdRef
 
     for wr in weakref.getweakrefs(obj):
         if type(wr) is WeakIdRef:
-            callback = wr.__callback__
-            if callback is not None:
-                # The callback is WeakIdKeyDictionary's remove function.
-                # It has selfref as a default argument: def remove(k, selfref=ref(self))
-                # Default arguments are stored in __defaults__
-                defaults = getattr(callback, "__defaults__", None)
-                if defaults:
-                    for default in defaults:
-                        if isinstance(default, weakref.ref):
-                            # This is selfref - dereference to get the dictionary
-                            d = default()
-                            if d is not None and isinstance(d, WeakIdKeyDictionary):
-                                # Use pop to remove the entry
-                                d.pop(obj, None)
-                                break
+            wr.remove_from_dict()
 
 
 def swap_tensors(t1, t2):
