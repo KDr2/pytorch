@@ -32,6 +32,24 @@ def set_module(obj, mod):
 cmake_prefix_path = _osp.join(_osp.dirname(_osp.dirname(__file__)), "share", "cmake")
 
 
+def _clear_weak_id_refs(obj):
+    """
+    Clear WeakIdRef weakrefs from WeakIdKeyDictionaries by calling their callbacks.
+
+    This is used to remove weakrefs held by TracingContext.tensor_to_context and
+    MetaTensorDescriber.lookup_tensor before swapping tensors.
+
+    This is in a separate function so that all local variables (including the loop
+    variable and the list from getweakrefs) are cleaned up when the function returns,
+    allowing the weakrefs to be garbage collected.
+    """
+    from torch.utils.weak import WeakIdRef
+
+    for wr in weakref.getweakrefs(obj):
+        if type(wr) is WeakIdRef and wr.__callback__ is not None:
+            wr.__callback__(wr)
+
+
 def swap_tensors(t1, t2):
     """
     This function swaps the content of the two Tensor objects.
@@ -40,9 +58,21 @@ def swap_tensors(t1, t2):
 
     This will not work if t1 and t2 have different slots.
     """
-    # Ensure there are no weakrefs
+    import gc
+
+    # Clear WeakIdRef weakrefs from WeakIdKeyDictionaries (e.g., from
+    # TracingContext.tensor_to_context and MetaTensorDescriber.lookup_tensor).
+    # This is in a separate function to ensure local variables don't keep
+    # the weakrefs alive.
+    _clear_weak_id_refs(t1)
+    gc.collect()
+
     if weakref.getweakrefs(t1):
         raise RuntimeError("Cannot swap t1 because it has weakref associated with it")
+
+    _clear_weak_id_refs(t2)
+    gc.collect()
+
     if weakref.getweakrefs(t2):
         raise RuntimeError("Cannot swap t2 because it has weakref associated with it")
     t1_slots = set(copyreg._slotnames(t1.__class__))  # type: ignore[attr-defined]
