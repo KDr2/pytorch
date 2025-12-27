@@ -15,7 +15,7 @@ def process_file(filepath: str) -> bool:
         return True  # Not an error, just skip
 
     try:
-        with open(filepath, "r", encoding="utf-8") as f:
+        with open(filepath, encoding="utf-8") as f:
             content = f.read()
 
         # Replace make_kernel with make_kernel_pt
@@ -61,7 +61,7 @@ def main():
         return 1
 
     # Read the list of files
-    with open(file_list_path, "r", encoding="utf-8") as f:
+    with open(file_list_path, encoding="utf-8") as f:
         files = [line.strip() for line in f if line.strip()]
 
     # Process each file
