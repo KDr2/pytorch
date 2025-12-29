@@ -24,13 +24,13 @@ def process_file(filepath: str) -> bool:
         # Add launch_kernel_pt.hpp include after fmha_fwd.hpp
         content = content.replace(
             '#include "fmha_fwd.hpp"',
-            '#include "fmha_fwd.hpp"\n#include "launch_kernel_pt.hpp"'
+            '#include "fmha_fwd.hpp"\n#include "launch_kernel_pt.hpp"',
         )
 
         # Add launch_kernel_pt.hpp include after fmha_bwd.hpp
         content = content.replace(
             '#include "fmha_bwd.hpp"',
-            '#include "fmha_bwd.hpp"\n#include "launch_kernel_pt.hpp"'
+            '#include "fmha_bwd.hpp"\n#include "launch_kernel_pt.hpp"',
         )
 
         with open(filepath, "w", encoding="utf-8") as f:
@@ -50,7 +50,7 @@ def main():
     )
     parser.add_argument(
         "file_list",
-        help="Path to a text file containing list of files to process (one per line)"
+        help="Path to a text file containing list of files to process (one per line)",
     )
     args = parser.parse_args()
 
