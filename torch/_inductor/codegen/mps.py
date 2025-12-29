@@ -762,6 +762,15 @@ class MetalKernel(SIMDKernel):
         raise NotImplementedError(reduction_type)
 
     def codegen_iteration_ranges_entry(self, entry: IterationRangesEntry) -> None:
+        """Generate Metal code for an iteration range index variable.
+        For simple cases (non-reduction or reduction fitting in a threadgroup),
+        emits a direct index assignment. For large reductions exceeding
+        max_threadgroup_size, generates a loop to extend the range, allowing
+        each thread to process multiple elements. Division-based index
+        expressions trigger loop generation, while modulo-based expressions
+        are evaluated once since they already cover their full range from
+        available threads.
+        """
         index_expr = self.rename_indexing(entry.expr)
         index_str = self.sexpr(index_expr)  # type: ignore[misc]
 
@@ -781,6 +790,45 @@ class MetalKernel(SIMDKernel):
             else sympy.Symbol(f"{entry.root.prefix}numel", integer=True, positive=True)
         )
 
+        numel = entry.root.numel
+        # If total reduction size fits in threadgroup, no loop needed
+        if isinstance(numel, sympy.Integer) and numel <= self.max_threadgroup_size:
+            self.indexing_code.writeline(
+                f"{self.index_dtype} {entry.name} = {index_str};"
+            )
+            return
+
+        # Check if a loop has already been added for this reduction root
+        root_has_loop = any(
+            prev.root is entry.root for prev in self.multistage_reduction_entry
+        )
+
+        if root_has_loop:
+            # A loop already exists for this reduction root.
+            # This entry's expression (e.g., modulo-based) can be evaluated
+            # before the loop since it depends only on the thread index,
+            # which is constant across loop iterations.
+            self.indexing_code.writeline(
+                f"{self.index_dtype} {entry.name} = {index_str};"
+            )
+            return
+
+        # Only expressions using division (floor_divide) need range
+        # extension via a loop. Modulo-based expressions already cover their
+        # full range from the available threads.
+        uses_division = "floor_divide" in index_str or (
+            "/" in index_str and "%" not in index_str
+        )
+
+        if not uses_division:
+            # This dimension uses modulo and already has full coverage.
+            # Don't add a loop, and don't mark root_has_loop yet so that
+            # a subsequent division-based entry can add the needed loop
+            self.indexing_code.writeline(
+                f"{self.index_dtype} {entry.name} = {index_str};"
+            )
+            return
+        # This entry uses division and needs a loop for range extension
         self.multistage_reduction_entry.append(entry)
         # When reducing the tensor whose size exceeds max threadgroup size
         # loop over extra indices per reduction thread and perform part of the operation
