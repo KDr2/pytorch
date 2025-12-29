@@ -23,6 +23,7 @@ except ImportError:
     from typing_extensions import TypedDict
 
 try:
+    # pyrefly: ignore[missing-module-attribute]
     from typing import NotRequired
 except ImportError:
     from typing_extensions import NotRequired
