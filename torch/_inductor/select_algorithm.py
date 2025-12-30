@@ -2317,15 +2317,16 @@ class TritonTemplateCaller(ir.TritonTemplateCallerBase):
         )
 
     def output_node(self):
-        return ir.TensorBox.create(
-            ir.TritonTemplateBuffer(
-                layout=self.layout,
-                inputs=self.input_nodes,
-                make_kernel_render=self.make_kernel_render,
-                mutated_inputs=self.mutated_inputs,
-                allowed_prologue_inps=self.allowed_prologue_inps,
-            )
+        buffer = ir.TritonTemplateBuffer(
+            layout=self.layout,
+            inputs=self.input_nodes,
+            make_kernel_render=self.make_kernel_render,
+            mutated_inputs=self.mutated_inputs,
+            allowed_prologue_inps=self.allowed_prologue_inps,
         )
+        # Pass annotations to the buffer for encoding
+        buffer.annotations = self.annotations
+        return ir.TensorBox.create(buffer)
 
     def info_dict(self) -> dict[str, Union[PrimitiveInfoType, list[PrimitiveInfoType]]]:
         """Information returned here is logged to the autotune log file when that is enabled."""
@@ -2473,6 +2474,8 @@ class ExternKernelCaller(ChoiceCaller):
                 kwargs=self.kwargs,
             )
 
+        # Pass annotations to the buffer for encoding
+        inner.annotations = self.annotations
         return ir.TensorBox.create(inner)
 
     def info_dict(self) -> dict[str, Union[PrimitiveInfoType, list[PrimitiveInfoType]]]:

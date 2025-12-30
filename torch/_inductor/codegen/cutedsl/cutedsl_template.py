@@ -162,15 +162,16 @@ class CuteDSLTemplateCaller(ChoiceCaller):
 
     def output_node(self) -> TensorBox:
         """Create the output node for this template choice."""
-        return TensorBox.create(
-            CuteDSLTemplateBuffer(
-                layout=self.layout,
-                inputs=self.input_nodes,
-                make_kernel_render=self.make_kernel_render,
-                template=self.template,
-                mutated_inputs=self.mutated_inputs,
-            )
+        buffer = CuteDSLTemplateBuffer(
+            layout=self.layout,
+            inputs=self.input_nodes,
+            make_kernel_render=self.make_kernel_render,
+            template=self.template,
+            mutated_inputs=self.mutated_inputs,
         )
+        # Pass annotations to the buffer for encoding
+        buffer.annotations = self.annotations
+        return TensorBox.create(buffer)
 
     def call_name(self) -> str:
         """Return the kernel call name."""
