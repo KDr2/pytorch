@@ -24,7 +24,6 @@ project-excludes = [
   # ==== below will be enabled directory by directory ====
   # ==== to test Pyrefly on a specific directory, simply comment it out ====
   "torch/_inductor/codegen/triton.py",
-  "tools/code_analyzer/gen_operators_yaml.py",
   "torch/_inductor/runtime/triton_heuristics.py",
   "torch/_inductor/runtime/triton_helpers.py",
   "torch/_inductor/runtime/halide_helpers.py",
