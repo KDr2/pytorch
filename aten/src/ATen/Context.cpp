@@ -744,11 +744,25 @@ bool Context::isXNNPACKAvailable() {
 #endif
 }
 
-void Context::setCheckSparseTensorInvariants(bool e) {
+void Context::setCheckSparseTensorInvariants(std::optional<bool> e = std::nullopt) {
   enable_sparse_tensor_invariant_checks = e;
 }
 
-bool Context::checkSparseTensorInvariants() const {
+std::optional<bool> Context::checkSparseTensorInvariants(bool warn_when_uninitialized) const {
+  if (warn_when_uninitialized && !enable_sparse_tensor_invariant_checks.has_value()) {
+    TORCH_WARN_ONCE(
+        "It is dangerous to create sparse tensors with sparse tensor "
+        "invariant checks being implicitly disabled. "
+        "When invalid inputs are used to construct a sparse tensor, a crash "
+        "of a running process is highly likely when accessing these tensors "
+        "by any code. See torch.sparse.check_sparse_tensor_invariants.__doc__ "
+        "for enabling sparse tensor invariant checks that will raise an "
+        "exception on an attempt to construct a sparse tensor with invalid "
+        "data, and hence it helps keeping the running process alive for all "
+        "relevant situations. When being sure that sparse tensors are always "
+        "created with valid inputs, disabling invariant checks will increase "
+        "processing performance.");
+  }
   return enable_sparse_tensor_invariant_checks;
 }
 
