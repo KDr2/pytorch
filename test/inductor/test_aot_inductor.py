@@ -766,6 +766,25 @@ class AOTInductorTestsTemplate:
         ):
             self.check_model(Model(), example_inputs)
 
+    @unittest.skipIf(IS_WINDOWS, "mmap page alignment only applies to Unix systems")
+    def test_mmap_weights_page_alignment(self):
+        class Model(torch.nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.linear1 = torch.nn.Linear(256, 32768)
+                self.linear2 = torch.nn.Linear(128, 8192)
+
+            def forward(self, x, y, z):
+                return x + self.linear1(y) + self.linear2(z).sum(dim=-1, keepdim=True)
+
+        example_inputs = (
+            torch.randn(1, 32768, device=self.device),
+            torch.randn(1, 256, device=self.device),
+            torch.randn(1, 128, device=self.device),
+        )
+        with config.patch({"aot_inductor.package_constants_on_disk_format": "binary_blob"}):
+            self.check_model(Model(), example_inputs)
+
     def test_with_offset(self):
         class Model(torch.nn.Module):
             def __init__(self, device):
