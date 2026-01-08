@@ -1703,6 +1703,269 @@ class PallasTestsMixin:
 
         self.assertEqual(result, expected)
 
+    def test_llama3(self):
+        """Test Llama 3 model architecture.
+
+        This is adapted from the official Meta Llama 3 implementation:
+        https://github.com/meta-llama/llama3/blob/main/llama/model.py
+
+        Tests the Llama 3 architecture including:
+        - RMSNorm (Root Mean Square Layer Normalization)
+        - Rotary Position Embeddings (RoPE)
+        - Grouped Query Attention (GQA)
+        - SwiGLU Feed-Forward Network
+        - Residual connections
+        """
+        if self.DEVICE == "cuda":
+            self.skipTest("Llama3 not supported in Pallas GPU (Mosaic) backend")
+
+        # ============================================================
+        # Llama 3 model from https://github.com/meta-llama/llama3
+        # Adapted to use standard PyTorch (no FairScale dependencies)
+        # ============================================================
+
+        from typing import Optional, Tuple
+
+        @dataclass
+        class ModelArgs:
+            dim: int = 64  # Small for testing (original: 4096)
+            n_layers: int = 2  # Small for testing (original: 32)
+            n_heads: int = 4  # Small for testing (original: 32)
+            n_kv_heads: Optional[int] = 2  # For GQA (original: 8 for 70B)
+            vocab_size: int = 256  # Small for testing
+            multiple_of: int = 64  # Make SwiGLU hidden layer size multiple of this
+            ffn_dim_multiplier: Optional[float] = None
+            norm_eps: float = 1e-5
+            rope_theta: float = 500000.0
+            max_seq_len: int = 32
+
+        class RMSNorm(torch.nn.Module):
+            """Root Mean Square Layer Normalization."""
+
+            def __init__(self, dim: int, eps: float = 1e-6):
+                super().__init__()
+                self.eps = eps
+                self.weight = torch.nn.Parameter(torch.ones(dim))
+
+            def _norm(self, x):
+                return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+
+            def forward(self, x):
+                output = self._norm(x.float()).type_as(x)
+                return output * self.weight
+
+        def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
+            """Precompute the frequency tensor for rotary embeddings."""
+            freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim))
+            t = torch.arange(end, device=freqs.device, dtype=torch.float32)
+            freqs = torch.outer(t, freqs)
+            freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # complex64
+            return freqs_cis
+
+        def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
+            """Reshape frequency tensor for broadcasting with x."""
+            ndim = x.ndim
+            assert 0 <= 1 < ndim
+            assert freqs_cis.shape == (x.shape[1], x.shape[-1])
+            shape = [d if i == 1 or i == ndim - 1 else 1 for i, d in enumerate(x.shape)]
+            return freqs_cis.view(*shape)
+
+        def apply_rotary_emb(
+            xq: torch.Tensor,
+            xk: torch.Tensor,
+            freqs_cis: torch.Tensor,
+        ) -> Tuple[torch.Tensor, torch.Tensor]:
+            """Apply rotary embeddings to query and key tensors."""
+            xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
+            xk_ = torch.view_as_complex(xk.float().reshape(*xk.shape[:-1], -1, 2))
+            freqs_cis = reshape_for_broadcast(freqs_cis, xq_)
+            xq_out = torch.view_as_real(xq_ * freqs_cis).flatten(3)
+            xk_out = torch.view_as_real(xk_ * freqs_cis).flatten(3)
+            return xq_out.type_as(xq), xk_out.type_as(xk)
+
+        def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
+            """Repeat key/value heads for grouped query attention."""
+            bs, slen, n_kv_heads, head_dim = x.shape
+            if n_rep == 1:
+                return x
+            return (
+                x[:, :, :, None, :]
+                .expand(bs, slen, n_kv_heads, n_rep, head_dim)
+                .reshape(bs, slen, n_kv_heads * n_rep, head_dim)
+            )
+
+        class Attention(torch.nn.Module):
+            """Multi-head attention with Grouped Query Attention (GQA)."""
+
+            def __init__(self, args: ModelArgs):
+                super().__init__()
+                self.n_kv_heads = args.n_heads if args.n_kv_heads is None else args.n_kv_heads
+                self.n_heads = args.n_heads
+                self.n_rep = self.n_heads // self.n_kv_heads
+                self.head_dim = args.dim // args.n_heads
+
+                self.wq = torch.nn.Linear(args.dim, args.n_heads * self.head_dim, bias=False)
+                self.wk = torch.nn.Linear(args.dim, self.n_kv_heads * self.head_dim, bias=False)
+                self.wv = torch.nn.Linear(args.dim, self.n_kv_heads * self.head_dim, bias=False)
+                self.wo = torch.nn.Linear(args.n_heads * self.head_dim, args.dim, bias=False)
+
+            def forward(
+                self,
+                x: torch.Tensor,
+                freqs_cis: torch.Tensor,
+                mask: Optional[torch.Tensor],
+            ):
+                bsz, seqlen, _ = x.shape
+                xq, xk, xv = self.wq(x), self.wk(x), self.wv(x)
+
+                xq = xq.view(bsz, seqlen, self.n_heads, self.head_dim)
+                xk = xk.view(bsz, seqlen, self.n_kv_heads, self.head_dim)
+                xv = xv.view(bsz, seqlen, self.n_kv_heads, self.head_dim)
+
+                xq, xk = apply_rotary_emb(xq, xk, freqs_cis=freqs_cis)
+
+                # Repeat k/v heads if n_kv_heads < n_heads (GQA)
+                keys = repeat_kv(xk, self.n_rep)
+                values = repeat_kv(xv, self.n_rep)
+
+                xq = xq.transpose(1, 2)  # (bs, n_heads, seqlen, head_dim)
+                keys = keys.transpose(1, 2)
+                values = values.transpose(1, 2)
+
+                scores = torch.matmul(xq, keys.transpose(2, 3)) / math.sqrt(self.head_dim)
+                if mask is not None:
+                    scores = scores + mask
+                scores = F.softmax(scores.float(), dim=-1).type_as(xq)
+                output = torch.matmul(scores, values)
+                output = output.transpose(1, 2).contiguous().view(bsz, seqlen, -1)
+                return self.wo(output)
+
+        class FeedForward(torch.nn.Module):
+            """SwiGLU Feed-Forward Network."""
+
+            def __init__(
+                self,
+                dim: int,
+                hidden_dim: int,
+                multiple_of: int,
+                ffn_dim_multiplier: Optional[float],
+            ):
+                super().__init__()
+                hidden_dim = int(2 * hidden_dim / 3)
+                if ffn_dim_multiplier is not None:
+                    hidden_dim = int(ffn_dim_multiplier * hidden_dim)
+                hidden_dim = multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
+
+                self.w1 = torch.nn.Linear(dim, hidden_dim, bias=False)
+                self.w2 = torch.nn.Linear(hidden_dim, dim, bias=False)
+                self.w3 = torch.nn.Linear(dim, hidden_dim, bias=False)
+
+            def forward(self, x):
+                return self.w2(F.silu(self.w1(x)) * self.w3(x))
+
+        class TransformerBlock(torch.nn.Module):
+            """Single Transformer block with attention and feed-forward."""
+
+            def __init__(self, layer_id: int, args: ModelArgs):
+                super().__init__()
+                self.n_heads = args.n_heads
+                self.dim = args.dim
+                self.head_dim = args.dim // args.n_heads
+                self.attention = Attention(args)
+                self.feed_forward = FeedForward(
+                    dim=args.dim,
+                    hidden_dim=4 * args.dim,
+                    multiple_of=args.multiple_of,
+                    ffn_dim_multiplier=args.ffn_dim_multiplier,
+                )
+                self.layer_id = layer_id
+                self.attention_norm = RMSNorm(args.dim, eps=args.norm_eps)
+                self.ffn_norm = RMSNorm(args.dim, eps=args.norm_eps)
+
+            def forward(
+                self,
+                x: torch.Tensor,
+                freqs_cis: torch.Tensor,
+                mask: Optional[torch.Tensor],
+            ):
+                h = x + self.attention(self.attention_norm(x), freqs_cis, mask)
+                out = h + self.feed_forward(self.ffn_norm(h))
+                return out
+
+        class Transformer(torch.nn.Module):
+            """Llama 3 Transformer model."""
+
+            def __init__(self, params: ModelArgs):
+                super().__init__()
+                self.params = params
+                self.vocab_size = params.vocab_size
+                self.n_layers = params.n_layers
+
+                self.tok_embeddings = torch.nn.Embedding(params.vocab_size, params.dim)
+                self.layers = torch.nn.ModuleList()
+                for layer_id in range(params.n_layers):
+                    self.layers.append(TransformerBlock(layer_id, params))
+                self.norm = RMSNorm(params.dim, eps=params.norm_eps)
+                self.output = torch.nn.Linear(params.dim, params.vocab_size, bias=False)
+
+                # Precompute rotary embeddings
+                self.freqs_cis = precompute_freqs_cis(
+                    params.dim // params.n_heads,
+                    params.max_seq_len * 2,
+                    params.rope_theta,
+                )
+
+            def forward(self, tokens: torch.Tensor):
+                bsz, seqlen = tokens.shape
+                h = self.tok_embeddings(tokens)
+                self.freqs_cis = self.freqs_cis.to(h.device)
+                freqs_cis = self.freqs_cis[:seqlen]
+
+                # Causal mask
+                mask = None
+                if seqlen > 1:
+                    mask = torch.full((seqlen, seqlen), float("-inf"), device=tokens.device)
+                    mask = torch.triu(mask, diagonal=1)
+                    mask = mask.type_as(h)
+
+                for layer in self.layers:
+                    h = layer(h, freqs_cis, mask)
+                h = self.norm(h)
+                output = self.output(h).float()
+                return output
+
+        # Small config for testing (Llama 3 70B would have much larger dims)
+        args = ModelArgs(
+            dim=64,
+            n_layers=2,
+            n_heads=4,
+            n_kv_heads=2,  # GQA: 2 KV heads shared among 4 query heads
+            vocab_size=256,
+            multiple_of=64,
+            norm_eps=1e-5,
+            rope_theta=500000.0,
+            max_seq_len=32,
+        )
+
+        model = Transformer(args)
+        model.eval()
+        if self.DEVICE != "cpu":
+            model = model.to(self.DEVICE)
+
+        # Test input
+        x = torch.randint(0, args.vocab_size, (2, 16), device=self.DEVICE)
+
+        # Run eager
+        with torch.no_grad():
+            expected = model(x)
+
+        # Run compiled
+        compiled_model = self._compile(model)
+        with torch.no_grad():
+            result = compiled_model(x)
+
+        self.assertEqual(result, expected)
+
     def test_sum_reduction(self):
         """Test sum reduction."""
 

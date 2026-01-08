@@ -3198,18 +3198,32 @@ def _pallas_partial_reduce(reduce_fn, v, pw_numel, red_numel):
 
                                 # Fallback: trust coefficient analysis even if length
                                 # doesn't match dimension size or any span product
-                                var_to_dim[idx] = matched_dim
-                                break
+                                # BUT: if there's a total_var, the store expression uses
+                                # total indexing, so coefficients for other vars are unreliable
+                                if total_var_idx is None:
+                                    var_to_dim[idx] = matched_dim
+                                    break
+                                # With total_var, don't trust mismatched coefficients
                         if var_to_dim.get(idx) is not None:
                             continue
 
                     var_to_dim[idx] = None  # Will use positional fallback
 
-                # When there's a total_var, try to detect non-contiguous dimension spans
+                # When there's a total_var, try to detect dimension assignments
                 # for vars that weren't assigned via coefficient analysis.
                 # This handles expand+transpose patterns like GQA where a var
                 # spans non-adjacent dims (e.g., batch*seq with output [B,H,S,D])
                 if total_var_idx is not None and output_shape:
+                    # Track which dims are already claimed by assigned vars
+                    claimed_dims: set[int] = set()
+                    for v_idx, dim in var_to_dim.items():
+                        if dim is not None and v_idx != total_var_idx:
+                            claimed_dims.add(dim)
+                    for v_idx in var_multi_dim_span:
+                        start_d, end_d = var_multi_dim_span[v_idx]
+                        for d in range(start_d, end_d + 1):
+                            claimed_dims.add(d)
+
                     for idx, (var_sym, entry) in enumerate(var_items):
                         if idx == total_var_idx or var_to_dim.get(idx) is not None:
                             continue
@@ -3220,11 +3234,24 @@ def _pallas_partial_reduce(reduce_fn, v, pw_numel, red_numel):
                         if length_val is None or length_val <= 1:
                             continue
 
+                        # First try single-dimension exact match (UNIQUE match only)
+                        # This handles vars like n_heads that match exactly one dim
+                        matching_dims = [
+                            d for d in range(len(output_shape))
+                            if output_shape[d] == length_val and d not in claimed_dims
+                        ]
+                        if len(matching_dims) == 1:
+                            # Unique match - assign to this dimension
+                            var_to_dim[idx] = matching_dims[0]
+                            claimed_dims.add(matching_dims[0])
+                            continue
+
                         # Try to factor length into non-contiguous output dims
                         # Use subset enumeration (2^n possibilities)
                         n_dims = len(output_shape)
+                        found = False
                         for mask in range(1, (1 << n_dims)):
-                            # Skip single-dimension cases (handled elsewhere)
+                            # Skip single-dimension cases (handled above)
                             if bin(mask).count("1") <= 1:
                                 continue
 
@@ -3245,7 +3272,12 @@ def _pallas_partial_reduce(reduce_fn, v, pw_numel, red_numel):
                                     # Non-contiguous span found
                                     var_noncontig_dims[idx] = dims_in_mask
                                     var_to_dim[idx] = dims_in_mask[-1]  # Mark as assigned
+                                    for d in dims_in_mask:
+                                        claimed_dims.add(d)
+                                    found = True
                                     break
+                        if found:
+                            continue
 
                 # Identify reduction vars first (they get special handling)
                 reduction_var_indices = {
