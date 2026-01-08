@@ -2101,6 +2101,11 @@ class TestSaveLoad(TestCase):
             reexported_ep.graph_module.graph.nodes,
             reexported_ep_loaded.graph_module.graph.nodes,
         ):
+            # Verify node name consistency
+            self.assertEqual(node.name, node_loaded.name)
+            self.assertEqual(node.op, node_loaded.op)
+            self.assertEqual(node.target, node_loaded.target)
+
             if node.op not in {"placeholder", "output"}:
                 from_node_orig = node.meta.get("from_node")
                 from_node_loaded = node_loaded.meta.get("from_node")
