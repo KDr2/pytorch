@@ -409,7 +409,11 @@ def set_current_meta(node, pass_name=""):
     if should_preserve_node_meta and node.meta:
         saved_meta = current_meta
         try:
-            current_meta = node.meta.copy()
+            # Start with saved_meta (outer context), then update with node.meta.
+            # This preserves outer context values for keys not present in node.meta.
+            # node.meta values take precedence for duplicate keys.
+            current_meta = saved_meta.copy()
+            current_meta.update(node.meta)
 
             # Update the "from_node" field in current_meta for provenance tracking.
             # Instead of appending, overwrite the "from_node" field because current_meta
