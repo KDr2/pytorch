@@ -17,6 +17,11 @@ struct TORCH_API Error : public Node {
 
   Error(std::string msg) : msg(std::move(msg)) {}
 
+  // Constructor that uses explicit sequence_nr (does not increment global
+  // sequence_nr counter)
+  Error(std::string msg, uint64_t sequence_nr)
+      : Node(sequence_nr, edge_list()), msg(std::move(msg)) {}
+
   variable_list apply(variable_list&& inputs) override;
   variable_list apply(variable_list&& inputs) const;
 

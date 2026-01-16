@@ -21,6 +21,7 @@
 
 #include <ATen/ATen.h>
 #include <ATen/FunctionalTensorWrapper.h>
+#include <ATen/SequenceNumber.h>
 #include <ATen/native/Resize.h>
 
 #include <Python.h>
@@ -797,9 +798,15 @@ void initTorchFunctions(PyObject* module) {
         if (inner_autograd_meta) {
           dst_.set_requires_grad(src_.requires_grad());
           if (dst_.requires_grad()) {
+            // This Error node is just for marking is_leaf=False and should
+            // never actually be reached during backprop, so it doesn't need
+            // to increment the global sequence number counter.
+            // If it is to be executed, it should be executed asap and stop the
+            // execution.
             auto new_grad_fn = std::shared_ptr<torch::autograd::Error>(
                 new torch::autograd::Error(
-                    "Cannot backprop through mirrored meta, file a bug in PyTorch"),
+                    "Cannot backprop through mirrored meta, file a bug in PyTorch",
+                    /*sequence_nr=*/UINT64_MAX),
                 torch::autograd::deleteNode);
             torch::autograd::set_history(dst_, new_grad_fn);
           }
