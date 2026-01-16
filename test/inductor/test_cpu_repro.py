@@ -5797,6 +5797,7 @@ class CPUReproTests(TestCase):
                 torch.testing.assert_close(result, expected, rtol=1e-4, atol=1e-4)
 
     def test_outer_looop_fusion_with_local_buf(self):
+        assert False, "for repro testing ---------------------"
         def fn(
             xs: torch.Tensor,
             Ls: torch.Tensor,

@@ -810,6 +810,7 @@ class TestSelectAlgorithm(BaseTestSelectAlgorithm):
     @parametrize("bias", (True, False))
     @dtypes(torch.bfloat16, torch.half)
     def test_linear_amx(self, batch_size, in_features, out_features, bias, dtype):
+        assert False, "for testing -----------------------------"
         class M(torch.nn.Module):
             def __init__(self, bias):
                 super().__init__()
