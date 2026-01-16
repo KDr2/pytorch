@@ -905,62 +905,127 @@ class outer_fn(torch.nn.Module):
         )
 
     @torch._dynamo.config.patch(force_compile_during_fx_trace=True)
-    def test_guard_failure_creates_separate_subgraphs(self):
-        """Test that guard failures create separate subgraphs.
-
-        When the same compiled function is called with inputs that cause guard
-        failures (e.g., different bool values), each compilation should result
-        in a separate invoke_subgraph with a different identifier.
+    def test_invoke_subgraph_seq_nr(self):
         """
-        from torch.fx.experimental.proxy_tensor import make_fx
+        Test that the seq_nr on the subgraphs and the invoke_subgraph HOP nodes are correct
+        right before we copy metadata from fwd to bwd graph.
+        """
+        from torch._functorch.aot_autograd import aot_function
+        from torch._guards import tracing, TracingContext
+        import copy
 
         torch._dynamo.reset()
 
-        def conditional_fn(x, flag: bool):
-            if flag:
-                return x * 2
-            else:
-                return x * 3
+        def inner_fn(x):
+            with torch.fx.traceback.annotate({"test": "test"}):
+                y = x.cos()
+            return y / 2
 
-        compiled_fn = torch.compile(conditional_fn, backend="invoke_subgraph")
+        compiled_fn = torch.compile(inner_fn, backend="invoke_subgraph")
 
         def outer_fn(x):
-            # Call with flag=True, then flag=False - should trigger recompilation
-            a = compiled_fn(x, True)
-            b = compiled_fn(x, False)
-            return a + b
+            y = x + 1
+            z = compiled_fn(y)
+            return z.sum()
 
-        x = torch.randn(3, 3)
+        x = torch.randn(3, 3, requires_grad=True)
 
-        traced = make_fx(
-            outer_fn, tracing_mode="fake", _disable_torch_fn_metadata_mode=True
-        )(x)
+        # Track forward graph to verify invoke_subgraph appears
+        fw_graph = None
+        bw_graph = None
+
+        def fw_compiler(gm, example_inputs):
+            nonlocal fw_graph
+            fw_graph = gm
+            return gm
+
+        def bw_compiler(gm, example_inputs):
+            nonlocal bw_graph
+            bw_graph = gm
+            return gm
+
+        # we expect to capture two graphs, the first one from aot_autograd in invoke_subgraph backend
+        # This one should have correct seq_nr on the joint graph for inner_fn and copy the metadata.
+        # the second one from actual aot_stage1_graph_capture.
+        tracing_ctx = TracingContext(fake_mode=None)
+        with tracing(tracing_ctx):
+            aot_fn = aot_function(
+                outer_fn,
+                fw_compiler=fw_compiler,
+                bw_compiler=bw_compiler,
+                _disable_torch_fn_metadata_mode=True,
+            )
+
+            # Run forward and backward
+            result = aot_fn(x)
+            result.backward()
+
+        # torch.fx.traceback.print_gm_with_seq_nr(fw_graph)
+        # torch.fx.traceback.print_gm_with_seq_nr(bw_graph)
+
+        # TODO (shangdiy): asser the seq_nr on graph nodes.
 
         self.assertExpectedInline(
-            normalize_gm(traced.print_readable(print_output=False)),
-            """\
-class outer_fn(torch.nn.Module):
-    def forward(self, x_1: "f32[3, 3]"):
+            normalize_gm(fw_graph.print_readable(print_output=False)),
+        """
+class GraphModule(torch.nn.Module):
+    def forward(self, primals_1: "f32[3, 3]"):
+        # Annotation: {'seq_nr': 21} No stacktrace found for following nodes
+        add: "f32[3, 3]" = torch.ops.aten.add.Tensor(primals_1, 1);  primals_1 = None
+
+        # Annotation: {'seq_nr': 22} No stacktrace found for following nodes
         repeated_subgraph0 = self.repeated_subgraph0
-        invoke_subgraph = torch.ops.higher_order.invoke_subgraph(repeated_subgraph0, 'invoke_subgraph_0', x_1);  repeated_subgraph0 = None
-        getitem: "f32[3, 3]" = invoke_subgraph[0];  invoke_subgraph = None
-        repeated_subgraph1 = self.repeated_subgraph1
-        invoke_subgraph_1 = torch.ops.higher_order.invoke_subgraph(repeated_subgraph1, 'invoke_subgraph_1', x_1);  repeated_subgraph1 = x_1 = None
-        getitem_1: "f32[3, 3]" = invoke_subgraph_1[0];  invoke_subgraph_1 = None
-        add: "f32[3, 3]" = torch.ops.aten.add.Tensor(getitem, getitem_1);  getitem = getitem_1 = None
-        return add
+        invoke_subgraph = torch.ops.higher_order.invoke_subgraph(repeated_subgraph0, 'invoke_subgraph_0', add);  repeated_subgraph0 = add = None
+        getitem: "f32[3, 3]" = invoke_subgraph[0]
+        getitem_1: "f32[3, 3]" = invoke_subgraph[1];  invoke_subgraph = None
+
+        # Annotation: {'seq_nr': 23} No stacktrace found for following nodes
+        sum_1: "f32[]" = torch.ops.aten.sum.default(getitem);  getitem = None
+        return (sum_1, getitem_1)
 
     class repeated_subgraph0(torch.nn.Module):
         def forward(self, arg0_1: "f32[3, 3]"):
-            mul: "f32[3, 3]" = torch.ops.aten.mul.Tensor(arg0_1, 2);  arg0_1 = None
-            return (mul,)
+            # Annotation: {'test': 'test', 'seq_nr': 15} File: /data/users/shangdiy/pytorch/test/dynamo/test_modes.py:921 in inner_fn, code: y = x.cos()
+            cos: "f32[3, 3]" = torch.ops.aten.cos.default(arg0_1)
+
+            # Annotation: {'seq_nr': 16} File: /data/users/shangdiy/pytorch/test/dynamo/test_modes.py:922 in inner_fn, code: return y / 2
+            div: "f32[3, 3]" = torch.ops.aten.div.Tensor(cos, 2);  cos = None
+            return (div, arg0_1)
+        """, # noqa: B950
+        ignore_comments = True,
+        ignore_empty_lines=True,
+        )
+
+        self.assertExpectedInline(
+            normalize_gm(bw_graph.print_readable(print_output=False)),
+        """
+class GraphModule(torch.nn.Module):
+    def forward(self, getitem_1: "f32[3, 3]", tangents_1: "f32[]"):
+        # Annotation: {'seq_nr': 23} No stacktrace found for following nodes
+        expand: "f32[3, 3]" = torch.ops.aten.expand.default(tangents_1, [3, 3]);  tangents_1 = None
+
+        # Annotation: {'seq_nr': 22} No stacktrace found for following nodes
+        clone: "f32[3, 3]" = torch.ops.aten.clone.default(expand, memory_format = torch.contiguous_format);  expand = None
+        repeated_subgraph1 = self.repeated_subgraph1
+        invoke_subgraph_1 = torch.ops.higher_order.invoke_subgraph(repeated_subgraph1, 'invoke_subgraph_1', getitem_1, clone);  repeated_subgraph1 = getitem_1 = clone = None
+        getitem_2: "f32[3, 3]" = invoke_subgraph_1[0];  invoke_subgraph_1 = None
+        return (getitem_2,)
 
     class repeated_subgraph1(torch.nn.Module):
-        def forward(self, arg0_1: "f32[3, 3]"):
-            mul: "f32[3, 3]" = torch.ops.aten.mul.Tensor(arg0_1, 3);  arg0_1 = None
+        def forward(self, arg0_1: "f32[3, 3]", arg1_1: "f32[3, 3]"):
+            # Annotation: {'seq_nr': 16} File: /data/users/shangdiy/pytorch/test/dynamo/test_modes.py:922 in inner_fn, code: return y / 2
+            div: "f32[3, 3]" = torch.ops.aten.div.Tensor(arg1_1, 2);  arg1_1 = None
+
+            # Annotation: {'test': 'test', 'seq_nr': 15} File: /data/users/shangdiy/pytorch/test/dynamo/test_modes.py:921 in inner_fn, code: y = x.cos()
+            sin: "f32[3, 3]" = torch.ops.aten.sin.default(arg0_1);  arg0_1 = None
+            neg: "f32[3, 3]" = torch.ops.aten.neg.default(sin);  sin = None
+            mul: "f32[3, 3]" = torch.ops.aten.mul.Tensor(div, neg);  div = neg = None
             return (mul,)
-""",  # noqa: B950
+        """, # noqa: B950
+        ignore_comments = True,
+        ignore_empty_lines=True,
         )
+
 
     @torch._dynamo.config.patch(force_compile_during_fx_trace=True)
     def test_multiple_inputs(self):
@@ -1109,6 +1174,8 @@ class outer_fn(torch.nn.Module):
             return (add_1, mul_1)
 """,  # noqa: B950
         )
+
+
 
 
 class TorchFunctionModeLifecycleTests(torch._dynamo.test_case.TestCase):

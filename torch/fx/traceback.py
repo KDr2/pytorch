@@ -20,7 +20,9 @@ __all__ = [
     "annotate",
     "annotate_fn",
     "preserve_node_meta",
+    "preserve_node_seq_nr",
     "has_preserved_node_meta",
+    "has_preserved_node_seq_nr",
     "set_stack_trace",
     "set_grad_fn_seq_nr",
     "reset_grad_fn_seq_nr",
@@ -36,7 +38,10 @@ __all__ = [
 
 current_meta: dict[str, Any] = {}
 current_replay_node: Optional[Node] = None
+# Preserve the node meta fields in torch.fx.proxy._COPY_META_FIELDS
 should_preserve_node_meta = False
+# Preserve the "seq_nr" node meta field
+should_preserve_node_seq_nr = False
 
 GRADIENT_ACC_SPECIAL_STACK = (
     "Gradient addition node due to multiple use of tensor around:"
@@ -261,6 +266,19 @@ def preserve_node_meta(enable=True):
 
 
 @compatibility(is_backward_compatible=False)
+@contextmanager
+def preserve_node_seq_nr(preserve_seq_nr=True):
+    global should_preserve_node_seq_nr
+    saved_should_preserve_node_seq_nr = should_preserve_node_seq_nr
+
+    try:
+        should_preserve_node_seq_nr = preserve_seq_nr
+        yield
+    finally:
+        should_preserve_node_seq_nr = saved_should_preserve_node_seq_nr
+
+
+@compatibility(is_backward_compatible=False)
 def set_stack_trace(stack: list[str]):
     global current_meta
 
@@ -403,6 +421,11 @@ def has_preserved_node_meta() -> bool:
 
 
 @compatibility(is_backward_compatible=False)
+def has_preserved_node_seq_nr() -> bool:
+    return should_preserve_node_seq_nr
+
+
+@compatibility(is_backward_compatible=False)
 @contextmanager
 def set_current_meta(node, pass_name=""):
     global current_meta
@@ -500,3 +523,24 @@ def _get_custom_metadata(gm: GraphModule) -> str:
         return custom_metadata
 
     return "\n".join(str(x) for x in helper(gm))
+
+def print_gm_with_seq_nr(gm: GraphModule, seq_nr_key = "seq_nr", **kwargs):
+    """
+    A helper method that put node.meta["seq_nr"] into node annotation with key `seq_nr_key`,
+    and then print the graph.
+    It helps to view the seq_nr on the graphs while debugging.
+    """
+
+    # TODO (shangdiy): should recover original custom after printing.
+
+    def assign_seq_nr_to_annotation(sub_mod):
+        for node in sub_mod.graph.nodes:
+            if "seq_nr" in node.meta:
+                if "custom" not in node.meta:
+                    node.meta["custom"] = {}
+                node.meta["custom"][seq_nr_key] = node.meta["seq_nr"]
+
+    for mod in gm.modules():
+        if isinstance(mod, GraphModule):
+            assign_seq_nr_to_annotation(mod)
+    gm.print_readable(**kwargs)

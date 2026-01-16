@@ -6,6 +6,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
+from collections import defaultdict
 from contextlib import ExitStack
 
 import torch
@@ -1141,6 +1142,116 @@ class inner_f(torch.nn.Module):
 ('call_function', 'sum_2', {'test': 1})
 ('call_function', 'view_1', {'test': 1})
 ('call_function', 't_9', {'test': 1})""",
+        )
+
+    def test_annotate_invoke_subgraph_simple(self):
+        class Bar(nn.Module):
+            @torch.compiler.nested_compile_region
+            def forward(self, x):
+                with fx_traceback.annotate({"mod_name": "bar"}):
+                    y = x.sin()
+                    return y * 1
+
+        class MyMod(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.bar = Bar()
+
+            def forward(self, x):
+                with fx_traceback.annotate({"mod_name": "my_mod"}):
+                    z = self.bar(x)
+                return z - 1
+
+        inputs = (torch.randn(4, 3, requires_grad=True),)
+        model = MyMod()
+
+        # invoke_subgraph doesn't seem to work with with_export=False, no subgraph created
+        graph_module = graph_capture(model, inputs, with_export=True)
+
+        # The two invoke_subgraph HOP nodes should have the same seq_nr
+        seq_nrs = {
+            node.meta.get("seq_nr", None)
+            for node in graph_module.graph.find_nodes(
+                op="call_function", target=torch.ops.higher_order.invoke_subgraph
+            )
+        }
+        self.assertEqual(len(seq_nrs), 1)
+
+        seq_nr_dict = defaultdict(set)
+        for node in graph_module.repeated_subgraph1.graph.nodes:
+            if node.op == "call_function":
+                seq_nr_dict[node.meta.get("seq_nr")].add(node.name)
+        # Group of nodes with the same seq_nr in the bw/joint graph
+        self.assertEqual(
+            list(seq_nr_dict.values()), [{"sin", "cos", "mul_2"}, {"mul", "mul_1"}]
+        )
+
+        # The annotation is not checked here because we used ignore_comments = True.
+        # The comments here are helpful for human to read and understand the unit test.
+        self.assertExpectedInline(
+            normalize_gm(graph_module.print_readable(print_output=False)),
+            """\
+class inner_f(torch.nn.Module):
+    def forward(self, primals, tangents):
+        primals_1: "f32[4, 3]"; tangents_1: "f32[4, 3]";
+
+        primals_1, tangents_1, = fx_pytree.tree_flatten_spec([primals, tangents], self._in_spec)
+        # Annotation: {'mod_name': 'my_mod', 'seq_nr': 17}
+        repeated_subgraph0 = self.repeated_subgraph0
+        invoke_subgraph = torch.ops.higher_order.invoke_subgraph(repeated_subgraph0, 'fw_subgraph_0', primals_1);  repeated_subgraph0 = None
+
+        # Annotation: {'mod_name': 'my_mod', 'seq_nr': 19}
+        getitem: "f32[4, 3]" = invoke_subgraph[0];  invoke_subgraph = None
+
+        # Annotation: {'seq_nr': 20} File: /data/users/shangdiy/pytorch/test/functorch/test_aot_joint_with_descriptors.py:1163 in forward, code: return z - 1
+        sub: "f32[4, 3]" = torch.ops.aten.sub.Tensor(getitem, 1);  getitem = None
+
+        # Annotation: {'mod_name': 'my_mod', 'seq_nr': 17}
+        repeated_subgraph1 = self.repeated_subgraph1
+        invoke_subgraph_1 = torch.ops.higher_order.invoke_subgraph(repeated_subgraph1, 'bw_subgraph_0_0', primals_1, tangents_1);  repeated_subgraph1 = primals_1 = tangents_1 = None
+        getitem_1: "f32[4, 3]" = invoke_subgraph_1[0];  invoke_subgraph_1 = None
+        return pytree.tree_unflatten([sub, getitem_1], self._out_spec)
+
+    class repeated_subgraph0(torch.nn.Module):
+        def forward(self, arg0_1: "f32[4, 3]"):
+            # Annotation: {'mod_name': 'bar', 'seq_nr': 19}
+            sin: "f32[4, 3]" = torch.ops.aten.sin.default(arg0_1);  arg0_1 = None
+
+            # Annotation: {'mod_name': 'bar', 'seq_nr': 19}
+            mul: "f32[4, 3]" = torch.ops.aten.mul.Tensor(sin, 1);  sin = None
+            return (mul,)
+
+    class repeated_subgraph1(torch.nn.Module):
+        def forward(self, arg0_1: "f32[4, 3]", arg1_1: "f32[4, 3]"):
+            # Annotation: {'mod_name': 'bar', 'seq_nr': 21}
+            sin: "f32[4, 3]" = torch.ops.aten.sin.default(arg0_1)
+
+            # Annotation: {'mod_name': 'bar', 'seq_nr': 22}
+            mul: "f32[4, 3]" = torch.ops.aten.mul.Tensor(sin, 1);  sin = None
+            mul_1: "f32[4, 3]" = torch.ops.aten.mul.Tensor(arg1_1, 1);  arg1_1 = None
+
+            # Annotation: {'mod_name': 'bar', 'seq_nr': 21}
+            cos: "f32[4, 3]" = torch.ops.aten.cos.default(arg0_1);  arg0_1 = None
+            mul_2: "f32[4, 3]" = torch.ops.aten.mul.Tensor(mul_1, cos);  mul_1 = cos = None
+            return (mul_2, mul)
+""",  # noqa: B950
+        ignore_comments = True,
+        ignore_empty_lines=True,
+        )
+
+        custom_metadata = fx_traceback._get_custom_metadata(graph_module)
+        # TODO (shangdiy): need to remove the annotation the forward subggraph's placeholders and output.
+        self.assertExpectedInline(
+            str(custom_metadata),
+            """\
+('get_attr', 'repeated_subgraph0', {'mod_name': 'my_mod'})
+[('placeholder', 'arg0_1', {'mod_name': 'my_mod'}), ('call_function', 'sin', {'mod_name': 'bar'}), ('call_function', 'mul', {'mod_name': 'bar'}), ('output', 'output', {'mod_name': 'my_mod'})]
+('call_function', 'invoke_subgraph', {'mod_name': 'my_mod'})
+('call_function', 'getitem', {'mod_name': 'my_mod'})
+('get_attr', 'repeated_subgraph1', {'mod_name': 'my_mod'})
+[('placeholder', 'arg0_1', {'mod_name': 'my_mod'}), ('placeholder', 'arg1_1', {'mod_name': 'my_mod'}), ('call_function', 'sin', {'mod_name': 'bar'}), ('call_function', 'mul', {'mod_name': 'bar'}), ('call_function', 'mul_1', {'mod_name': 'bar'}), ('call_function', 'cos', {'mod_name': 'bar'}), ('call_function', 'mul_2', {'mod_name': 'bar'}), ('output', 'output', {'mod_name': 'my_mod'})]
+('call_function', 'invoke_subgraph_1', {'mod_name': 'my_mod'})
+('call_function', 'getitem_1', {'mod_name': 'my_mod'})""",  # noqa: B950
         )
 
 
