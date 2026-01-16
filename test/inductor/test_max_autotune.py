@@ -31,6 +31,7 @@ from torch._inductor.autotune_process import (
     TuningProcess,
     TuningProcessPool,
 )
+from torch._inductor.codegen.common import WorkspaceArg
 from torch._inductor.graph import GraphLowering
 from torch._inductor.ir import Buffer, ChoiceCaller, FixedLayout, FlexibleLayout
 from torch._inductor.kernel.mm_plus_mm import aten_mm_plus_mm
@@ -421,6 +422,68 @@ class TestMaxAutotune(TestCase):
 
         with config.patch({"max_autotune": True}):
             torch.compile(mm, dynamic=dynamic)(a, b)
+
+    @unittest.skipIf(
+        not has_triton_tma_device(), "Need device-side TMA support in Triton"
+    )
+    def test_max_autotune_persistent_tma_workspace_reuse(self):
+        def three_same_shape_matmuls(a, b, c, d, e, f):
+            x = torch.mm(a, b)
+            y = torch.mm(c, d)
+            z = torch.mm(e, f)
+            return x, y, z
+
+        # Use exact shapes from the original buggy repro
+        M, K, N = 4608, 2048, 7040
+        device = "cuda"
+        dtype = torch.bfloat16
+
+        a = torch.randn(M, K, device=device, dtype=dtype)
+        b = torch.randn(K, N, device=device, dtype=dtype)
+
+        mm_tma_heuristic = CUDAPersistentTMATemplateConfigHeuristic()
+        mm_heuristic = CUDAMMTemplateConfigHeuristic()
+
+        original_tma_configs = mm_tma_heuristic.mm_configs
+        original_mm_configs = mm_heuristic.mm_configs
+
+        try:
+            # Force only TMA template by clearing non-TMA configs
+            mm_heuristic.mm_configs = []
+
+            # Use a single TMA config to ensure deterministic behavior
+            # GemmConfig args: block_m, block_n, block_k, num_stages, num_warps
+            mm_tma_heuristic.mm_configs = [GemmConfig(128, 128, 64, 4, 8, group_m=8)]
+
+            # Override WorkspaceArg.unique_name to always return the same name
+            # This simulates the bug where multiple GEMMs share the same workspace_arg
+            def fixed_unique_name(prefix: str = "workspace_") -> str:
+                return f"{prefix}0"
+
+            with (
+                config.patch(
+                    {
+                        "max_autotune_gemm": True,
+                        "max_autotune_gemm_backends": "TRITON",
+                        "triton.enable_persistent_tma_matmul": True,
+                    }
+                ),
+                fresh_cache(),
+                mock.patch.object(
+                    WorkspaceArg, "unique_name", staticmethod(fixed_unique_name)
+                ),
+            ):
+                torch._dynamo.reset()
+                compiled_fn = torch.compile(
+                    three_same_shape_matmuls, mode="max-autotune-no-cudagraphs"
+                )
+
+                # Get the generated code
+                _, code = run_and_get_code(compiled_fn, a, b, a, b, a, b)
+                FileCheck().check("# reuse workspace_0").run(code[0])
+        finally:
+            mm_tma_heuristic.mm_configs = original_tma_configs
+            mm_heuristic.mm_configs = original_mm_configs
 
     @unittest.skipIf(
         not has_triton_tma_device(), "Need device-side TMA support in Triton"

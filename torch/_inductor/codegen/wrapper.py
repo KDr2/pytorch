@@ -3294,6 +3294,10 @@ class PythonWrapperCodegen(CodeGen):
         old_name = old.get_name()
         new_name = new.get_name()
         del_line = ";"
+        # When reusing a buffer with the same name (e.g., workspace buffers from
+        # repeated template calls), don't delete it - just keep it alive
+        if old_name == new_name:
+            return f"{self.comment} reuse {old_name}"
         if old_name not in V.graph.get_output_names() and delete_old:
             del_line = f"; {self.make_buffer_free(old)}"
 
