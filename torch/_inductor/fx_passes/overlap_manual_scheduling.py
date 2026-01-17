@@ -227,9 +227,20 @@ class ManualOverlapScheduler(OverlapScheduler):
         """
         Reorder nodes in the FX graph to enforce manual overlap dependencies.
 
-        Enforce:
-        - all_gather_start_i depends on all_gather_wait_(i-1)
-        - reduce_scatter_wait_i must happen before reduce_scatter_start_(i+1)
+        forward graph (all-gathers only):
+            modules are processed in order: module 0, 1, 2, ...
+            prefetch module i+1's parameters while computing module i
+            Adds dependencies: ag_wait_i should depend on ag_start_(i+1)
+            This enforces ag_start_(i+1) to happen before ag_wait_i so it overlaps with module i's compute
+
+        backward graph (all-gathers and reduce-scatters):
+            modules are processed in reverse order: module N, N-1, N-2, ...
+            For reduce-scatters, defer rs_wait_i to happen after rs_start_(i-1)
+            Adds dependencies: rs_wait_i should depend on rs_start_(i-1)
+
+            For all-gathers, prefetch module i-1's parameters while computing module i
+            Adds dependencies: ag_wait_i should depend on ag_start_(i-1)
+
         """
         delayed_rs_nodes: list[fx.Node] = []
         overlap_deps: dict[fx.Node, OrderedSet[fx.Node]] = defaultdict(OrderedSet)
@@ -251,7 +262,7 @@ class ManualOverlapScheduler(OverlapScheduler):
                 continue
 
             if node_type == "bucketed_reduce_scatter":
-                # Ensure all delayed waits execute before this reduce_scatter
+                # Ensure all delayed waits execute after this reduce_scatter
                 for delayed in delayed_rs_nodes:
                     self._schedule(delayed)
                     overlap_deps[delayed].add(node)
