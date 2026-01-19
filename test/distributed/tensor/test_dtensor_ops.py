@@ -149,7 +149,6 @@ dtensor_fails = {
     xfail("broadcast_shapes"),
     xfail("cartesian_prod"),
     xfail("cauchy"),
-    xfail("cdist"),
     xfail("cholesky"),
     xfail("cholesky_inverse"),
     xfail("cholesky_solve"),
@@ -203,7 +202,7 @@ dtensor_fails = {
     xfail("index_select"),
     xfail("isin"),
     xfail("kthvalue"),
-    xfail("kron"),
+    xfail("kron"),  # Internal view ops don't support sharded dims
     xfail("linalg.cholesky"),
     xfail("linalg.cholesky_ex"),
     xfail("linalg.cross"),

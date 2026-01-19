@@ -1375,3 +1375,142 @@ def searchsorted_single_dim_strategy(
     )
 
     return single_dim_strategies
+
+
+@register_single_dim_strategy(
+    [aten._cdist_forward.default, aten._euclidean_dist.default]
+)
+def cdist_single_dim_strategy(
+    op: OpOverload, args_schema: ArgsType, kwargs_schema: KwargsType
+) -> list[list[Placement | _ShardingPlaceholder]]:
+    """
+    Cdist (pairwise distance) single-dim sharding strategy.
+
+    Computes pairwise distances: result[b,i,j] = ||x1[b,i] - x2[b,j]||
+    For x1 (B, M, D) and x2 (B, N, D), output is (B, M, N).
+
+    Discovered rules:
+    - R, R -> R (added automatically, not listed)
+    - S(0), S(0) -> S(0) (batch dim independent)
+    - S(1), R -> S(1) (x1 rows sharded, output rows sharded)
+    - R, S(1) -> S(2) (x2 rows sharded, output cols sharded)
+    - P(sum), P(sum) -> P(sum) (bilinear-like for distance)
+    """
+    x1_meta = args_schema[0]
+    x2_meta = args_schema[1]
+
+    if not isinstance(x1_meta, TensorMeta):
+        raise AssertionError(f"Expected TensorMeta, got {type(x1_meta)}")
+
+    x1_ndim = len(x1_meta.shape)
+
+    single_dim_strategies: list[list[Placement | _ShardingPlaceholder]] = []
+
+    # Strategy 1: S(0), S(0) -> S(0) (batch dim)
+    # Batch dimensions are independent
+    if x1_ndim >= 3:
+        single_dim_strategies.append(
+            [
+                _ShardingPlaceholder(0),  # output
+                _ShardingPlaceholder(0),  # x1
+                _ShardingPlaceholder(0),  # x2
+            ]
+        )
+
+    # Strategy 2: S(M_dim), R -> S(M_dim)
+    # x1 sharded on row dim (dim -2), output sharded on row dim
+    # Each row of x1 computes distances to all rows of x2 independently
+    m_dim = x1_ndim - 2  # Second-to-last dim
+    single_dim_strategies.append(
+        [
+            _ShardingPlaceholder(m_dim),  # output
+            _ShardingPlaceholder(m_dim),  # x1
+            Replicate(),  # x2
+        ]
+    )
+
+    # Strategy 3: R, S(N_dim) -> S(output_N_dim)
+    # x2 sharded on row dim (dim -2), output sharded on col dim (dim -1)
+    # Each row of x2 contributes to one column of output
+    n_dim = x1_ndim - 2  # x2's row dim
+    output_n_dim = x1_ndim - 1  # Output's column dim
+    single_dim_strategies.append(
+        [
+            Shard(output_n_dim),  # output sharded on last dim
+            Replicate(),  # x1
+            Shard(n_dim),  # x2 sharded on row dim
+        ]
+    )
+
+    # Strategy 4: P(sum), P(sum) -> P(sum)
+    # Distance computation has bilinear-like properties
+    single_dim_strategies.append(
+        [
+            Partial(),  # output
+            Partial(),  # x1
+            Partial(),  # x2
+        ]
+    )
+
+    return single_dim_strategies
+
+
+@register_single_dim_strategy(aten.kron.default)
+def kron_single_dim_strategy(
+    op: OpOverload, args_schema: ArgsType, kwargs_schema: KwargsType
+) -> list[list[Placement | _ShardingPlaceholder]]:
+    """
+    Kronecker product single-dim sharding strategy.
+
+    Computes: result[i*P+p, j*Q+q] = a[i,j] * b[p,q]
+    For a (M, N) and b (P, Q), output is (M*P, N*Q).
+
+    Discovered rules:
+    - R, R -> R (added automatically, not listed)
+    - S(0), R -> S(0) (shard a's rows, output rows follow block structure)
+    - S(1), R -> S(1) (shard a's cols, output cols follow block structure)
+    - P(sum), R -> P(sum) (a partial, output partial)
+    - R, P(sum) -> P(sum) (b partial, output partial)
+    """
+    a_meta = args_schema[0]
+    b_meta = args_schema[1]
+
+    if not isinstance(a_meta, TensorMeta):
+        raise AssertionError(f"Expected TensorMeta, got {type(a_meta)}")
+
+    a_ndim = len(a_meta.shape)
+
+    single_dim_strategies: list[list[Placement | _ShardingPlaceholder]] = []
+
+    # Strategy 1 & 2: S(d), R -> S(d) for each dim d of a
+    # Sharding a along any dim means we compute a subset of output blocks
+    for d in range(a_ndim):
+        single_dim_strategies.append(
+            [
+                _ShardingPlaceholder(d),  # output
+                _ShardingPlaceholder(d),  # a
+                Replicate(),  # b
+            ]
+        )
+
+    # Strategy 3: P(sum), R -> P(sum)
+    # a is partial, each element contributes to output additively
+    single_dim_strategies.append(
+        [
+            Partial(),  # output
+            Partial(),  # a
+            Replicate(),  # b
+        ]
+    )
+
+    # Strategy 4: R, P(sum) -> P(sum)
+    # b is partial, each element contributes to output additively
+    single_dim_strategies.append(
+        [
+            Partial(),  # output
+            Replicate(),  # a
+            Partial(),  # b
+        ]
+    )
+
+    return single_dim_strategies

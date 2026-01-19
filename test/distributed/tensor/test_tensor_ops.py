@@ -77,6 +77,72 @@ class DistTensorOpsTest(DTensorTestBase):
         self.assertEqual(result.full_tensor(), expected)
 
     @with_comms
+    def test_cdist(self):
+        """Test torch.cdist with DTensor sharding."""
+        mesh = self.build_device_mesh()
+
+        # Test inputs - x1 (B, M, D) and x2 (B, N, D)
+        # Use shapes divisible by world_size (4)
+        x1 = torch.randn(4, 8, 4, device=self.device_type)
+        x2 = torch.randn(4, 8, 4, device=self.device_type)
+        expected = torch.cdist(x1, x2)
+
+        # Test S(0), S(0) -> S(0) strategy (batch dim sharding)
+        x1_dt = distribute_tensor(x1.clone(), mesh, [Shard(0)])
+        x2_dt = distribute_tensor(x2.clone(), mesh, [Shard(0)])
+
+        with CommDebugMode() as comm_mode:
+            result_dt = torch.cdist(x1_dt, x2_dt)
+            self.assertEqual(comm_mode.get_total_counts(), 0)
+            self.assertEqual(result_dt.placements, (Shard(0),))
+
+        self.assertEqual(result_dt.full_tensor(), expected)
+
+        # Test S(1), R -> S(1) strategy (x1 row sharding)
+        x1_dt = distribute_tensor(x1.clone(), mesh, [Shard(1)])
+        x2_dt = distribute_tensor(x2.clone(), mesh, [Replicate()])
+
+        with CommDebugMode() as comm_mode:
+            result_dt = torch.cdist(x1_dt, x2_dt)
+            self.assertEqual(comm_mode.get_total_counts(), 0)
+            self.assertEqual(result_dt.placements, (Shard(1),))
+
+        self.assertEqual(result_dt.full_tensor(), expected)
+
+        # Test R, S(1) -> S(2) strategy (x2 row sharding -> output col sharding)
+        x1_dt = distribute_tensor(x1.clone(), mesh, [Replicate()])
+        x2_dt = distribute_tensor(x2.clone(), mesh, [Shard(1)])
+
+        with CommDebugMode() as comm_mode:
+            result_dt = torch.cdist(x1_dt, x2_dt)
+            self.assertEqual(comm_mode.get_total_counts(), 0)
+            self.assertEqual(result_dt.placements, (Shard(2),))
+
+        self.assertEqual(result_dt.full_tensor(), expected)
+
+    @with_comms
+    def test_kron(self):
+        """Test torch.kron with DTensor sharding."""
+        mesh = self.build_device_mesh()
+
+        # Test inputs - a (M, N) and b (P, Q)
+        # Use shapes divisible by world_size (4)
+        a = torch.randn(8, 4, device=self.device_type)
+        b = torch.randn(4, 4, device=self.device_type)
+        expected = torch.kron(a, b)
+
+        # Test S(0), R -> S(0) strategy (shard a's rows)
+        a_dt = distribute_tensor(a.clone(), mesh, [Shard(0)])
+        b_dt = distribute_tensor(b.clone(), mesh, [Replicate()])
+
+        with CommDebugMode() as comm_mode:
+            result_dt = torch.kron(a_dt, b_dt)
+            self.assertEqual(comm_mode.get_total_counts(), 0)
+            self.assertEqual(result_dt.placements, (Shard(0),))
+
+        self.assertEqual(result_dt.full_tensor(), expected)
+
+    @with_comms
     def test_copy_(self):
         device_mesh = DeviceMesh(self.device_type, list(range(self.world_size)))
 
