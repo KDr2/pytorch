@@ -349,7 +349,7 @@ from torch.distributed.tensor.debug import CommDebugMode
 
 @with_comms
 def test_cross(self):
-    """Test torch.cross with DTensor."""
+    """Test torch.cross with DTensor sharding."""
     mesh = self.build_device_mesh()
 
     # Test inputs - shape (batch, 3) with cross product on dim=1
@@ -357,36 +357,42 @@ def test_cross(self):
     b = torch.randn(8, 3, device=self.device_type)
     expected = torch.cross(a, b, dim=1)
 
-    # Test each discovered strategy
-    # Format: (a_placement, b_placement, expected_output_placement, description)
-    test_cases = [
-        ([Replicate()], [Replicate()], Replicate(), "R, R -> R"),
-        ([Shard(0)], [Shard(0)], Shard(0), "S(0), S(0) -> S(0) - batch dim"),
-    ]
+    # Test S(0), S(0) -> S(0) strategy (batch dim sharding)
+    # Batch dims are independent - each shard computes cross product of its vectors
+    a_dt = distribute_tensor(a.clone(), mesh, [Shard(0)])
+    b_dt = distribute_tensor(b.clone(), mesh, [Shard(0)])
 
-    for a_spec, b_spec, expected_out_placement, desc in test_cases:
-        with self.subTest(desc=desc):
-            a_dt = distribute_tensor(a.clone(), mesh, a_spec)
-            b_dt = distribute_tensor(b.clone(), mesh, b_spec)
+    with CommDebugMode() as comm_mode:
+        result_dt = torch.cross(a_dt, b_dt, dim=1)
+        self.assertEqual(comm_mode.get_total_counts(), 0)
+        self.assertEqual(result_dt.placements, (Shard(0),))
 
-            # Use CommDebugMode to verify no communication is required
-            with CommDebugMode() as comm_mode:
-                result_dt = torch.cross(a_dt, b_dt, dim=1)
+    self.assertEqual(result_dt.full_tensor(), expected)
 
-                # Check no comms required (this is the key property of a valid strategy)
-                self.assertEqual(
-                    comm_mode.get_total_counts(), 0,
-                    msg=f"Expected no comms for {desc}, got {comm_mode.get_total_counts()}"
-                )
+    # Test P(sum), R -> P(sum) strategy (bilinear in first arg)
+    # Create partial input by dividing by world_size on each rank
+    a_local = a.clone().to(self.device_type) / self.world_size
+    a_partial = DTensor.from_local(a_local, mesh, [Partial()])
+    b_replicate = distribute_tensor(b.clone(), mesh, [Replicate()])
 
-                # Check output placement matches expected
-                self.assertEqual(
-                    result_dt.placements, (expected_out_placement,),
-                    msg=f"Expected output placement {expected_out_placement} for {desc}"
-                )
+    with CommDebugMode() as comm_mode:
+        result_dt = torch.cross(a_partial, b_replicate, dim=1)
+        self.assertEqual(comm_mode.get_total_counts(), 0)
+        self.assertEqual(result_dt.placements, (Partial(),))
 
-            # Verify numerical correctness
-            self.assertEqual(result_dt.full_tensor(), expected, msg=f"Failed for {desc}")
+    self.assertEqual(result_dt.full_tensor(), expected)
+
+    # Test R, P(sum) -> P(sum) strategy (bilinear in second arg)
+    a_replicate = distribute_tensor(a.clone(), mesh, [Replicate()])
+    b_local = b.clone().to(self.device_type) / self.world_size
+    b_partial = DTensor.from_local(b_local, mesh, [Partial()])
+
+    with CommDebugMode() as comm_mode:
+        result_dt = torch.cross(a_replicate, b_partial, dim=1)
+        self.assertEqual(comm_mode.get_total_counts(), 0)
+        self.assertEqual(result_dt.placements, (Partial(),))
+
+    self.assertEqual(result_dt.full_tensor(), expected)
 ```
 
 **Key patterns for DTensor tests:**
@@ -402,7 +408,8 @@ def test_cross(self):
 7. **Assert full tensor numerics are correct**
    - Use `.full_tensor()` to gather the result and compare with expected
    - This verifies the local computation produced the correct global result
-8. Test each discovered strategy as a separate subtest
+8. **Test ALL non-full-replicate strategies** - every discovered strategy except R, R -> R must be tested
+9. **Don't test the R, R -> R case** - it's obvious/automatic and doesn't need explicit testing
 
 **The three assertions every strategy test needs:**
 ```python
