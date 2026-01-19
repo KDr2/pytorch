@@ -432,6 +432,60 @@ implicit redistributions.
 
 ---
 
+## DTensor Placement Types Reference
+
+When discovering sharding rules, consider ALL DTensor placement types - not just the basic ones.
+For conditional rules especially, specialized placement types may enable additional strategies.
+
+### Core Placement Types
+
+| Type | Import | Description |
+|------|--------|-------------|
+| `Shard(dim)` | `placement_types` | Shard tensor along dimension `dim` |
+| `Replicate()` | `placement_types` | Full replication across mesh dimension |
+| `Partial(reduce_op)` | `placement_types` | Pending reduction: `"sum"`, `"avg"`, `"max"`, `"min"` |
+| `_StridedShard(dim, split_factor)` | `placement_types` | Strided sharding for 2D parallelism (FSDP2+TP) |
+
+### Specialized Partial Types
+
+| Type | Import | Description | Use Case |
+|------|--------|-------------|----------|
+| `_NormPartial(norm_type)` | `_ops._math_ops` | Partial for p-norm operations | Distance/norm ops with feature sharding |
+| `_MaskPartial(...)` | `placement_types` | Partial with masking | Sparse/masked operations |
+
+### When to Consider Specialized Placements
+
+**`_NormPartial(p)`** - For distance/norm operations:
+- When sharding the **reduction dimension** (e.g., feature dim in cdist)
+- Each rank computes a partial p-norm: `(sum of local |x|^p)^(1/p)`
+- `_NormPartial(p)` knows to: square -> sum across ranks -> take p-th root
+- Example: `cdist` with `S(feature_dim), S(feature_dim) -> _NormPartial(2)`
+
+```python
+from torch.distributed.tensor._ops._math_ops import _NormPartial
+
+# For cdist sharding on feature dimension:
+# S(-1), S(-1) -> _NormPartial(2)
+single_dim_strategies.append([
+    _NormPartial(2),           # output: partial 2-norm
+    _ShardingPlaceholder(-1),  # x1 sharded on features
+    _ShardingPlaceholder(-1),  # x2 sharded on features
+])
+```
+
+**`_MaskPartial`** - For masked/sparse operations:
+- When dealing with operations that have masking semantics
+- Less commonly needed
+
+### Discovery Process for Specialized Placements
+
+When analyzing an operator, ask:
+1. Does this op compute a **norm or distance**? → Consider `_NormPartial`
+2. Does this op have **reduction semantics** along a dimension? → Consider if specialized Partial applies
+3. Is there a dimension that **aggregates** values in a non-standard way? → Look for specialized types
+
+---
+
 ## Files Reference
 
 | File | What Claude reads it for |
