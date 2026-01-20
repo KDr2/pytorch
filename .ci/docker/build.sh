@@ -229,6 +229,7 @@ case "$tag" in
     GCC_VERSION=13
     VISION=yes
     XPU_VERSION=2025.3
+    XPU_DRIVER_TYPE=LTS
     NINJA_VERSION=1.9.0
     TRITON=yes
     if [[ $tag =~ "benchmarks" ]]; then
@@ -421,6 +422,7 @@ docker buildx build \
        --build-arg "PALLAS=${PALLAS}" \
        --build-arg "TPU=${TPU}" \
        --build-arg "XPU_VERSION=${XPU_VERSION}" \
+       --build-arg "XPU_DRIVER_TYPE=${XPU_DRIVER_TYPE}" \
        --build-arg "UNINSTALL_DILL=${UNINSTALL_DILL}" \
        --build-arg "ACL=${ACL:-}" \
        --build-arg "OPENBLAS=${OPENBLAS:-}" \
