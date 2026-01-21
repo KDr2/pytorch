@@ -7149,6 +7149,54 @@ class TestMPS(TestCaseMPS):
         with self.assertRaisesRegex(RuntimeError, "Index to scalar can have only 1 value"):
             helper(22, 0, [])
 
+    def test_take(self):
+        def helper(shape, num_indices):
+            cpu_x = torch.randn(shape, device='cpu', dtype=torch.float)
+            x = cpu_x.detach().clone().to('mps')
+
+            # Generate random valid indices
+            numel = cpu_x.numel()
+            cpu_idx = torch.randint(0, numel, (num_indices,), device='cpu', dtype=torch.long)
+            idx = cpu_idx.detach().clone().to('mps')
+
+            # Test take
+            result_mps = torch.take(x, idx)
+            result_cpu = torch.take(cpu_x, cpu_idx)
+
+            self.assertEqual(result_mps, result_cpu)
+
+            # Test take with out parameter
+            out_mps = torch.empty(num_indices, device='mps')
+            out_cpu = torch.empty(num_indices, device='cpu')
+
+            torch.take(x, idx, out=out_mps)
+            torch.take(cpu_x, cpu_idx, out=out_cpu)
+
+            self.assertEqual(out_mps, out_cpu)
+
+        # Test various shapes and index sizes
+        helper((10,), 5)
+        helper((5, 6), 10)
+        helper((3, 4, 5), 20)
+        helper((2, 3, 4, 5), 15)
+
+        # Test empty index
+        cpu_x = torch.randn((5, 6), device='cpu')
+        x = cpu_x.to('mps')
+        cpu_idx = torch.tensor([], device='cpu', dtype=torch.long)
+        idx = cpu_idx.to('mps')
+
+        result_mps = torch.take(x, idx)
+        result_cpu = torch.take(cpu_x, cpu_idx)
+        self.assertEqual(result_mps.shape, result_cpu.shape)
+
+        # Test int32 indices
+        cpu_idx_int = torch.randint(0, 30, (8,), device='cpu', dtype=torch.int32)
+        idx_int = cpu_idx_int.to('mps')
+        result_mps = torch.take(x, idx_int)
+        result_cpu = torch.take(cpu_x, cpu_idx_int)
+        self.assertEqual(result_mps, result_cpu)
+
     def test_embedding_dense_backward(self):
         def helper(n, d, m, idx):
             embeddingMPS = nn.Embedding(n, d, max_norm=True, device='mps')
