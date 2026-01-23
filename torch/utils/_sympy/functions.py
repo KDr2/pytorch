@@ -1348,6 +1348,26 @@ class Identity(sympy.Function):
     def _eval_is_integer(self):
         return self.args[0].is_integer  # type: ignore[attr-defined]
 
+    @property
+    def is_number(self):
+        # Treat Identity as numeric only when the argument is comparable.
+        # This avoids creating numeric non-comparable Identity(I) terms.
+        # pyrefly: ignore [missing-attribute]
+        return bool(self.args[0].is_number and self.args[0].is_comparable)
+
+    @property
+    def is_comparable(self):
+        # Delegate comparability to the wrapped argument.
+        # pyrefly: ignore [missing-attribute]
+        return bool(self.args[0].is_comparable)
+
+    @classmethod
+    def eval(cls, arg):
+        # Simplify Identity(Number) -> Number when it is comparable
+        if isinstance(arg, sympy.Number) and arg.is_comparable:
+            return arg
+        return None
+
     def _eval_expand_identity(self, **hints):
         # Removes the identity op.
         # pyrefly: ignore [missing-attribute]
