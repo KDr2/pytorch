@@ -5550,6 +5550,38 @@ not ___dict_contains('cccccccc', G['sys'].modules)""",
         opt_fn(x, Foo.BAR)
         self.assertEqual(cnts.op_count, 1)
 
+    def test_enum_membership_check(self):
+        class Reduction(enum.Enum):
+            SUM = "sum"
+            MAX = "max"
+            MIN = "min"
+
+        def fn_enum_in(x, reduction):
+            if reduction in Reduction:
+                x = torch.add(x, 1.0)
+            return x
+
+        def fn_enum_not_in(x, reduction):
+            if reduction not in Reduction:
+                raise ValueError("Unknown reduction")
+            x = torch.mul(x, 2.0)
+            return x
+
+        x = torch.randn(4)
+        reduction = Reduction.SUM
+
+        # Test `in` operator
+        opt_fn = torch.compile(fn_enum_in, backend="eager", fullgraph=True)
+        ref = fn_enum_in(x, reduction)
+        res = opt_fn(x, reduction)
+        self.assertEqual(ref, res)
+
+        # Test `not in` operator
+        opt_fn = torch.compile(fn_enum_not_in, backend="eager", fullgraph=True)
+        ref = fn_enum_not_in(x, reduction)
+        res = opt_fn(x, reduction)
+        self.assertEqual(ref, res)
+
     def test_repeat_interleave_graphbreaks(self):
         def fn_no_breaks(x):
             # no breaks on self_int

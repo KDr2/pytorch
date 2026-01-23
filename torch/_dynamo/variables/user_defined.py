@@ -440,6 +440,25 @@ class UserDefinedClassVariable(UserDefinedVariable):
             return variables.ConstantVariable(self.value == args[0].value)
         elif name == "__ne__" and len(args) == 1 and hasattr(args[0], "value"):
             return variables.ConstantVariable(self.value != args[0].value)
+        elif (
+            name == "__contains__"
+            and len(args) == 1
+            and not kwargs
+            and issubclass(self.value, enum.Enum)
+        ):
+            # Handle Enum membership check: `x in SomeEnum`
+            arg = args[0]
+            if isinstance(arg, variables.EnumVariable):
+                # Check if the enum value is a member of this enum class
+                return variables.ConstantVariable.create(arg.value in self.value)
+            elif arg.is_python_constant():
+                # Check if a constant value is in the enum
+                return variables.ConstantVariable.create(
+                    arg.as_python_constant() in self.value
+                )
+            else:
+                # Fall through to super() which will raise Unsupported
+                pass
         elif issubclass(self.value, dict) and name != "__new__":
             # __new__ is handled below
             return variables.BuiltinVariable(dict).call_method(tx, name, args, kwargs)
