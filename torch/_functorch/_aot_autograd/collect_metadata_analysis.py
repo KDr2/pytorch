@@ -171,7 +171,7 @@ def run_functionalized_fw_and_collect_metadata(
 ) -> Callable[..., ViewAndMutationMeta]:
     memo: dict[Tensor, Tensor] = {}
 
-    def _to_fun(t):
+    def _to_fun(t: object) -> object:
         if isinstance(t, Tensor):
             if t in memo:
                 return memo[t]

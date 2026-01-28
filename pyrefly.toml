@@ -149,3 +149,81 @@ matches = "torch/_functorch/compilers.py"
 [sub-config.errors]
 implicit-import = false
 implicit-any = true
+
+[[sub-config]]
+matches = "torch/_functorch/_activation_checkpointing/remat_using_tags_for_fwd_loss_bwd_graph_pass.py"
+[sub-config.errors]
+implicit-import = false
+implicit-any = true
+
+[[sub-config]]
+matches = "torch/_functorch/_aot_autograd/logging_utils.py"
+[sub-config.errors]
+implicit-import = false
+implicit-any = true
+
+[[sub-config]]
+matches = "torch/_functorch/_aot_autograd/input_output_analysis.py"
+[sub-config.errors]
+implicit-import = false
+implicit-any = true
+
+[[sub-config]]
+matches = "torch/_functorch/_aot_autograd/functional_utils.py"
+[sub-config.errors]
+implicit-import = false
+implicit-any = true
+
+[[sub-config]]
+matches = "torch/_functorch/_aot_autograd/graph_capture.py"
+[sub-config.errors]
+implicit-import = false
+implicit-any = true
+
+[[sub-config]]
+matches = "torch/_functorch/_aot_autograd/utils.py"
+[sub-config.errors]
+implicit-import = false
+implicit-any = true
+
+[[sub-config]]
+matches = "torch/_functorch/_aot_autograd/subclass_utils.py"
+[sub-config.errors]
+implicit-import = false
+implicit-any = true
+
+[[sub-config]]
+matches = "torch/_functorch/_aot_autograd/aot_autograd_result.py"
+[sub-config.errors]
+implicit-import = false
+implicit-any = true
+
+[[sub-config]]
+matches = "torch/_functorch/_aot_autograd/autograd_cache.py"
+[sub-config.errors]
+implicit-import = false
+implicit-any = true
+
+[[sub-config]]
+matches = "torch/_functorch/_aot_autograd/graph_capture_wrappers.py"
+[sub-config.errors]
+implicit-import = false
+implicit-any = true
+
+[[sub-config]]
+matches = "torch/_functorch/_aot_autograd/graph_compile.py"
+[sub-config.errors]
+implicit-import = false
+implicit-any = true
+
+[[sub-config]]
+matches = "torch/_functorch/eager_transforms.py"
+[sub-config.errors]
+implicit-import = false
+implicit-any = true
+
+[[sub-config]]
+matches = "torch/_functorch/_aot_autograd/runtime_wrappers.py"
+[sub-config.errors]
+implicit-import = false
+implicit-any = true
