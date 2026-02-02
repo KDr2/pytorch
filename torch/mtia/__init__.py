@@ -108,6 +108,15 @@ def _lazy_init() -> None:
                 "your target dependency!"
             )
 
+        # Install the C++ resource manager to enable Buck resource lookup from Python.
+        # This must be called before _mtia_init() which may access Buck resources.
+        try:
+            from libfb.py.cxx_resources import cxx_resource_manager
+
+            cxx_resource_manager.install()
+        except ImportError:
+            pass  # Not available in OSS builds
+
         torch._C._mtia_init()
         # Some of the queued calls may reentrantly call _lazy_init();
         # we need to just return without initializing in that case.
