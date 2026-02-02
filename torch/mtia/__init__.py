@@ -10,7 +10,7 @@ from typing import Any
 
 import torch
 from torch import Tensor
-from torch._utils import _LazySeedTracker
+from torch._utils import _dummy_type, _LazySeedTracker
 from torch.types import Device
 
 from ._utils import _get_device_index
@@ -32,6 +32,11 @@ _tls = threading.local()
 _initialization_lock = threading.Lock()
 _lazy_seed_tracker = _LazySeedTracker()
 
+# Define dummy _MtiaDeviceProperties type if PyTorch was compiled without CUDA
+if hasattr(torch._C, "_MtiaDeviceProperties"):
+    _MtiaDeviceProperties = torch._C._MtiaDeviceProperties
+else:
+    _MtiaDeviceProperties = _dummy_type("_MtiaDeviceProperties")  # type: ignore[assignment, misc]
 
 if hasattr(torch._C, "_mtia_exchangeDevice"):
     _exchange_device = torch._C._mtia_exchangeDevice
@@ -268,13 +273,18 @@ def set_device(device: Device) -> None:
         torch._C._accelerator_hooks_set_current_device(device)
 
 
-def get_device_properties(device: Device = None) -> dict[str, Any]:
-    r"""Return a dictionary of MTIA device properties
+# pyrefly: ignore [not-a-type]
+def get_device_properties(device: Device = None) -> _MtiaDeviceProperties:
+    r"""Get the properties of a device.
 
     Args:
-        device (torch.device or int, optional) selected device. Returns
-            statistics for the current device, given by current_device(),
-            if device is None (default).
+        device (torch.device or int or str, optional): device for which to return the
+            properties of the device.  It uses the current device, given by
+            :func:`~torch.mtia.current_device`, if :attr:`device` is ``None``
+            (default).
+
+    Returns:
+        _MtiaDeviceProperties: the properties of the device
     """
     return torch._C._mtia_getDeviceProperties(_get_device_index(device, optional=True))
 
