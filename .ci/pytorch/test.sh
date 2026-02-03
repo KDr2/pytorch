@@ -1819,13 +1819,20 @@ test_operator_microbenchmark() {
 
   cd "${TEST_DIR}"/benchmarks/operator_benchmark
 
-  # NOTE: When adding a new test here, please update README: ../../benchmarks/operator_benchmark/README.md
-  for OP_BENCHMARK_TESTS in matmul mm addmm bmm conv optimizer activation norm scaled_mm scaled_grouped_mm; do
-    $TASKSET python -m pt.${OP_BENCHMARK_TESTS}_test --tag-filter long \
-      --output-json-for-dashboard "${TEST_REPORTS_DIR}/operator_microbenchmark_${OP_BENCHMARK_TESTS}_compile.json" \
+  # Use OP_BENCHMARK_TESTS from environment if set (for sharded CI runs),
+  # otherwise run all tests (for local runs or unsharded CI)
+  if [[ -n "${OP_BENCHMARK_TESTS:-}" ]]; then
+    TESTS_TO_RUN="${OP_BENCHMARK_TESTS}"
+  else
+    TESTS_TO_RUN="matmul mm addmm bmm conv optimizer activation norm scaled_mm scaled_grouped_mm"
+  fi
+
+  for test_module in ${TESTS_TO_RUN}; do
+    $TASKSET python -m pt.${test_module}_test --tag-filter long \
+      --output-json-for-dashboard "${TEST_REPORTS_DIR}/operator_microbenchmark_${test_module}_compile.json" \
       --benchmark-name "PyTorch operator microbenchmark" --use-compile
-    $TASKSET python -m pt.${OP_BENCHMARK_TESTS}_test --tag-filter long \
-      --output-json-for-dashboard "${TEST_REPORTS_DIR}/operator_microbenchmark_${OP_BENCHMARK_TESTS}.json" \
+    $TASKSET python -m pt.${test_module}_test --tag-filter long \
+      --output-json-for-dashboard "${TEST_REPORTS_DIR}/operator_microbenchmark_${test_module}.json" \
       --benchmark-name "PyTorch operator microbenchmark"
   done
 }
