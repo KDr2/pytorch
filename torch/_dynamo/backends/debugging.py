@@ -52,9 +52,12 @@ log = logging.getLogger(__name__)
 def eager(
     gm: torch.fx.GraphModule, fake_tensor_inputs: list[torch.Tensor], **kwargs: Any
 ) -> Callable[..., Any]:
+    from torch._dynamo.aot_compile_types import GraphModuleSerializableCallable
+
     if kwargs:
         log.warning("eager backend ignoring extra kwargs %s", kwargs)
-    return gm.forward
+
+    return GraphModuleSerializableCallable(gm)
 
 
 def make_eager_backend_with_torch_function_mode(
