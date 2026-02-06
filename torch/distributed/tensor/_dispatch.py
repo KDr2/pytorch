@@ -24,6 +24,7 @@ from torch.distributed.tensor._op_schema import (
     OutputSharding,
     OutputSpecType,
 )
+from torch._prims.rng_prims import run_with_rng_start_end_state
 from torch.distributed.tensor._random import is_rng_supported_mesh
 from torch.distributed.tensor._redistribute import redistribute_local_tensor
 from torch.distributed.tensor._sharding_prop import ShardingPropagator
@@ -304,17 +305,28 @@ class OpDispatcher:
                 assert maybe_user_generator is None or isinstance(
                     maybe_user_generator, torch.Generator
                 )
-                # maybe_user_generator = None
-                rng_context = (
-                    random._rng_tracker._distribute_region(
-                        first_arg._spec, generator=maybe_user_generator
+
+                if (
+                    random._rng_tracker
+                    and not first_local_arg.is_meta
+                    and random._rng_tracker.distribute_region_enabled
+                ):
+                    # Compute start/end states (from user generator if provided, else device)
+                    start_state, end_state = (
+                        random._rng_tracker._compute_start_end_rng_states(
+                            first_arg._spec, generator=maybe_user_generator
+                        )
                     )
-                    if random._rng_tracker and not first_local_arg.is_meta
-                    else contextlib.nullcontext()
-                )
-                # For DTensor random operator, run it within a RNGTracker context to
-                # ensure the random number generator is properly distributed.
-                with rng_context:
+                    local_results = run_with_rng_start_end_state(
+                        start_state,
+                        end_state,
+                        op_call,
+                        *local_tensor_args,
+                        **op_info.local_kwargs,
+                        generator=maybe_user_generator,
+                    )
+                else:
+                    # No rng_tracker, meta tensor, or distribute_region disabled
                     local_results = op_call(*local_tensor_args, **op_info.local_kwargs)
             else:
                 # normal case, run local sharded op computation

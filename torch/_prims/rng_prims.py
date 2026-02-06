@@ -394,5 +394,122 @@ def register_graphsafe_run_with_rng_state_op():
 graphsafe_run_with_rng_state = register_graphsafe_run_with_rng_state_op()
 
 
+def register_run_with_rng_start_end_state_op():
+    """
+    Register a higher-order operator that runs an op with a specific start RNG state,
+    then sets a specific end RNG state after execution. This is used for distributed
+    random operations where each rank needs to:
+    1. Start with a shard-specific RNG offset
+    2. End with a synchronized RNG offset across all ranks
+
+    If a generator is provided via kwargs, its state will be updated to end_rng_state
+    instead of the device RNG state.
+    """
+
+    class RunWithRngStartEndState(HigherOrderOperator):
+        def __init__(self):
+            super().__init__("run_with_rng_start_end_state", cacheable=True)
+
+        def __call__(self, start_rng_state, end_rng_state, op, *args, **kwargs):
+            # pyrefly: ignore [missing-attribute]
+            return super().__call__(
+                start_rng_state, end_rng_state, op, *args, **kwargs
+            )
+
+    run_with_rng_start_end_state = RunWithRngStartEndState()
+
+    run_with_rng_start_end_state.py_impl(DispatchKey.Autograd)(
+        autograd_not_implemented(run_with_rng_start_end_state, deferred_error=True)
+    )
+
+    @run_with_rng_start_end_state.py_impl(DispatchKey.CUDA)
+    def impl_cuda(start_rng_state, end_rng_state, op, *args, **kwargs):
+        # Extract generator from kwargs (not passed to the op)
+        generator = kwargs.pop("generator", None)
+
+        # Fork RNG to isolate the random op execution
+        with torch.random.fork_rng(
+            devices=[torch.cuda.current_device()], device_type="cuda"
+        ):
+            # Set the start state (shard-specific offset)
+            torch.cuda.set_rng_state(start_rng_state.cpu())
+            # Execute the random op
+            out = op(*args, **kwargs)
+
+        # Set the end state - either on user generator or device (mutually exclusive)
+        if generator is not None:
+            generator.set_state(end_rng_state.cpu())
+        else:
+            torch.cuda.set_rng_state(end_rng_state.cpu())
+        return out
+
+    @run_with_rng_start_end_state.py_impl(DispatchKey.BackendSelect)
+    def impl_backend_select(start_rng_state, end_rng_state, op, *args, **kwargs):
+        device = get_device(args, kwargs)
+        if device != "cuda":
+            raise RuntimeError(
+                f"run_with_rng_start_end_state only supports CUDA device, got {device}. "
+                f"This operator is designed for distributed random operations on CUDA."
+            )
+        return impl_cuda(start_rng_state, end_rng_state, op, *args, **kwargs)
+
+    @run_with_rng_start_end_state.py_impl(FakeTensorMode)
+    def impl_fake_tensor_mode(
+        mode, start_rng_state, end_rng_state, op, *args, **kwargs
+    ):
+        # Remove generator from kwargs before calling op
+        kwargs.pop("generator", None)
+        # Skip RNG state manipulation for fake tensors - just run the op
+        with mode:
+            return op(*args, **kwargs)
+
+    @run_with_rng_start_end_state.py_impl(ProxyTorchDispatchMode)
+    def impl_proxy_dispatch_mode(
+        mode, start_rng_state, end_rng_state, op, *args, **kwargs
+    ):
+        with disable_proxy_modes_tracing():
+            out = run_with_rng_start_end_state(
+                start_rng_state, end_rng_state, op, *args, **kwargs
+            )
+        proxy_args = pytree.tree_map(
+            mode.tracer.unwrap_proxy, (start_rng_state, end_rng_state, op, *args)
+        )
+        # Generator is not a tensor, keep it in kwargs as-is
+        proxy_kwargs = {
+            k: (mode.tracer.unwrap_proxy(v) if k != "generator" else v)
+            for k, v in kwargs.items()
+        }
+        out_proxy = mode.tracer.create_proxy(
+            "call_function", run_with_rng_start_end_state, proxy_args, proxy_kwargs
+        )
+        return track_tensor_tree(out, out_proxy, constant=None, tracer=mode.tracer)
+
+    @run_with_rng_start_end_state.py_functionalize_impl
+    def impl_functional(ctx, start_rng_state, end_rng_state, op, *args, **kwargs):
+        unwrapped_start_state = ctx.unwrap_tensors(start_rng_state)
+        unwrapped_end_state = ctx.unwrap_tensors(end_rng_state)
+        unwrapped_args = ctx.unwrap_tensors(args)
+        # Generator is not a tensor, keep it as-is
+        unwrapped_kwargs = {
+            k: (ctx.unwrap_tensors(v) if k != "generator" else v)
+            for k, v in kwargs.items()
+        }
+
+        with ctx.redispatch_to_next():
+            out = run_with_rng_start_end_state(
+                unwrapped_start_state,
+                unwrapped_end_state,
+                op,
+                *unwrapped_args,
+                **unwrapped_kwargs,
+            )
+            return ctx.wrap_tensors(out)
+
+    return run_with_rng_start_end_state
+
+
+run_with_rng_start_end_state = register_run_with_rng_start_end_state_op()
+
+
 def register_rng_prims():
     register_philox_rand()
