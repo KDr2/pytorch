@@ -691,6 +691,157 @@ class DistTensorRandomOpTest(DTensorTestBase):
         philox.seed = philox.seed.clone()
 
 
+class DistTensorRandomOpCompileTest(DTensorTestBase):
+    def _test_compile_random_op(self, fn, device_mesh, create_input=None, num_runs=3):
+        """Run fn eager and compiled num_runs times, assert i-th results match
+        and graph contains run_dtensor_rng_op."""
+        from torch._dynamo.testing import AotEagerAndRecordGraphs
+
+        if create_input is None:
+
+            def create_input():
+                return torch.distributed.tensor.ones(
+                    (8, 8), device_mesh=device_mesh, placements=[Shard(0)]
+                )
+
+        def run(compile):
+            # ensure eager and compile runs start with the same RNG state
+            torch.manual_seed(0)
+            results = []
+            rng_states = [torch.cuda.get_rng_state()]
+            if compile:
+                backend = AotEagerAndRecordGraphs()
+                compiled_fn = torch.compile(fn, backend=backend, fullgraph=True)
+            for _ in range(num_runs):
+                x = create_input()
+                if compile:
+                    result = compiled_fn(x)
+                else:
+                    result = fn(x)
+                results.append(result.to_local().clone())
+                rng_states.append(torch.cuda.get_rng_state())
+            if compile:
+                self.assertIn("run_dtensor_rng_op", backend.fw_graphs[0].code)
+            # verify RNG state advances after each call
+            for i in range(len(rng_states) - 1):
+                self.assertFalse(
+                    torch.equal(rng_states[i], rng_states[i + 1]),
+                    f"RNG state did not change between call {i} and {i + 1}",
+                )
+            return results, rng_states
+
+        eager_results, eager_rng_states = run(compile=False)
+        compiled_results, compiled_rng_states = run(compile=True)
+        for i in range(num_runs):
+            # verify results match between eager and compiled
+            self.assertEqual(eager_results[i], compiled_results[i])
+            # verify RNG state matches between eager and compiled
+            self.assertEqual(
+                eager_rng_states[i + 1],
+                compiled_rng_states[i + 1],
+                f"RNG state mismatch between eager and compiled after call {i}",
+            )
+
+    @with_comms
+    @skip_unless_torch_gpu
+    def test_compile_native_dropout(self):
+        device_mesh = self.build_device_mesh()
+
+        def fn(x):
+            return torch.nn.functional.dropout(x, p=0.5, training=True)
+
+        self._test_compile_random_op(fn, device_mesh)
+
+    @with_comms
+    @skip_unless_torch_gpu
+    def test_compile_normal_(self):
+        device_mesh = self.build_device_mesh()
+
+        def fn(x):
+            return x.normal_()
+
+        self._test_compile_random_op(fn, device_mesh)
+
+    @with_comms
+    @skip_unless_torch_gpu
+    def test_compile_rand_like(self):
+        device_mesh = self.build_device_mesh()
+
+        def fn(x):
+            return torch.rand_like(x)
+
+        self._test_compile_random_op(fn, device_mesh)
+
+    @with_comms
+    @skip_unless_torch_gpu
+    def test_compile_randn_like(self):
+        device_mesh = self.build_device_mesh()
+
+        def fn(x):
+            return torch.randn_like(x)
+
+        self._test_compile_random_op(fn, device_mesh)
+
+    @with_comms
+    @skip_unless_torch_gpu
+    def test_compile_randint_like(self):
+        device_mesh = self.build_device_mesh()
+
+        def fn(x):
+            return torch.randint_like(x, 0, 10)
+
+        self._test_compile_random_op(fn, device_mesh)
+
+    @with_comms
+    @skip_unless_torch_gpu
+    def test_compile_uniform_(self):
+        device_mesh = self.build_device_mesh()
+
+        def fn(x):
+            return x.uniform_(0.0, 1.0)
+
+        self._test_compile_random_op(fn, device_mesh)
+
+    @with_comms
+    @skip_unless_torch_gpu
+    def test_compile_bernoulli(self):
+        device_mesh = self.build_device_mesh()
+
+        def fn(x):
+            return torch.bernoulli(x)
+
+        def create_input():
+            return distribute_tensor(
+                torch.full((8, 8), 0.5, device=self.device_type),
+                device_mesh,
+                [Shard(0)],
+            )
+
+        self._test_compile_random_op(fn, device_mesh, create_input=create_input)
+
+    @with_comms
+    @skip_unless_torch_gpu
+    def test_compile_bernoulli_float(self):
+        device_mesh = self.build_device_mesh()
+
+        def fn(x):
+            return x.bernoulli_(0.5)
+
+        self._test_compile_random_op(fn, device_mesh)
+
+    @with_comms
+    @skip_unless_torch_gpu
+    def test_compile_multiple_random_ops(self):
+        device_mesh = self.build_device_mesh()
+
+        def fn(x):
+            x = x.uniform_(0, 1)
+            x = torch.nn.functional.dropout(x, p=0.5)
+            return x
+
+        self._test_compile_random_op(fn, device_mesh)
+
+
 class DistTensorRandomOpsTest3D(DTensorTestBase):
     @property
     def world_size(self):
