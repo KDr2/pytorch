@@ -19,18 +19,17 @@ from unittest.mock import patch
 
 import torch
 from torch._inductor import config
-from torch._inductor.select_algorithm import (
-    AlgorithmSelectorCache,
-    ExternKernelCaller,
-)
+from torch._inductor.select_algorithm import AlgorithmSelectorCache, ExternKernelCaller
 from torch._inductor.test_case import run_tests, TestCase
 from torch._inductor.utils import clear_caches
 from torch.testing._internal.common_cuda import SM90OrLater
 from torch.testing._internal.inductor_utils import HAS_CUDA_AND_TRITON
 
+
 # Check if CUTLASS is available
 try:
     from torch._inductor.codegen.cutlass.utils import try_import_cutlass
+
     HAS_CUTLASS = try_import_cutlass()
 except ImportError:
     HAS_CUTLASS = False
@@ -130,8 +129,6 @@ class TestCutlassFallback(TestCase):
         This verifies the fix that adds ATen choices to prescreening so they
         can be benchmarked alongside CUTLASS kernels and serve as fallback.
         """
-        from torch._inductor.codegen.cutlass.cuda_kernel import CUDATemplateCaller
-
         prescreening_candidates = []
 
         # Patch prescreen_choices to capture what candidates are included
@@ -152,7 +149,9 @@ class TestCutlassFallback(TestCase):
                 "cuda.cutlass_prescreening": True,
             }
         ):
-            with patch.object(AlgorithmSelectorCache, "prescreen_choices", capturing_prescreen):
+            with patch.object(
+                AlgorithmSelectorCache, "prescreen_choices", capturing_prescreen
+            ):
                 torch._dynamo.reset()
                 clear_caches()
 

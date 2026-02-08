@@ -3872,10 +3872,6 @@ class AlgorithmSelectorCache(PersistentCache):
                 else:
                     timing = cls.benchmark_choice(choice, autotune_args)
             except CUDACompileError:
-                from torch._inductor.codegen.cutlass.cuda_kernel import (
-                    CUDATemplateCaller,
-                )
-
                 if not isinstance(choice, CUDATemplateCaller):
                     log.exception(
                         "CUDA compilation error during autotuning: \n%s. \nIgnoring this choice."
@@ -3885,10 +3881,6 @@ class AlgorithmSelectorCache(PersistentCache):
                 log.warning("Not yet implemented", exc_info=True)
                 timing = float("inf")
             except RuntimeError as e:
-                from torch._inductor.codegen.cutlass.cuda_kernel import (
-                    CUDATemplateCaller,
-                )
-
                 msg = str(e)
                 if "invalid argument" in msg:
                     msg += "\n\nThis may mean this GPU is too small for max_autotune mode.\n\n"
