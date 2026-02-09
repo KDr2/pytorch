@@ -46,6 +46,7 @@ from torch._inductor.select_algorithm import (
     clear_feedback_savers,
     clear_preprocessing_fns,
     ExternKernelCaller,
+    NoValidChoicesError,
     TritonTemplate,
     TritonTemplateCaller,
 )
@@ -4190,6 +4191,11 @@ class TestEpilogueFusionStaticAnalysis(TestCase):
         finally:
             mm_heuristic.mm_configs = original_mm_configs
 
+def mm_func(a, b, epilogue):
+    if epilogue:
+        return torch.mm(a, b) + 1.0
+    else:
+        return torch.mm(a, b)
 
 class TestMaxAutotuneAsyncPipelined(TestMaxAutotune, TestEpilogueFusionStaticAnalysis):
     """Tests for AsyncPipelinedAutotuning path."""
@@ -4221,6 +4227,7 @@ class TestMaxAutotuneAsyncPipelined(TestMaxAutotune, TestEpilogueFusionStaticAna
                 "pipeline_max_autotune_gemm": True,
                 "benchmark_epilogue_fusion": False,
                 "test_configs.max_mm_configs": 1,
+                "max_autotune_gemm": True,
             }
         )
         cls._async_config.__enter__()
@@ -4243,7 +4250,6 @@ class TestMaxAutotuneAsyncPipelined(TestMaxAutotune, TestEpilogueFusionStaticAna
         # Clear the AsyncAutotuner cache to prevent test pollution
         AsyncAutotuner.choice_hash_to_future.clear()
 
-    @config.patch(max_autotune=True)
     def test_async_autotuner_cache_same_inputs(self):
         M, K, N = 128, 64, 256
         M2, K2, N2 = 256, 128, 64
@@ -4276,6 +4282,55 @@ class TestMaxAutotuneAsyncPipelined(TestMaxAutotune, TestEpilogueFusionStaticAna
         self.assertEqual(
             cache_size, 4, "Cache should have 2 entries (one per unique input shape)"
         )
+
+    def test_triton_error_autotuning(self):
+        """
+        Test error handling when benchmark() throws an error in the subprocess
+        for the Triton choice. The fallback to aten should still work.
+        """
+        original_start = AsyncAutotuner.start
+
+        bmreq = _TestBenchmarkRequest(
+            exc=RuntimeError("Simulated benchmark failure in subprocess")
+        )
+        bmreq.module_cache_key = ""
+        def mock_start(choices, inputs_key):
+            for choice in choices:
+                if isinstance(choice, TritonTemplateCaller):
+                    choice.bmreq = bmreq
+            return original_start(choices, inputs_key)
+
+        a = torch.randn(64, 32, device=GPU_TYPE, dtype=torch.bfloat16)
+        b = torch.randn(32, 64, device=GPU_TYPE, dtype=torch.bfloat16)
+
+        with mock.patch.object(AsyncAutotuner, "start", mock_start):
+            for epilogue in (True, False):
+                torch._dynamo.reset()
+                compiled_fn = torch.compile(mm_func)
+                result = compiled_fn(a, b, epilogue)
+                expected = mm_func(a, b, epilogue)
+                torch.testing.assert_close(result, expected, atol=1e-2, rtol=1e-2)
+
+    def test_triton_error_precompilation(self, epilogue: bool):
+        """
+        Test error handling when do_autotuning throws NoValidChoicesError
+        for Triton choices. The fallback to extern kernels should still work.
+        """
+        def mock_do_autotuning(*args, **kwargs):
+            raise NoValidChoicesError("Simulated: all Triton choices failed")
+
+        a = torch.randn(64, 32, device=GPU_TYPE, dtype=torch.bfloat16)
+        b = torch.randn(32, 64, device=GPU_TYPE, dtype=torch.bfloat16)
+
+        with mock.patch.object(
+            AlgorithmSelectorCache, "do_autotuning", mock_do_autotuning
+        ):
+            for epilogue in (True, False):
+                torch._dynamo.reset()
+                compiled_fn = torch.compile(mm_func)
+                result = compiled_fn(a, b)
+                expected = mm_func(a, b, epilogue)
+                torch.testing.assert_close(result, expected, atol=1e-2, rtol=1e-2)
 
 
 if __name__ == "__main__":

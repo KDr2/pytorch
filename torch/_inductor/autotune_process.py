@@ -1207,10 +1207,11 @@ def run_autotune_in_subprocess(
 
         return timing
 
-    except Exception:
+    except Exception as e:
         autotuning_log.error(
-            "Failed to benchmark choice %s",
+            "Failed to benchmark choice %s due to %s",
             benchmark_request,
+            e,
         )
         # Use infinity for failed benchmarks so they're not selected
         return float("inf")
