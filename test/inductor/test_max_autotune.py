@@ -4191,6 +4191,10 @@ class TestEpilogueFusionStaticAnalysis(TestCase):
             mm_heuristic.mm_configs = original_mm_configs
 
 
+def simple_fn():
+    return 42
+
+
 class TestMaxAutotuneAsyncPipelined(TestMaxAutotune, TestEpilogueFusionStaticAnalysis):
     """Tests for AsyncPipelinedAutotuning path."""
 
@@ -4276,6 +4280,39 @@ class TestMaxAutotuneAsyncPipelined(TestMaxAutotune, TestEpilogueFusionStaticAna
         self.assertEqual(
             cache_size, 4, "Cache should have 2 entries (one per unique input shape)"
         )
+
+    def test_autotune_process_pool_inactivity_shutdown(self):
+        import time
+
+        AutotuneProcessPool.shutdown_instance()
+
+        short_timeout = 1
+        torch._inductor.autotune_process.AUTOTUNE_POOL_INACTIVITY_TIMEOUT = (
+            short_timeout
+        )
+
+        pool_instance = AutotuneProcessPool.get_instance()
+        pool_instance.warm_up()
+
+        future = pool_instance.submit(simple_fn)
+        result = future.result()
+        self.assertEqual(result, 42)
+
+        # Pool should still be alive right after job completes
+        self.assertIsNotNone(pool_instance._pool)
+
+        # Wait for timer to trigger (sleep_time is duration/2, so wait a bit longer)
+        time.sleep(short_timeout + 1)
+
+        # Pool should have been shut down due to inactivity
+        self.assertIsNone(pool_instance._pool)
+        self.assertIsNone(pool_instance._timer)
+
+        with self.assertRaises(AssertionError):
+            # Pool cannot be reused after shutdown
+            pool_instance.submit(simple_fn)
+
+        self.assertFalse(config.pipeline_max_autotune_gemm)
 
 
 if __name__ == "__main__":

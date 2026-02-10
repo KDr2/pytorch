@@ -33,6 +33,7 @@ from torch._inductor.codecache import (
     get_hash,
     PyCodeCache,
 )
+from torch._inductor.compile_worker.timer import Timer
 from torch._inductor.utils import (
     do_bench_using_profiling,
     get_gpu_type,
@@ -43,6 +44,12 @@ from torch._inductor.utils import (
 from torch._logging import getArtifactLogger
 from torch.utils._ordered_set import OrderedSet
 
+
+# Inactivity timeout for AutotuneProcessPool in seconds.
+# Default: 600 seconds (10 minutes). Set to 0 to disable.
+AUTOTUNE_POOL_INACTIVITY_TIMEOUT = int(
+    os.environ.get("TORCHINDUCTOR_AUTOTUNE_POOL_INACTIVITY_TIMEOUT", "600")
+)
 
 if TYPE_CHECKING:
     from types import ModuleType
@@ -1077,6 +1084,7 @@ class AutotuneProcessPool:
         self._pool: ProcessPoolExecutor | None = self._init_pool()
         self._warmup_future: Future[Any] | None = None
         self._warmup_start_time: float | None = None
+        self._timer: Timer | None = self._init_timer()
 
     @classmethod
     def get_instance(cls):
@@ -1091,9 +1099,40 @@ class AutotuneProcessPool:
     @property
     def pool(self):
         """Get the process pool."""
+        assert config.pipeline_max_autotune_gemm, (
+            "To use AutotuneProcessPool, pipeline_max_autotune_gemm must be enabled"
+        )
         if self._pool is None:
             self._pool = self._init_pool()
+            self._timer = self._init_timer()
         return self._pool
+
+    def _init_timer(self) -> Timer | None:
+        if AUTOTUNE_POOL_INACTIVITY_TIMEOUT > 0:
+            return Timer(AUTOTUNE_POOL_INACTIVITY_TIMEOUT, self._on_inactivity_timeout)
+        return None
+
+    def _record_activity(self) -> None:
+        if self._timer is not None:
+            self._timer.record_call()
+
+    def _on_inactivity_timeout(self) -> None:
+        autotuning_log.error(
+            "AutotuneProcessPool shutting down due to inactivity (timeout=%ds)",
+            AUTOTUNE_POOL_INACTIVITY_TIMEOUT,
+        )
+
+        with self._lock:
+            if self._pool is not None:
+                self._pool.shutdown(wait=False)
+                self._pool = None
+            self._timer = None
+
+            # No more pipeline max autotune after pool is shut down
+            # can autotune on main process. This is to avoid pool
+            # startup costs on recompiles which likely do not require
+            # large amounts of autotuning
+            config.pipeline_max_autotune_gemm = False
 
     def _init_pool(self):
         """
@@ -1154,10 +1193,16 @@ class AutotuneProcessPool:
 
     def submit(self, fn, *args, **kwargs) -> Future[Any]:
         """Submit a job to the pool and return a Future."""
-        return self.pool.submit(fn, *args, **kwargs)
+        future = self.pool.submit(fn, *args, **kwargs)
+        if self._timer is not None:
+            future.add_done_callback(lambda _: self._record_activity())
+        return future
 
     def _shutdown(self):
         """Shutdown the pool on exit."""
+        if self._timer is not None:
+            self._timer.quit()
+            self._timer = None
         if self._pool is not None:
             self._pool.shutdown(wait=False)
             self._pool = None
