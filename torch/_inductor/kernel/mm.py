@@ -20,6 +20,7 @@ from torch.nn.functional import ScalingType  # type: ignore[attr-defined]
 from torch.torch_version import TorchVersion
 
 from .. import config as inductor_config, distributed_autotune
+from ..codegen.cuda.cuda_env import is_datacenter_blackwell_arch
 from ..codegen.cutlass.gemm_template import CUTLASS2xGemmTemplate, CUTLASS3xGemmTemplate
 from ..codegen.rocm.ck_tile_universal_gemm_template import CKTileGemmTemplate
 from ..codegen.rocm.ck_universal_gemm_template import CKGemmTemplate
@@ -419,7 +420,10 @@ def tuned_mm(mat1, mat2, out_dtype=None, *, layout=None):
         if is_exhaustive or not use_decompose_k_choice(m, n, k, threshold_multiple=2):
             templates_to_use.append(mm_template)
 
-            if use_triton_tma_template(mat1, mat2, output_layout=layout):
+            if (
+                use_triton_tma_template(mat1, mat2, output_layout=layout)
+                and not is_datacenter_blackwell_arch()
+            ):
                 templates_to_use.append(persistent_tma_mm_template)
 
             if use_triton_blackwell_tma_template(mat1, mat2, output_layout=layout):
@@ -665,7 +669,10 @@ def tuned_addmm(inp, mat1, mat2, *, alpha=1, beta=1, layout=None):
     if is_nonzero and use_triton_template(layout, check_max_autotune=False):
         templates_to_use.append(mm_template)
 
-        if use_triton_tma_template(mat1, mat2, output_layout=layout):
+        if (
+            use_triton_tma_template(mat1, mat2, output_layout=layout)
+            and not is_datacenter_blackwell_arch()
+        ):
             templates_to_use.append(persistent_tma_mm_template)
 
         if use_triton_blackwell_tma_template(mat1, mat2, output_layout=layout):
