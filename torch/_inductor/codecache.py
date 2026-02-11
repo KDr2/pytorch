@@ -929,6 +929,23 @@ class FxGraphHashDetails:
             config.custom_partitioner_fn
         )
 
+        # Include hint overrides in the cache key so that changes to
+        # user-provided size hints (e.g. autotune_batch_hint in vLLM)
+        # correctly invalidate the cache.  Without this, two compilations
+        # that differ only in hint values would produce the same cache key
+        # because _reduce_symint only hashes the symbol *name* (e.g. "s0"),
+        # not the hint value.
+        self.var_to_hint_override: dict[str, int] = {}
+        shape_env = FxGraphCache._get_shape_env()
+        if shape_env is not None and shape_env.var_to_hint_override:
+            # Convert sympy.Symbol keys to strings for stable pickling/hashing
+            self.var_to_hint_override = {
+                str(sym): val
+                for sym, val in sorted(
+                    shape_env.var_to_hint_override.items(), key=lambda x: str(x[0])
+                )
+            }
+
     # This is mainly added to handle these two inductor configs, which are (unfortunately)
     # sometimes cache safe:
     # - _pre_fusion_custom_pass
