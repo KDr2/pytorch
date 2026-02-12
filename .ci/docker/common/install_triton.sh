@@ -10,6 +10,7 @@ fi
 
 source "$(dirname "${BASH_SOURCE[0]}")/common_utils.sh"
 
+
 get_pip_version() {
   conda_run pip list | grep -w $* | head -n 1 | awk '{print $2}'
 }
