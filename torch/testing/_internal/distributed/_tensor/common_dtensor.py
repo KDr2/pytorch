@@ -383,7 +383,7 @@ class DTensorContinuousTestBase(MultiProcContinuousTest):
         else:
             # We skipped set_device_index because world_size > device_count().
             # The test must then run on CPU (device_type() returns "cpu" in that case).
-            assert cls.device_type() == "cpu", (
+            assert cls.device_type() == "cpu", (  # noqa: S101
                 f"world_size={world_size} > device_count()={torch.accelerator.device_count()}, "
                 "so set_device_index was skipped; device_type() must be 'cpu'."
             )
