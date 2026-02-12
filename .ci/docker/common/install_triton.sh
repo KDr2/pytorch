@@ -8,6 +8,7 @@ if [ -z "${TRITON}" ] && [ -z "${TRITON_CPU}" ]; then
   exit 0
 fi
 
+
 source "$(dirname "${BASH_SOURCE[0]}")/common_utils.sh"
 
 get_pip_version() {
