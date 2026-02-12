@@ -370,15 +370,23 @@ class DTensorContinuousTestBase(MultiProcContinuousTest):
 
     @classmethod
     def backend_str(cls) -> str:
-        backend = dist.get_default_backend_for_device(DEVICE_TYPE)
-        return backend
+        return dist.get_default_backend_for_device(cls.device_type())
 
     @classmethod
     def _init_pg(cls, rank, world_size, rdvz_file):
         # Set device before initializing process group to ensure
-        # each rank is bound to the correct GPU
-        if torch.accelerator.is_available():
+        # each rank is bound to the correct GPU. Only set when we have enough
+        # physical devices for all ranks; otherwise setting a non-existent
+        # device index can hang (e.g. world_size=4 with only 2 GPUs).
+        if torch.accelerator.is_available() and rank < torch.accelerator.device_count():
             torch.accelerator.set_device_index(rank)
+        else:
+            # We skipped set_device_index because world_size > device_count().
+            # The test must then run on CPU (device_type() returns "cpu" in that case).
+            assert cls.device_type() == "cpu", (
+                f"world_size={world_size} > device_count()={torch.accelerator.device_count()}, "
+                "so set_device_index was skipped; device_type() must be 'cpu'."
+            )
         # Call parent's _init_pg to do the actual process group initialization
         super()._init_pg(rank, world_size, rdvz_file)
 
