@@ -300,6 +300,8 @@ def parse_return(annotation, error_fn):
     origin = typing.get_origin(annotation)
     if origin is not tuple:
         if annotation not in SUPPORTED_RETURN_TYPES:
+            if is_opaque_type(annotation):
+                return _OPAQUE_TYPES[annotation].class_name
             error_fn(
                 f"Return has unsupported type {annotation}. "
                 f"The valid types are: {SUPPORTED_RETURN_TYPES}."
@@ -309,12 +311,18 @@ def parse_return(annotation, error_fn):
 
     args = typing.get_args(annotation)
     for arg in args:
-        if arg not in SUPPORTED_RETURN_TYPES:
+        if arg not in SUPPORTED_RETURN_TYPES and not is_opaque_type(arg):
             error_fn(
                 f"Return has unsupported type {annotation}. "
                 f"The valid types are: {SUPPORTED_RETURN_TYPES}."
             )
-    output_ty = ", ".join([SUPPORTED_RETURN_TYPES[arg] for arg in args])
+
+    def _return_type_str(arg):
+        if arg in SUPPORTED_RETURN_TYPES:
+            return SUPPORTED_RETURN_TYPES[arg]
+        return _OPAQUE_TYPES[arg].class_name
+
+    output_ty = ", ".join([_return_type_str(arg) for arg in args])
 
     # use (()) to represent tuple with single element
     if len(args) == 1:
