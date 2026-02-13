@@ -899,6 +899,23 @@ class DistributedTest:
             if group_id is not None:
                 self._test_barrier_timeout(group_id, timeout)
 
+        def test_barrier_timeout_arg(self):
+            """Test that the timeout argument to barrier() is respected.
+
+            This verifies the timeout parameter in dist.barrier() works correctly
+            by passing a custom timeout value that should be sufficient for the
+            barrier to complete successfully.
+            """
+            group = dist.group.WORLD
+            timeout = timedelta(seconds=10)
+
+            # Barrier with explicit timeout should succeed when all ranks participate
+            dist.barrier(group=group, timeout=timeout)
+
+            # Verify with async_op as well
+            work = dist.barrier(group=group, async_op=True, timeout=timeout)
+            work.wait()
+
         @skip_but_pass_in_sandcastle_if(
             BACKEND not in DistTestCases.backend_feature["subgroup"],
             f"The {BACKEND} backend does not support creating subgroups on CUDA devices",
