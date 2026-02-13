@@ -8,6 +8,7 @@ import torch
 from torch._inductor.codegen.rocm.ck_conv_template import CKGroupedConvFwdTemplate
 
 from .. import config, ir
+from ..kernel.mm_common import load_kernel_template
 from ..lowering import (
     add_layout_constraint,
     constrain_to_fx_strides,
@@ -43,6 +44,17 @@ aten = torch.ops.aten
 
 
 @SymbolicGridFn
+def conv1d_grid(n, c, l, meta, *, cdiv):
+    # Use 1D grid for L2 swizzle compatibility
+    # The kernel handles pid_m and pid_n mapping internally via L2 swizzle logic
+    return (
+        cdiv(n * l, meta["BLOCK_M"]) * cdiv(c, meta["BLOCK_N"]),
+        meta["GROUPS"],
+        1,
+    )
+
+
+@SymbolicGridFn
 def conv2d_grid(n, c, h, w, meta, *, cdiv):
     return (
         cdiv(n * h * w, meta["BLOCK_M"]),
@@ -59,6 +71,13 @@ def conv3d_grid(n, c, d, h, w, meta, *, cdiv):
         meta["GROUPS"],
     )
 
+
+conv1d_template = TritonTemplate(
+    name="convolution1d",
+    grid=conv1d_grid,
+    source=load_kernel_template("triton_conv1d"),
+    cache_codegen_enabled_for_template=True,
+)
 
 LOOP_BODY_2D = """
         idx_x_h = i - PADDING_H + idx_y_h * STRIDE_H
@@ -490,13 +509,15 @@ def convolution(
     output_padding = pad_listlike(output_padding, ndim)
 
     def channels_last_conv():
-        if V.graph.layout_opt and ndim == 2:
+        if V.graph.layout_opt and ndim in (1, 2):
             return True
 
         layout = conv_layout(x, weight, None, **kwargs)
         req_stride_order = ir.get_stride_order(
             V.graph.sizevars.size_hints(layout.stride)
         )
+        if ndim == 1:
+            return req_stride_order == ir.NWC_STRIDE_ORDER
         return req_stride_order == ir.NHWC_STRIDE_ORDER
 
     autotuning_gemm = config.max_autotune or config.max_autotune_gemm
@@ -525,14 +546,15 @@ def convolution(
     weight.realize()
 
     # ndim can be 1 for convolution in models such as demucs
-    # TODO: check if it's beneficial to convert Conv1d to Conv2d and then
-    # apply channels last.
-    if V.graph.layout_opt and ndim == 2:
+    # Apply channels-last optimization for both Conv1d and Conv2d
+    if V.graph.layout_opt and ndim in (1, 2):
         V.graph.num_channels_last_conv += 1
-        x = ir.ExternKernel.require_channels_last(x)  # type: ignore[assignment]
-        # TODO maybe we can convert weights to channels last just once before
-        # running the model.
-        weight = ir.ExternKernel.require_channels_last(weight)  # type: ignore[assignment]
+        if ndim == 1:
+            x = ir.ExternKernel.require_channels_last_1d(x)  # type: ignore[assignment]
+            weight = ir.ExternKernel.require_channels_last_1d(weight)  # type: ignore[assignment]
+        else:
+            x = ir.ExternKernel.require_channels_last(x)  # type: ignore[assignment]
+            weight = ir.ExternKernel.require_channels_last(weight)  # type: ignore[assignment]
         layout = conv_layout(x, weight, None, **kwargs)
     else:
         layout = conv_layout(x, weight, None, **kwargs)
@@ -614,6 +636,24 @@ def convolution(
                     #               https://github.com/triton-lang/triton/issues/1254
                     UNROLL=is_ones(kernel_shape),
                     ALLOW_TF32=torch.backends.cudnn.fp32_precision == "tf32",
+                    num_stages=cfg.num_stages,
+                    num_warps=cfg.num_warps,
+                    **cfg.kwargs,
+                )
+            elif ndim == 1:
+                conv1d_template.maybe_append_choice(
+                    choices,
+                    input_nodes=(x, weight),
+                    layout=layout,
+                    KERNEL_L=kernel_shape[0],
+                    STRIDE=stride[0],
+                    PADDING=padding[0],
+                    GROUPS=groups,
+                    # TODO(jansel): try unroll for bigger kernels once fixed:
+                    #               https://github.com/triton-lang/triton/issues/1254
+                    UNROLL=is_ones(kernel_shape),
+                    ALLOW_TF32=torch.backends.cudnn.allow_tf32,
+                    GROUP_M=8,  # L2 cache swizzle group size
                     num_stages=cfg.num_stages,
                     num_warps=cfg.num_warps,
                     **cfg.kwargs,
