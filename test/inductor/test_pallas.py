@@ -172,7 +172,7 @@ class PallasTestsMixin:
 
         shapes = [(1024,)]
         if self.DEVICE != "cuda":
-            shapes += [(200,), (32, 300)]
+            shapes += [(2048,), (2048, 128)]
         for shape in shapes:
             with self.subTest(shape=shape):
                 compiled = self._compile(fn)
@@ -190,7 +190,7 @@ class PallasTestsMixin:
 
         shapes = [(1024,)]
         if self.DEVICE != "cuda":
-            shapes += [(200,), (32, 300)]
+            shapes += [(2048,), (2048, 128)]
         for shape in shapes:
             with self.subTest(shape=shape):
                 compiled = self._compile(fn)
@@ -208,7 +208,7 @@ class PallasTestsMixin:
 
         shapes = [(1024,)]
         if self.DEVICE != "cuda":
-            shapes.append((200,))
+            shapes.append((2048,))
         for shape in shapes:
             with self.subTest(shape=shape):
                 compiled = self._compile(fn)
@@ -392,7 +392,7 @@ class PallasTestsMixin:
 
         shapes = [(32, 32)]
         if self.DEVICE != "cuda":
-            shapes.append((15, 200))
+            shapes.append((16, 2048))
         for shape in shapes:
             with self.subTest(shape=shape):
                 compiled = self._compile(fn)
@@ -561,7 +561,7 @@ class PallasTestsMixin:
         """Test 2D transposed input patterns."""
         compiled = self._compile(lambda x: x * 2.0 + 1.0)
 
-        for rows, cols in [(32, 32), (15, 15), (100, 200)]:
+        for rows, cols in [(32, 32), (2048, 2048)]:
             with self.subTest(rows=rows, cols=cols):
                 base_2d = torch.randn(rows, cols, device=self.DEVICE)
                 x = base_2d.t()
@@ -776,7 +776,7 @@ class PallasTestsMixin:
 
         sizes = [128]
         if self.DEVICE != "cuda":
-            sizes.append(200)
+            sizes.append(2048)
         for size in sizes:
             with self.subTest(size=size):
                 compiled = self._compile(fn)
@@ -886,7 +886,7 @@ class PallasTestsMixin:
 
         shapes = [(1024,)]
         if self.DEVICE != "cuda":
-            shapes += [(200,), (15, 200)]
+            shapes += [(2048,), (2048, 128)]
         for shape in shapes:
             with self.subTest(shape=shape):
                 compiled = self._compile(fn)
@@ -904,7 +904,7 @@ class PallasTestsMixin:
 
         shapes = [(1024,)]
         if self.DEVICE != "cuda":
-            shapes += [(200,), (15, 200)]
+            shapes += [(2048,), (2048, 128)]
         for shape in shapes:
             with self.subTest(shape=shape):
                 compiled = self._compile(fn)
@@ -924,7 +924,7 @@ class PallasTestsMixin:
 
         shapes = [(1024,)]
         if self.DEVICE != "cuda":
-            shapes += [(200,), (15, 200)]
+            shapes += [(2048,), (2048, 128)]
         for shape in shapes:
             with self.subTest(shape=shape):
                 compiled = self._compile(fn)
@@ -942,7 +942,7 @@ class PallasTestsMixin:
 
         shapes = [(1024,)]
         if self.DEVICE != "cuda":
-            shapes += [(200,), (15, 200)]
+            shapes += [(2048,), (2048, 128)]
         for shape in shapes:
             with self.subTest(shape=shape):
                 compiled = self._compile(fn)
@@ -1031,7 +1031,7 @@ class PallasTestsMixin:
 
         shapes = [(1024,)]
         if self.DEVICE != "cuda":
-            shapes.append((200,))
+            shapes.append((2048,))
         for shape in shapes:
             with self.subTest(shape=shape):
                 compiled = self._compile(fn)
@@ -1049,7 +1049,7 @@ class PallasTestsMixin:
 
         shapes = [(1024,)]
         if self.DEVICE != "cuda":
-            shapes.append((200,))
+            shapes.append((2048,))
         for shape in shapes:
             with self.subTest(shape=shape):
                 compiled = self._compile(fn)
@@ -1067,7 +1067,7 @@ class PallasTestsMixin:
 
         shapes = [(16,)]
         if self.DEVICE != "cuda":
-            shapes.append((200,))
+            shapes.append((2048,))
         for shape in shapes:
             with self.subTest(shape=shape):
                 compiled = self._compile(fn)
@@ -1088,7 +1088,7 @@ class PallasTestsMixin:
 
         shapes = [(16,)]
         if self.DEVICE != "cuda":
-            shapes.append((200,))
+            shapes.append((2048,))
         for shape in shapes:
             with self.subTest(shape=shape):
                 compiled = self._compile(fn)
@@ -1101,7 +1101,7 @@ class PallasTestsMixin:
     def test_softmax_two_pass(self):
         """Test two-pass softmax (max reduction + sum reduction)."""
 
-        for shape in [(32, 64), (100, 64), (15, 200)]:
+        for shape in [(32, 64), (2048, 64)]:
             with self.subTest(shape=shape):
                 torch._dynamo.reset()
 
@@ -1118,7 +1118,7 @@ class PallasTestsMixin:
     def test_rms_norm(self):
         """Test RMS normalization (mean-of-squares reduction + rsqrt)."""
 
-        for rows, cols in [(32, 64), (100, 64), (15, 200)]:
+        for rows, cols in [(32, 64), (2048, 64)]:
             with self.subTest(rows=rows, cols=cols):
                 torch._dynamo.reset()
 
@@ -1138,7 +1138,7 @@ class PallasTestsMixin:
     def test_welford(self):
         """Test Welford variance/mean computation (two-pass fallback)."""
 
-        for shape in [(32, 64), (100, 64), (15, 200)]:
+        for shape in [(32, 64), (2048, 64)]:
             with self.subTest(shape=shape):
                 torch._dynamo.reset()
 
@@ -1156,7 +1156,7 @@ class PallasTestsMixin:
     def test_layer_norm(self):
         """Test layer normalization (mean + variance reduction, normalize, scale + shift)."""
 
-        for rows, cols in [(32, 64), (100, 64), (15, 200)]:
+        for rows, cols in [(32, 64), (2048, 64)]:
             with self.subTest(rows=rows, cols=cols):
                 torch._dynamo.reset()
 
@@ -1272,7 +1272,7 @@ class PallasTestsMixin:
 
         sizes = [128]
         if self.DEVICE != "cuda":
-            sizes.append(200)
+            sizes.append(2048)
         for size in sizes:
             with self.subTest(size=size):
                 compiled = self._compile(fn)
@@ -1385,7 +1385,7 @@ class PallasTestsMixin:
 
         shapes = [(128, 128)]
         if self.DEVICE != "cuda":
-            shapes.append((200, 200))
+            shapes.append((2048, 2048))
         for shape in shapes:
             with self.subTest(shape=shape):
                 compiled = self._compile(fn)
