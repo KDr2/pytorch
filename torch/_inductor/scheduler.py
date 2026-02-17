@@ -7028,8 +7028,16 @@ class BaseScheduling:  # noqa: docstring_linter
         In this context, we verify whether node1 represents the Multi-Output Template
         and node2 corresponds to one of its outputs. If so, we further check if
         backend supports this fusion.
+
+        Delegates to ``TemplateBuffer.can_fuse_multi_outputs_template`` which
+        subclasses may override for custom fusion logic.
         """
-        return False
+        template_buf = node1.get_template_node()
+        if not isinstance(template_buf, ir.TemplateBuffer):
+            return False
+        if not template_buf.is_multi_outputs_template():
+            return False
+        return template_buf.can_fuse_multi_outputs_template(node1, node2)
 
     def fuse(
         self, node1: BaseSchedulerNode, node2: BaseSchedulerNode

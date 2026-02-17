@@ -122,6 +122,7 @@ if TYPE_CHECKING:
     from .codegen.cutlass.template import CUTLASSTemplate
     from .codegen.wrapper import PythonWrapperCodegen
     from .graph import GraphLowering
+    from .scheduler import BaseSchedulerNode
     from .utils import IndentedBuffer
 
 else:
@@ -5198,6 +5199,31 @@ class TemplateBuffer(OperationBuffer):
             None,
         )
 
+    def is_multi_outputs_template(self) -> bool:
+        """Whether this template produces multiple outputs via MultiOutputLayout.
+
+        Returns False by default.  Subclasses that use MultiOutputLayout
+        should override to return True.
+        """
+        return False
+
+    def can_fuse_multi_outputs_template(
+        self, node1: BaseSchedulerNode, node2: BaseSchedulerNode
+    ) -> bool:
+        """Whether *node2* can be fused with this multi-output template.
+
+        The default implementation allows fusion with direct ``MultiOutput``
+        extraction nodes.  Override in subclasses to support additional fusion
+        patterns.
+        """
+        if not isinstance(node2.node, MultiOutput):
+            return False
+        if len(node2.node.inputs) != 1:
+            return False
+        inp = node2.node.inputs[0]
+        assert isinstance(inp, IRNode), inp
+        return inp.get_name() == self.name
+
 
 class TritonTemplateBuffer(TemplateBuffer):
     def __init__(
@@ -5480,6 +5506,9 @@ class CppTemplateBuffer(TemplateBuffer):
         self.template = template
         self.choice = choice
         self.outputs: Optional[list[Buffer]] = None
+
+    def is_multi_outputs_template(self) -> bool:
+        return isinstance(self.layout, MultiOutputLayout)
 
     def get_layout(self) -> Layout:
         if isinstance(self.layout, MultiOutputLayout):
