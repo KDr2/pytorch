@@ -79,6 +79,30 @@ conv1d_template = TritonTemplate(
     cache_codegen_enabled_for_template=True,
 )
 
+
+# =============================================================================
+# Depthwise conv1d (groups == in_channels == out_channels)
+# Uses direct element-wise multiply-accumulate instead of implicit GEMM.
+# Channels-last (NLC) layout with 3D tiling: BLOCK_N x BLOCK_L x BLOCK_C.
+# =============================================================================
+
+
+@SymbolicGridFn
+def depthwise_conv1d_grid(n, c, l, meta, *, cdiv):
+    return (
+        cdiv(n, meta["BLOCK_N"]),
+        cdiv(l, meta["BLOCK_L"]),
+        cdiv(c, meta["BLOCK_C"]),
+    )
+
+
+depthwise_conv1d_template = TritonTemplate(
+    name="depthwise_conv1d",
+    grid=depthwise_conv1d_grid,
+    source=load_kernel_template("triton_depthwise_conv"),
+    cache_codegen_enabled_for_template=True,
+)
+
 LOOP_BODY_2D = """
         idx_x_h = i - PADDING_H + idx_y_h * STRIDE_H
         idx_x_w = j - PADDING_W + idx_y_w * STRIDE_W
@@ -561,6 +585,16 @@ def convolution(
         x = ir.ExternKernel.require_channels_last_1d(x)  # type: ignore[assignment]
         weight = ir.ExternKernel.require_channels_last_1d(weight)  # type: ignore[assignment]
         layout = conv_layout(x, weight, None, **kwargs)
+        # Depthwise conv1d: conv_layout() returns NCL because the fake-mode
+        # meta function doesn't propagate NWC for weight shape [C, 1, K].
+        # The real aten.convolution does produce NWC, so fix the layout.
+        if in_chan == 1 and groups > 1:
+            layout = ir.FixedLayout(
+                layout.device,
+                layout.dtype,
+                layout.size,
+                ir.FlexibleLayout.stride_ordered(layout.size, ir.NWC_STRIDE_ORDER),
+            )
     else:
         layout = conv_layout(x, weight, None, **kwargs)
         req_stride_order = ir.get_stride_order(
@@ -615,6 +649,22 @@ def convolution(
             and groups == 1
         ):
             choices.append(aten_conv1x1_via_mm.bind(args, layout))
+
+        is_depthwise = groups > 1 and in_chan == 1 and out_chan == groups
+        if is_depthwise and ndim == 1:
+            depthwise_configs = V.choices.get_depthwise_conv_configs(device_type)
+            for cfg in depthwise_configs:
+                depthwise_conv1d_template.maybe_append_choice(
+                    choices,
+                    input_nodes=(x, weight),
+                    layout=layout,
+                    KERNEL_SIZE=kernel_shape[0],
+                    CONV_STRIDE=stride[0],
+                    PADDING=padding[0],
+                    num_stages=cfg.num_stages,
+                    num_warps=cfg.num_warps,
+                    **cfg.kwargs,
+                )
 
         conv_configs = V.choices.get_conv_configs(device_type)
 
