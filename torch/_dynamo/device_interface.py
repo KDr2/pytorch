@@ -608,5 +608,6 @@ def init_device_reg() -> None:
 
     register_interface_for_device("cpu", CpuInterface)
     register_interface_for_device("mps", MpsInterface)
+    register_interface_for_device("tpu", TpuInterface)
 
     _device_initialized = True
