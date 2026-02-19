@@ -2462,7 +2462,6 @@ class CollectionsNamedTupleFunction(UserFunctionVariable):
                     args=list(map(ConstantVariable.create, exc.args)),
                 )
             return variables.UserDefinedClassVariable(
-                # pyrefly: ignore[unbound-name]
                 value,
                 mutation_type=ValueMutationNew(),
             )
@@ -2731,7 +2730,6 @@ class PolyfilledFunctionVariable(VariableTracker):
         options = {}
         if self.source:
             options["source"] = AttrSource(self.source, name)
-        # pyrefly: ignore[bad-specialization]
         polyfilled_method_variable = PolyfilledFunctionVariable(method, **options)
         return polyfilled_method_variable.call_function(tx, args, kwargs)
 

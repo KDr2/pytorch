@@ -1178,9 +1178,7 @@ class SetVariable(ConstDictVariable):
                 # VariableTracker - realize to install guards
                 # pyrefly: ignore [bad-argument-type]
                 realized_items.append(item.realize())
-        # pyrefly: ignore[bad-assignment]
         items = dict.fromkeys(realized_items, SetVariable._default_value())
-        # pyrefly: ignore[bad-argument-type]
         super().__init__(items, **kwargs)
 
     def debug_repr(self) -> str:
@@ -1232,7 +1230,6 @@ class SetVariable(ConstDictVariable):
             raise_observed_exception(
                 type(exc), tx, args=list(map(ConstantVariable.create, exc.args))
             )
-        # pyrefly: ignore[unbound-name]
         return VariableTracker.build(tx, res)
 
     def call_method(
@@ -1294,9 +1291,7 @@ class SetVariable(ConstDictVariable):
                 raise_observed_exception(
                     KeyError, tx, args=list(map(ConstantVariable.create, e.args))
                 )
-            # pyrefly: ignore[unbound-name]
             super().call_method(tx, name, [result], kwargs)
-            # pyrefly: ignore[unbound-name]
             return result
         elif name == "isdisjoint":
             if kwargs or len(args) != 1:
