@@ -5749,6 +5749,18 @@ class Scheduler:
         """
         The first term in our fusion score that estimates number of saved
         memory operations.
+
+        This function scores fusion candidates based on shared memory access patterns.
+        Higher scores indicate better fusion candidates.
+
+        Scoring strategy:
+        1. If nodes share exact memory deps (same buffer + same indexing), return
+           the sum of shared dep sizes (original behavior).
+        2. If no exact matches (score == 0), check for same-buffer reads with
+           different indexing (e.g., split operations reading different slices).
+           - Give bonus if nodes read from exactly the same set of buffers
+           - Score based on overlap ratio: common_buffer_size / total_read_size
+           - High overlap (>50%) suggests good cache locality benefit from fusion
         """
 
         def _construct_return_value(score, is_mix_order_reduction):
@@ -5787,9 +5799,94 @@ class Scheduler:
         common_memory_deps = (node1.read_writes.reads | node1.read_writes.writes) & (
             node2.read_writes.reads | node2.read_writes.writes
         )
-        return _construct_return_value(
-            sum(self.dep_size_hint(dep) for dep in common_memory_deps), False
+
+        score = sum(self.dep_size_hint(dep) for dep in common_memory_deps)
+
+        # If no exact dep matches, check for same-buffer reads with different indexing.
+        # This handles cases like split operations that read different slices of the
+        # same buffer - they should fuse for cache locality benefits.
+        if score == 0:
+            score = self._score_fusion_memory_by_buffer_overlap(node1, node2)
+
+        return _construct_return_value(score, False)
+
+    def _score_fusion_memory_by_buffer_overlap(
+        self, node1: BaseSchedulerNode, node2: BaseSchedulerNode
+    ) -> int:
+        """
+        Score fusion based on buffer name overlap when exact dep matching fails.
+
+        This handles the split/cat fusion case where nodes read from the same buffer
+        but at different indices (e.g., different slices from a split operation).
+
+        Scoring logic:
+        - If nodes read from exactly the same buffers: high bonus (encourages fusion)
+        - For common buffers: score based on overlap ratio
+          - overlap_ratio = common_buffer_size / max(node1_total_reads, node2_total_reads)
+          - If overlap_ratio > threshold (e.g., 0.5): give proportional score
+          - If overlap_ratio < threshold: minimal/no score (not worth fusing)
+
+        Example:
+        - node1 reads 10 bytes total, node2 reads 11 bytes total
+        - Common buffer is 9 bytes -> overlap_ratio = 9/11 = 0.82 -> good fusion candidate
+        - Common buffer is 1 byte -> overlap_ratio = 1/11 = 0.09 -> poor fusion candidate
+
+        Note on multiple deps from same buffer:
+        - A node may have multiple MemoryDep entries for the same buffer name
+          (e.g., 4 split reads from arg0_1 at different indices)
+        - We sum ALL dep sizes for each buffer, not just take max
+        - This ensures overlap ratio is calculated correctly when nodes read
+          multiple slices from the same underlying buffer
+        """
+        # Minimum overlap ratio to consider fusion beneficial
+        MIN_OVERLAP_RATIO = 0.5
+
+        node1_read_names = {dep.name for dep in node1.read_writes.reads}
+        node2_read_names = {dep.name for dep in node2.read_writes.reads}
+
+        # Early exit if no common buffer names
+        common_names = node1_read_names & node2_read_names
+
+        if not common_names:
+            return 0
+
+        # Calculate total read sizes for each node (sum of ALL deps)
+        node1_total_read_size = sum(
+            self.dep_size_hint(dep) for dep in node1.read_writes.reads
         )
+        node2_total_read_size = sum(
+            self.dep_size_hint(dep) for dep in node2.read_writes.reads
+        )
+
+        # Avoid division by zero
+        max_total_read_size = max(node1_total_read_size, node2_total_read_size)
+        if max_total_read_size == 0:
+            return 0
+
+        # Calculate total reads from common buffers for each node
+        # Sum ALL deps for each common buffer name (handles multiple reads from same buffer)
+        node1_common_read_size = sum(
+            self.dep_size_hint(dep)
+            for dep in node1.read_writes.reads
+            if dep.name in common_names
+        )
+        node2_common_read_size = sum(
+            self.dep_size_hint(dep)
+            for dep in node2.read_writes.reads
+            if dep.name in common_names
+        )
+
+        # Use max of the two as the common buffer size estimate
+        # This represents how much data is being read from shared buffers
+        common_read_buffer_size = max(node1_common_read_size, node2_common_read_size)
+
+        # Calculate overlap ratio
+        overlap_ratio = common_read_buffer_size / max_total_read_size
+        # Scale score by overlap ratio and common buffer size
+        # Higher overlap = higher score
+        # Larger common buffer = higher score (more cache benefit)
+        return common_read_buffer_size if overlap_ratio >= MIN_OVERLAP_RATIO else 0
+
 
     def get_possible_fusions_with_highest_priority(
         self, possible_fusions: list[tuple[BaseSchedulerNode, BaseSchedulerNode]]
