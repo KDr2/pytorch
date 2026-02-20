@@ -563,6 +563,7 @@ class MpsInterface(DeviceInterface):
         def current_device() -> int:
             return 0
 
+
 class TpuInterface(DeviceInterface):
     @staticmethod
     def is_bf16_supported(including_emulation: bool = False) -> bool:
@@ -578,6 +579,7 @@ class TpuInterface(DeviceInterface):
 
     @staticmethod
     def is_available() -> bool:
+        # TODO: call torch_tpu API to check device availability.
         return True
 
     @staticmethod
