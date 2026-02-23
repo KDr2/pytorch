@@ -153,7 +153,9 @@ If you are removing an existing torch level API:
 """
 manual_torch_name_rule_map: dict[
     str,
-    type[TorchInGraphFunctionVariable] | type[SkipFunctionVariable] | type[UserFunctionVariable],
+    type[TorchInGraphFunctionVariable]
+    | type[SkipFunctionVariable]
+    | type[UserFunctionVariable],
 ] = {
     "torch.onnx.is_in_onnx_export": TorchInGraphFunctionVariable,
     "torch.onnx.operators.shape_as_tensor": TorchInGraphFunctionVariable,
@@ -170,7 +172,9 @@ manual_torch_name_rule_map: dict[
     "torch.distributed.distributed_c10d._resolve_group_name_by_ranks_and_tag": TorchInGraphFunctionVariable,
     "torch.distributed.distributed_c10d._get_group_tag": TorchInGraphFunctionVariable,
     "torch.distributed.distributed_c10d.get_process_group_ranks": TorchInGraphFunctionVariable,
+    "torch.distributed.destroy_process_group": SkipFunctionVariable,
     "torch._utils.is_compiling": TorchInGraphFunctionVariable,
+    "torch._utils._chunk_or_narrow_cat": UserFunctionVariable,
     "torch.fx._symbolic_trace.is_fx_tracing": TorchInGraphFunctionVariable,
     "torch.fx._symbolic_trace.is_fx_symbolic_tracing": TorchInGraphFunctionVariable,
     "torch._dynamo.external_utils.is_compiling": TorchInGraphFunctionVariable,
@@ -363,6 +367,7 @@ manual_torch_name_rule_map: dict[
     "torch.fx.experimental.symbolic_shapes.sym_or": TorchInGraphFunctionVariable,
     "torch.fx.experimental.symbolic_shapes.guard_scalar": TorchInGraphFunctionVariable,
     "torch.fx.experimental.symbolic_shapes.has_static_value": TorchInGraphFunctionVariable,
+    "torch.fx.experimental.symbolic_shapes.has_free_unbacked_symbols": TorchInGraphFunctionVariable,
     "torch.cuda._get_device_properties": TorchInGraphFunctionVariable,
     "torch.utils.hooks.BackwardHook": TorchInGraphFunctionVariable,
     "torch.set_default_device": UserFunctionVariable,

@@ -305,13 +305,11 @@ def increment_op_count(cnt: int) -> None:
 def calculate_time_spent() -> dict[str, float]:
     total_by_key = {}
     for phase, timing in cumulative_time_spent_ns.items():
-        # pyrefly: ignore [unsupported-operation]
         total_by_key[phase] = timing / 1e9
 
     total_by_key["total_wall_time"] = total_by_key.get(
         "entire_frame_compile", 0
     ) + total_by_key.get("entire_backward_compile", 0)
-    # pyrefly: ignore [bad-return]
     return total_by_key
 
 
@@ -1211,7 +1209,12 @@ def is_lru_cache_wrapped_function(
     )
 
 
-_FuncTypes: TypeAlias = types.FunctionType | types.BuiltinFunctionType | types.MethodDescriptorType | types.WrapperDescriptorType
+_FuncTypes: TypeAlias = (
+    types.FunctionType
+    | types.BuiltinFunctionType
+    | types.MethodDescriptorType
+    | types.WrapperDescriptorType
+)
 
 
 def is_function_or_wrapper(
@@ -1259,7 +1262,11 @@ cmp_name_to_op_str_mapping = {
 def is_wrapper_or_member_descriptor(
     value: Any,
 ) -> TypeIs[
-    types.GetSetDescriptorType | types.MethodDescriptorType | types.WrapperDescriptorType | types.MemberDescriptorType | types.MethodWrapperType
+    types.GetSetDescriptorType
+    | types.MethodDescriptorType
+    | types.WrapperDescriptorType
+    | types.MemberDescriptorType
+    | types.MethodWrapperType
 ]:
     return isinstance(
         value,
@@ -2275,9 +2282,7 @@ def copy_dynamo_tensor_attributes(src: torch.Tensor, dst: torch.Tensor) -> None:
     _copy_dynamo_attr(src, dst, "_dynamo_weak_dynamic_indices")
 
 
-def clone_input(
-    x: torch.Tensor, *, dtype: torch.dtype | None = None
-) -> torch.Tensor:
+def clone_input(x: torch.Tensor, *, dtype: torch.dtype | None = None) -> torch.Tensor:
     """copy while preserving strides"""
     # TODO: this is questionable
     if is_fake(x):
@@ -2426,7 +2431,10 @@ def preserve_rng_state() -> Generator[None, None, None]:
 def is_jit_model(
     model0: Any,
 ) -> TypeIs[
-    torch.jit._trace.TopLevelTracedModule | torch.jit._script.RecursiveScriptModule | torch.jit.ScriptFunction[Any, Any] | torch.jit.ScriptModule
+    torch.jit._trace.TopLevelTracedModule
+    | torch.jit._script.RecursiveScriptModule
+    | torch.jit.ScriptFunction[Any, Any]
+    | torch.jit.ScriptModule
 ]:
     return isinstance(
         model0,
@@ -2809,16 +2817,13 @@ def get_items_from_dict(obj: dict[K, V]) -> Iterable[tuple[K, V | Any]]:
     if istype(obj, (dict, OrderedDict)):
         return obj.items()
     elif isinstance(obj, OrderedDict):
-        # pyrefly: ignore [bad-argument-type]
         return [(k, OrderedDict.__getitem__(obj, k)) for k in OrderedDict.keys(obj)]
     else:
-        # pyrefly: ignore [bad-argument-type]
         return [(k, dict.__getitem__(obj, k)) for k in dict.keys(obj)]
 
 
 def nn_module_new(cls: Any) -> Any:
     obj = object_new(cls)
-    # pyrefly: ignore [bad-argument-type]
     torch.nn.Module.__init__(obj)
     return obj
 
@@ -2954,6 +2959,7 @@ def iter_contains(
     check_tensor_identity: bool = False,
 ) -> Any:
     from .variables import ConstantVariable
+    from .variables.constant import CONSTANT_VARIABLE_FALSE, CONSTANT_VARIABLE_TRUE
 
     if search.is_python_constant():
         found_const = any(
@@ -2974,7 +2980,7 @@ def iter_contains(
         if must_check_tensor_id:
             if x.is_tensor():
                 if search is _get_fake_tensor(x):  # Object equivalence
-                    return ConstantVariable.create(True)
+                    return CONSTANT_VARIABLE_TRUE
         else:
             from torch._dynamo.variables.builder import SourcelessBuilder
 
@@ -2988,7 +2994,7 @@ def iter_contains(
                     tx, [check, found], {}
                 )
     if found is None:
-        found = ConstantVariable.create(False)
+        found = CONSTANT_VARIABLE_FALSE
     return found
 
 
@@ -3556,9 +3562,7 @@ def get_fake_values_from_nodes(
     return torch.fx.node.map_arg(nodes, visit)
 
 
-def get_concrete_sizes_from_symints(
-    msg: str, fake_mode: FakeTensorMode | None
-) -> str:
+def get_concrete_sizes_from_symints(msg: str, fake_mode: FakeTensorMode | None) -> str:
     """
     Replace symbolic size expressions (like 's0', 's94') in error messages
     with their concrete runtime values for better readability.
@@ -4844,7 +4848,7 @@ class GmWrapper(torch.nn.Module):
         self.unflatten_fn = unflatten_fn
 
     def forward(self, *args: Any) -> Any:
-        # pyrefly: ignore [annotation-mismatch, redefinition]
+        # pyrefly: ignore [redefinition]
         args: list[Any] = list(args)
         return self.gm(*self.unflatten_fn(args))
 
