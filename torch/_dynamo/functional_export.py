@@ -5,7 +5,7 @@ import traceback
 import types
 from collections import namedtuple
 from collections.abc import Callable, Iterable, Sequence
-from typing import Any, Optional, TYPE_CHECKING, TypeVar, Union
+from typing import Any, Optional, TYPE_CHECKING, TypeVar
 
 import sympy
 
@@ -237,7 +237,7 @@ class DynamoGraphTransformer(torch.fx.Transformer):
         flat_args_dynamic_dims: list[set[int]],
         graph_input_order: dict[int, int],
         graph_output_map: dict[int, tuple[str, Any]],
-        fake_mode: Optional[Any] = None,
+        fake_mode: Any | None = None,
     ) -> None:
         super().__init__(module)
 
@@ -406,7 +406,7 @@ def _suggest_or_raise_constraint_violation(
     graph_capture_output: CaptureOutput,
     args: Any,
     kwargs: Any,
-    dynamic_shapes: Optional[Union[dict[str, Any], tuple[Any], list[Any]]],
+    dynamic_shapes: dict[str, Any] | tuple[Any] | list[Any] | None,
 ) -> None:
     constraint_violation_error = None
     try:
@@ -753,7 +753,7 @@ class _DynamoBytecodeCodeGen(torch.fx.graph.CodeGen):
 
 def dynamo_graph_capture_for_export(
     mod: Callable[..., Any],
-    constraints: Optional[list[Constraint]] = None,
+    constraints: list[Constraint] | None = None,
     restore_state_dict: bool = False,
 ) -> Callable[..., Any]:
     def inner(*args: Any, **kwargs: Any) -> Any:
@@ -782,8 +782,8 @@ def dynamo_graph_capture_for_export(
 def _dynamo_graph_capture_for_export(
     mod: Callable[..., Any],
     *,
-    constraints: Optional[list[Constraint]] = None,
-    dynamic_shapes: Optional[Union[dict[str, Any], tuple[Any], list[Any]]] = None,
+    constraints: list[Constraint] | None = None,
+    dynamic_shapes: dict[str, Any] | tuple[Any] | list[Any] | None = None,
 ) -> Callable[..., torch.fx.GraphModule]:
     """
     Improved dynamo graph capture using transformer approach with proper fake tensor handling.
@@ -817,8 +817,8 @@ def _dynamo_graph_capture_for_export(
             module_to_trace = ModuleToTrace(mod, in_spec)
             orig_callable = mod.forward if isinstance(mod, torch.nn.Module) else mod
 
-            constraints: Optional[list[Constraint]] = _constraints
-            dynamic_shapes: Optional[Union[dict[str, Any], tuple[Any], list[Any]]] = (
+            constraints: list[Constraint] | None = _constraints
+            dynamic_shapes: dict[str, Any] | tuple[Any] | list[Any] | None = (
                 _dynamic_shapes
             )
 

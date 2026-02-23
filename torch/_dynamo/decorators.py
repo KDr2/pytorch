@@ -8,7 +8,7 @@ import weakref
 from collections.abc import Callable
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any, Optional, overload, TYPE_CHECKING, TypeVar, Union
+from typing import Any, overload, TYPE_CHECKING, TypeVar
 from typing_extensions import ParamSpec
 
 import torch
@@ -63,7 +63,7 @@ FuncType = Callable[..., Any]
 F = TypeVar("F", bound=FuncType)
 
 
-def run(fn: Optional[Callable[_P, _R]] = None) -> Any:
+def run(fn: Callable[_P, _R] | None = None) -> Any:
     """Don't do any dynamic compiles, just use prior optimizations"""
     if fn is not None:
         fn = innermost_fn(fn)
@@ -116,7 +116,7 @@ _nonrecursive_disable_wrapper_code = disable(lambda: None, recursive=False).__co
 skip_code(_nonrecursive_disable_wrapper_code)
 
 
-def skip(fn: Optional[Callable[_P, _R]] = None) -> Callable[..., Any]:
+def skip(fn: Callable[_P, _R] | None = None) -> Callable[..., Any]:
     """
     Skip frames associated with the function code, but still process recursively
     invoked frames
@@ -144,7 +144,7 @@ class set_stance(_DecoratorContextManager):
         stance: str = "default",
         *,
         skip_guard_eval_unsafe: bool = False,
-        force_backend: Union[str, Callable[..., Any], None] = None,
+        force_backend: str | Callable[..., Any] | None = None,
     ) -> None:
         if force_backend is not None and stance != "default":
             raise RuntimeError("non-default stance cannot have force_backend set")
@@ -979,11 +979,11 @@ class _DimRange:
 @forbid_in_graph
 def mark_unbacked(
     t: Any,
-    index: Union[int, list[Any], tuple[Any]],
-    hint_override: Optional[int] = None,
+    index: int | list[Any] | tuple[Any],
+    hint_override: int | None = None,
     strict: bool = False,
-    specialize_on: Optional[list[Any]] = None,
-    shape_id: Optional[str] = None,
+    specialize_on: list[Any] | None = None,
+    shape_id: str | None = None,
 ) -> None:
     """
     Mark a tensor as having an unbacked dimension. This changes the semantics of operations:
@@ -1064,12 +1064,12 @@ def mark_unbacked(
 @forbid_in_graph
 def mark_dynamic(
     t: Any,
-    index: Union[int, list[Any], tuple[Any]],
+    index: int | list[Any] | tuple[Any],
     *,
-    hint_override: Optional[int] = None,
-    min: Optional[int] = None,
-    max: Optional[int] = None,
-    specialize_on: Optional[list[Any]] = None,
+    hint_override: int | None = None,
+    min: int | None = None,
+    max: int | None = None,
+    specialize_on: list[Any] | None = None,
 ) -> None:
     """
     Mark a tensor as having a dynamic dim and set corresponding min and max range for the dim.
@@ -1156,7 +1156,7 @@ def mark_dynamic(
 
 
 @forbid_in_graph
-def maybe_mark_dynamic(t: Any, index: Union[int, list[Any], tuple[Any]]) -> None:
+def maybe_mark_dynamic(t: Any, index: int | list[Any] | tuple[Any]) -> None:
     """
     Mark a tensor as having a dynamic dim, but don't enforce it (i.e., if this
     dimension ends up getting specialized, don't error).
@@ -1180,7 +1180,7 @@ def maybe_mark_dynamic(t: Any, index: Union[int, list[Any], tuple[Any]]) -> None
 
 
 def mark_static(
-    t: Any, index: Optional[Union[int, list[Any], tuple[Any]]] = None
+    t: Any, index: int | list[Any] | tuple[Any] | None = None
 ) -> None:
     """
     Mark a tensor as having a static dim or mark a nn module class as static.
@@ -1323,9 +1323,9 @@ class DynamoConfigPatchProxy:
 
     def __exit__(
         self,
-        exc_type: Optional[type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         return self.config_patch.__exit__(exc_type, exc_val, exc_tb)
 
@@ -1376,7 +1376,7 @@ def _patch_dynamo_config_check(changes: dict[str, Any]) -> None:
 # Unlike config.patch, we also need to accept tuple as input in order to
 # deal with context manager reconstruction.
 def patch_dynamo_config(
-    arg1: Optional[Union[str, dict[str, Any], tuple[tuple[str, Any], ...]]] = None,
+    arg1: str | dict[str, Any] | tuple[tuple[str, Any], ...] | None = None,
     arg2: Any = None,
     **kwargs: Any,
 ) -> DynamoConfigPatchProxy:
@@ -1411,7 +1411,7 @@ def dont_skip_tracing(fn: None = None) -> DynamoConfigPatchProxy: ...
 def dont_skip_tracing(fn: Callable[_P, _R]) -> Callable[_P, _R]: ...
 
 
-def dont_skip_tracing(fn: Optional[Any] = None) -> Any:
+def dont_skip_tracing(fn: Any | None = None) -> Any:
     """
     Context manager/decorator to trace into functions intentionally marked by developers to be skipped
     when tracing.
@@ -1432,7 +1432,7 @@ def disable_nested_graph_breaks(fn: None = None) -> DynamoConfigPatchProxy: ...
 def disable_nested_graph_breaks(fn: Callable[_P, _R]) -> Callable[_P, _R]: ...
 
 
-def disable_nested_graph_breaks(fn: Optional[Any] = None) -> Any:
+def disable_nested_graph_breaks(fn: Any | None = None) -> Any:
     """
     Context manager/decorator to disable nested graph breaks when tracing
     this function and any nested functions. Used when nested graph breaks
@@ -1456,9 +1456,9 @@ class ErrorOnGraphBreakDecoratorContextManager:
 
     def __exit__(
         self,
-        exc_type: Optional[type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         _set_error_on_graph_break(self.prev_error_on_graph_break)
 
@@ -1483,7 +1483,7 @@ def error_on_graph_break(
     return ErrorOnGraphBreakDecoratorContextManager(error_on_graph_break)
 
 
-def is_dynamo_disable_recursive(method: Callable[[Any], Any]) -> Optional[bool]:
+def is_dynamo_disable_recursive(method: Callable[[Any], Any]) -> bool | None:
     """
     Check if a method is marked as `dynamo_disable` recursively. It returns:
     - True if disable(recursive=True)

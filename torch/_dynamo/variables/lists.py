@@ -1123,7 +1123,7 @@ class DequeVariable(CommonListMethodsVariable):
     def __init__(
         self,
         items: list[VariableTracker],
-        maxlen: Optional[VariableTracker] = None,
+        maxlen: VariableTracker | None = None,
         **kwargs: Any,
     ) -> None:
         if maxlen is None:
@@ -1349,7 +1349,7 @@ class SizeVariable(TupleVariable):
     def __init__(
         self,
         items: list[VariableTracker],
-        proxy: Optional[torch.fx.Proxy] = None,
+        proxy: torch.fx.Proxy | None = None,
         **kwargs: Any,
     ) -> None:
         self.proxy = proxy
@@ -1523,8 +1523,8 @@ class NamedTupleVariable(UserDefinedTupleVariable):
         items: list[VariableTracker],
         # pyrefly: ignore [implicit-any]
         tuple_cls: type[tuple],
-        dynamic_attributes: Optional[dict[str, VariableTracker]] = None,
-        tuple_vt: Optional[TupleVariable] = None,
+        dynamic_attributes: dict[str, VariableTracker] | None = None,
+        tuple_vt: TupleVariable | None = None,
         **kwargs: Any,
     ) -> None:
         if tuple_vt is None:
