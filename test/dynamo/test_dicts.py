@@ -1361,6 +1361,22 @@ class DictTests(torch._dynamo.test_case.TestCase):
         with self.assertRaisesRegex(Unsupported, "Observed exception"):
             opt_fn(x)
 
+    def test_property_backed_by_dunder_dict(self):
+        class Obj:
+            def __init__(self, x):
+                self.__dict__["x"] = x
+
+            @property
+            def x(self):
+                return self.__dict__["x"]
+
+        def fn(obj):
+            return obj.x
+
+        obj = Obj(3)
+        opt_fn = torch.compile(fn, backend="eager")
+        self.assertEqual(fn(obj), opt_fn(obj))
+
     def test_get_default_nowrap_functions_as_dict_key(self):
         def fn(x):
             # Get the set of default nowrap functions

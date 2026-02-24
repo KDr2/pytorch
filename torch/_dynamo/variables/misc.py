@@ -1363,8 +1363,16 @@ class GetAttrVariable(VariableTracker):
             obj = self.obj
             key = args[0].as_python_constant()
             if obj.has_key_in_generic_dict(tx, key):
-                # redirect to var_getattr on the original obj
-                return obj.var_getattr(tx, key)
+                # Read directly from __dict__ rather than using var_getattr,
+                # because var_getattr follows the descriptor protocol (e.g.
+                # properties), while __dict__[key] is a raw dict access that
+                # bypasses descriptors. Using var_getattr here causes infinite
+                # recursion when a property's fget reads self.__dict__[key].
+                if tx.output.side_effects.has_pending_mutation_of_attr(obj, key):
+                    return tx.output.side_effects.load_attr(obj, key)
+                raw_value = obj.value.__dict__[key]
+                raw_source = AttrSource(obj.source, key) if obj.source else None
+                return VariableTracker.build(tx, raw_value, raw_source)
 
             # Return the default value for get
             if name == "get":
