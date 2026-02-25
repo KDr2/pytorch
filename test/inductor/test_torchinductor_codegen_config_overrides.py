@@ -121,6 +121,33 @@ class CodegenInductorTest(InductorTestCase):
 
     @requires_gpu()
     @skipIf(GPU_TYPE == "mps", "Triton is not available for MPS")
+    @parametrize("disable_welford_reduction", [True, False])
+    def test_disable_welford_reduction(self, disable_welford_reduction: bool):
+        def func(x):
+            return torch.var_mean(x, dim=1)
+
+        # Use a large number to force codegen to prefer welford reduction,
+        # in order to test effectiveness of config.disable_welford_reduction
+        x = torch.randn((4, 18000), device=torch.device(GPU_TYPE))
+        config_patches = {
+            "disable_welford_reduction": disable_welford_reduction,
+        }
+        _, code = self.run_and_compare(
+            func,
+            x,
+            config_patches=config_patches,
+            atol=1e-2,
+            rtol=1e-4,
+        )
+
+        welford_count = sum(prog.count("triton_helpers.welford") for prog in code)
+        if disable_welford_reduction:
+            self.assertEqual(welford_count, 0)
+        else:
+            self.assertGreater(welford_count, 0)
+
+    @requires_gpu()
+    @skipIf(GPU_TYPE == "mps", "Triton is not available for MPS")
     def test_kernel_fusion_thresholds(self):
         def func(a, b):
             tmp0 = a + 1

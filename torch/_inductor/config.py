@@ -838,6 +838,9 @@ force_pointwise_cat = False
 # replace small reductions with pointwise, disable with `= 1`
 unroll_reductions_threshold = 8
 
+# Configuration to force inductor to neve use welford reductions
+disable_welford_reduction = False
+
 # Add extra comments to output code (causes compile cache misses)
 comment_origin = False
 
