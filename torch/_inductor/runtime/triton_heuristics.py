@@ -931,7 +931,7 @@ class CachingAutotuner(KernelInterface):
         return TritonCompileResult(binary, cfg, compile_meta, self.inductor_meta)
 
     def bench(self, launcher, *args, with_profiler=False, **kwargs):
-        """Measure the performance of a given launcher"""
+        """Measure the performance of a given launcher."""
         # we don't skip configs with spilled registers when auto-tuning custom
         # (user-written) Triton kernels, as (i) we don't have any knowledge or
         # control over the kernel code; (ii) there is empirical evidence that
@@ -976,7 +976,14 @@ class CachingAutotuner(KernelInterface):
                             stream=stream,
                         )
                     except Exception:
-                        log.error("Failed during launch %s: ", kernel_name)
+                        log.error(
+                            "Failed during launch %s with config: %s (num_warps=%s, num_stages=%s, kwargs=%s)",
+                            kernel_name,
+                            launcher.config,
+                            launcher.config.num_warps,
+                            launcher.config.num_stages,
+                            launcher.config.kwargs,
+                        )
                         raise
 
             else:
@@ -987,7 +994,14 @@ class CachingAutotuner(KernelInterface):
                         stream=stream,
                     )
                 except Exception:
-                    log.error("Failed during launch %s: ", kernel_name)
+                    log.error(
+                        "Failed during launch %s with config: %s (num_warps=%s, num_stages=%s, kwargs=%s)",
+                        kernel_name,
+                        launcher.config,
+                        launcher.config.num_warps,
+                        launcher.config.num_stages,
+                        launcher.config.kwargs,
+                    )
                     raise
             self.restore_args_from_cpu(cpu_copies)
 
@@ -1181,6 +1195,23 @@ class CachingAutotuner(KernelInterface):
         start_time = time.time_ns()
         timings = self.benchmark_all_configs(*args, **kwargs)
         benchmark_time_taken_ns = time.time_ns() - start_time
+
+        # Check if any configs failed (have inf timing) and log which one was selected
+        failed_count = sum(1 for v in timings.values() if v == float("inf"))
+        if failed_count > 0:
+            valid_timings = [(k, v) for k, v in timings.items() if v != float("inf")]
+            if valid_timings:
+                best_launcher, best_time = min(valid_timings, key=lambda x: x[1])
+                log.info(
+                    "HIP: Skipped %d/%d configs due to invalid configuration for %s. "
+                    "Selected: %s (%.4f ms)",
+                    failed_count,
+                    len(timings),
+                    self.fn.__name__,
+                    best_launcher.config,
+                    best_time,
+                )
+
         self.launchers = [builtins.min(timings, key=timings.get)]
         self.autotune_time_taken_ns = (
             self.precompile_time_taken_ns + benchmark_time_taken_ns

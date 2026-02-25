@@ -4121,9 +4121,27 @@ class AlgorithmSelectorCache(PersistentCache):
                         log.warning(e)  # noqa: G200
                         timing = float("inf")
                     else:
-                        raise e
+                        # Check for HIP invalid configuration error (code 9)
+                        error_str = str(e).lower()
+                        if "invalid configuration" in error_str:
+                            log.warning(
+                                "Skipping choice due to invalid configuration error: %s",
+                                error_str,
+                            )
+                            timing = float("inf")
+                        else:
+                            raise e
                 except ImportError:
-                    raise e from None
+                    # Check for HIP error even without Triton import
+                    error_str = str(e).lower()
+                    if "invalid configuration" in error_str:
+                        log.warning(
+                            "Skipping choice due to invalid configuration error: %s",
+                            error_str,
+                        )
+                        timing = float("inf")
+                    else:
+                        raise e from None
 
             timings[choice] = timing
 
