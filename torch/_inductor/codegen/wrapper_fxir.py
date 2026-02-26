@@ -882,6 +882,11 @@ class FxConverter:
         )
         result_buffer = ir_node.codegen_reference()
         self.buffer_to_node[result_buffer] = fx_node
+        # For in-place mutation ops (e.g., scatter_reduce_, index_put_),
+        # update the buffer mapping for mutated inputs so downstream
+        # references to the mutated buffer see the post-mutation node.
+        for mutated_name in ir_node.get_mutation_names():
+            self.buffer_to_node[mutated_name] = fx_node
 
     def _generate_index_put_fallback(self, line: WrapperLine) -> None:
         assert isinstance(line, IndexPutFallbackLine)
@@ -916,6 +921,8 @@ class FxConverter:
         kwargs = {}
         if reduce := ir_node.kwargs.get("reduce"):
             kwargs["reduce"] = reduce
+        if "include_self" in ir_node.kwargs:
+            kwargs["include_self"] = ir_node.kwargs["include_self"]
 
         self._generate_fallback_call(ir_node, args, kwargs)
 
