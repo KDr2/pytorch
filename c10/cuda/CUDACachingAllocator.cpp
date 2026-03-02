@@ -755,7 +755,7 @@ struct ExpandableSegment {
     desc.flags = CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
 #ifdef USE_ROCM
     C10_CUDA_CHECK(hipMemSetAccess(
-        reinterpret_cast<char*>(ptr_) + begin * segment_size_,
+        ptr() + begin * segment_size_,
         (end - begin) * segment_size_,
         &desc,
         1));
