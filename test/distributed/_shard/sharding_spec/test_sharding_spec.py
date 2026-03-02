@@ -32,8 +32,8 @@ from torch.testing._internal.common_distributed import (
 from torch.testing._internal.common_utils import (
     run_tests,
     skip_but_pass_in_sandcastle_if,
-    TestCase,
     TEST_MULTIACCELERATOR,
+    TestCase,
 )
 from torch.testing._internal.distributed._shard.sharded_tensor import (
     ShardedTensorTestBase,
@@ -43,8 +43,12 @@ from torch.testing._internal.distributed._shard.sharded_tensor._test_st_common i
     _chunk_sharding_specs_list_for_test,
 )
 
-DEVICE_TYPE = acc.type if (acc := torch.accelerator.current_accelerator(True)) else "cpu"
+
+DEVICE_TYPE = (
+    acc.type if (acc := torch.accelerator.current_accelerator(True)) else "cpu"
+)
 BACKEND = torch.distributed.get_default_backend_for_device(DEVICE_TYPE)
+
 
 class TestShardingSpec(TestCase):
     @skip_but_pass_in_sandcastle_if(
@@ -83,9 +87,7 @@ class TestShardingSpec(TestCase):
             ],
         )
         ChunkShardingSpec(-1, [f"{DEVICE_TYPE}:0", f"{DEVICE_TYPE}:1"])
-        ChunkShardingSpec(
-            0, [f"rank:0/{DEVICE_TYPE}:0", f"rank:0/{DEVICE_TYPE}:1"]
-        )
+        ChunkShardingSpec(0, [f"rank:0/{DEVICE_TYPE}:0", f"rank:0/{DEVICE_TYPE}:1"])
         ChunkShardingSpec(0, ["rank:0", "rank:1"])
         ChunkShardingSpec(0, ["rank:0/cpu", "rank:1/cpu"])
 
@@ -110,9 +112,7 @@ class TestShardingSpec(TestCase):
         with self.assertRaisesRegex(RuntimeError, "Expected one of"):
             ChunkShardingSpec(0, ["rank:0/random:0", f"{DEVICE_TYPE}:1"])
         with self.assertRaisesRegex(RuntimeError, "Invalid device string"):
-            ChunkShardingSpec(
-                0, [f"rank:0/{DEVICE_TYPE}:foo", f"{DEVICE_TYPE}:1"]
-            )
+            ChunkShardingSpec(0, [f"rank:0/{DEVICE_TYPE}:foo", f"{DEVICE_TYPE}:1"])
 
     @skip_but_pass_in_sandcastle_if(
         not TEST_MULTIACCELERATOR, "2 accelerator devices are needed"
