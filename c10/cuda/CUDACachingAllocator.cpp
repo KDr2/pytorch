@@ -662,7 +662,7 @@ struct ExpandableSegment {
               "Consider using expandable_segments:False via torch.cuda.memory._set_allocator_settings('expandable_segments:False') for this allocation.");
           TORCH_CHECK(false, "pidfd_getfd: ", c10::utils::str_error(err));
         }
-      CUmemGenericAllocationHandle handle = 0;
+        CUmemGenericAllocationHandle handle = 0;
 #ifdef USE_ROCM
 #if ROCM_VERSION >= 70100
         void* myfd_ptr = reinterpret_cast<void*>(static_cast<uintptr_t>(myfd));
@@ -670,9 +670,7 @@ struct ExpandableSegment {
         void* myfd_ptr = (void*)(uintptr_t)&myfd;
 #endif
         C10_CUDA_CHECK(hipMemImportFromShareableHandle(
-            &handle,
-            myfd_ptr,
-            hipMemHandleTypePosixFileDescriptor));
+            &handle, myfd_ptr, hipMemHandleTypePosixFileDescriptor));
 #else
         C10_CUDA_DRIVER_CHECK(DriverAPI::get()->cuMemImportFromShareableHandle_(
             &handle,
@@ -812,8 +810,8 @@ struct ExpandableSegment {
       Handle h = handles_.at(i).value();
       handles_.at(i) = std::nullopt;
 #ifdef USE_ROCM
-      C10_CUDA_CHECK(
-          hipMemUnmap(reinterpret_cast<char*>(ptr_) + segment_size_ * i, segment_size_));
+      C10_CUDA_CHECK(hipMemUnmap(
+          reinterpret_cast<char*>(ptr_) + segment_size_ * i, segment_size_));
 #else
       C10_CUDA_DRIVER_CHECK(DriverAPI::get()->cuMemUnmap_(
           ptr_ + segment_size_ * i, segment_size_));
