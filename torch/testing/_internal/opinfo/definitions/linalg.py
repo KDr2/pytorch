@@ -2794,13 +2794,6 @@ op_db: list[OpInfo] = [
                 "test_output_match",
                 device_type="mps",
             ),
-            # Exception: Tensor-likes are not close!
-            DecorateInfo(
-                unittest.expectedFailure,
-                "TestCommon",
-                "test_noncontiguous_samples",
-                device_type="mps",
-            ),
         ],
         skips=(
             # Exception: linalg.lu_factor(): MPS only supports floats.
