@@ -1,5 +1,6 @@
 ---
 name: scrub-issue
+disable-model-invocation: true
 description: Fetch, analyze, reproduce, and minimize GitHub issue reproductions. Use when asked to check if an issue reproduces, minimize a repro, analyze a bug report, or scrub/triage an issue for reproducibility.
 ---
 
@@ -82,6 +83,12 @@ to proceed, skip, or modify the repro to remove the risky parts. If the user
 chooses to skip, still refresh the `triaged` label timestamp (remove and
 re-add, or just add if not present) before reporting that the analysis is
 finished.
+
+Even if the repro passes the checklist above, check whether the author of the
+repro code is a PyTorch collaborator by running
+`python tools/stale_issues.py collaborator-check <username>`. If the command
+exits with a non-zero status (user is not a collaborator), show the repro code
+to the user and ask them to verify it is safe to run before executing it.
 
 ## Steps
 

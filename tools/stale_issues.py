@@ -244,6 +244,24 @@ def cmd_subscription_restore(args):
     print(f"#{args.issue}: restored to UNSUBSCRIBED")
 
 
+def cmd_collaborator_check(args):
+    result = subprocess.run(
+        [
+            "gh",
+            "api",
+            f"repos/pytorch/pytorch/collaborators/{args.username}",
+            "--silent",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        print(f"{args.username} is a collaborator")
+    else:
+        print(f"{args.username} is NOT a collaborator")
+        sys.exit(1)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Tools for managing stale issues in pytorch/pytorch"
@@ -270,6 +288,12 @@ def main():
 
     labels_parser = subparsers.add_parser("labels", help="list all known labels")
     labels_parser.set_defaults(func=cmd_labels)
+
+    collab_parser = subparsers.add_parser(
+        "collaborator-check", help="check if a user is a repo collaborator"
+    )
+    collab_parser.add_argument("username", type=str, help="GitHub username to check")
+    collab_parser.set_defaults(func=cmd_collaborator_check)
 
     sub_parser = subparsers.add_parser(
         "subscription", help="save/restore issue notification subscription state"
