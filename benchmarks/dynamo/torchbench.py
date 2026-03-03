@@ -21,6 +21,7 @@ except ImportError:
 
 from torch._dynamo.testing import collect_results, reduce_to_scalar_loss
 from torch._dynamo.utils import clone_inputs
+from torch.testing._internal.common_utils import IS_FBCODE
 
 
 # We are primarily interested in tf32 datatype
@@ -234,11 +235,14 @@ class TorchBenchmarkRunner(BenchmarkRunner):
             )
         is_training = self.args.training
         use_eval_mode = self.args.use_eval_mode
+
         candidates = [
             f"torchbenchmark.models.{model_name}",
             f"torchbenchmark.canary_models.{model_name}",
-            f"torchbenchmark.models.fb.{model_name}",
         ]
+        if IS_FBCODE:
+            candidates.append(f"torchbenchmark.models.fb.{model_name}")
+
         for c in candidates:
             try:
                 module = importlib.import_module(c)
@@ -415,7 +419,7 @@ class TorchBenchmarkRunner(BenchmarkRunner):
             yield model_name
 
     def pick_grad(self, name, is_training):
-        if is_training or name in ("maml",):
+        if is_training or name == "maml":
             return torch.enable_grad()
         else:
             return torch.no_grad()
