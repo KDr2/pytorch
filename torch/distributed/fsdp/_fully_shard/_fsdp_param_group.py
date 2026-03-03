@@ -14,7 +14,6 @@ from torch.distributed.fsdp._common_utils import (
     collect_grad_tensors,
     replace_grad_tensors,
 )
-from torch.distributed.tensor import Shard
 from torch.profiler import record_function
 from torch.utils.hooks import RemovableHandle
 
