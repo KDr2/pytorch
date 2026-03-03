@@ -165,9 +165,13 @@ def propagate_nonlinear_requires_no_scaling(out_node: Node) -> bool:
         aten.neg.default,
         aten.sum.dim_IntList,
         aten.sum.default,  # sum to scalar
+        aten.amax.default,
         aten.mm.default,
         aten.permute.default,
         aten.expand.default,
+        aten.unsqueeze.default,
+        aten.eq.Tensor,
+        aten.view.default,
     ]
 )
 def propagate_general_copy(out_node: Node) -> bool:
