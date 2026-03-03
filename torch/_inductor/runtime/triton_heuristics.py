@@ -978,7 +978,11 @@ class CachingAutotuner(KernelInterface):
                             stream=stream,
                         )
                     except Exception:
-                        log.error("Failed during launch %s: ", kernel_name)
+                        log.error(
+                            "Failed during launch %s with config %s: ",
+                            kernel_name,
+                            launcher.config,
+                        )
                         raise
 
             else:
@@ -989,7 +993,11 @@ class CachingAutotuner(KernelInterface):
                         stream=stream,
                     )
                 except Exception:
-                    log.error("Failed during launch %s: ", kernel_name)
+                    log.error(
+                        "Failed during launch %s with config %s: ",
+                        kernel_name,
+                        launcher.config,
+                    )
                     raise
             self.restore_args_from_cpu(cpu_copies)
 
