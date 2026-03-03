@@ -619,8 +619,7 @@ print(t.is_pinned())
         def _check_default():
             default = torch.backends.cuda.preferred_blas_library()
             if torch.version.cuda:
-                # CUDA logic is easy, it's always cublas
-                self.assertTrue(default == torch._C._BlasBackend.Cublas)
+                self.assertTrue(default == torch._C._BlasBackend.Cublaslt)
             else:
                 # ROCm logic is less so, it's cublaslt for some Instinct, cublas for all else
                 gcn_arch = str(
@@ -674,6 +673,7 @@ print(t.is_pinned())
 
     @unittest.skipIf(TEST_CUDAMALLOCASYNC, "temporarily disabled for async")
     @setBlasBackendsToDefaultFinally
+    @serialTest()
     def test_cublas_workspace_explicit_allocation(self):
         torch.backends.cuda.preferred_blas_library("cublas")
         a = torch.randn(7, 7, device="cuda", requires_grad=False)
@@ -689,8 +689,8 @@ print(t.is_pinned())
             default_workspace_size = (
                 4096 * 2 * 1024 + 16 * 8 * 1024
             )  # :4096:2:16:8  8MiB
-            # different size (32 MiB) expected on Hopper GPU
-            if torch.cuda.get_device_capability() == (9, 0):
+            # different size (32 MiB) expected on Hopper/Blackwell GPU
+            if torch.cuda.get_device_capability()[0] in (9, 10, 12):
                 default_workspace_size = 4096 * 8 * 1024
 
         def check_workspace_size(inp):
@@ -717,6 +717,26 @@ print(t.is_pinned())
         self.assertLess(abs(check_workspace_size(a) - (3072 * 1024)), 524288)
 
         torch._C._cuda_clearCublasWorkspaces()
+
+    @unittest.skipIf(TEST_CUDAMALLOCASYNC, "temporarily disabled for async")
+    @unittest.skipIf(IS_FBCODE, "not enabled by default on fbcode")
+    @unittest.skipIf(TEST_WITH_ROCM, "not enabled by default on rocm")
+    @setBlasBackendsToDefaultFinally
+    @serialTest()
+    def test_cublas_unified_workspace(self):
+        torch.cuda.reset_peak_memory_stats()
+        # We run a cuBLAS matmul, guaranteeing a workspace present on the current stream
+        torch.backends.cuda.preferred_blas_library("cublas")
+        x = torch.randn(128, 128, device="cuda")
+        torch.matmul(x, x)
+        # Stash the maximum memory allocated after running matmuls
+        warmed_alloc = torch.cuda.max_memory_allocated()
+        torch.backends.cuda.preferred_blas_library("cublaslt")
+        torch.matmul(x, x)
+        lt_alloc = torch.cuda.max_memory_allocated()
+        # With unified workspaces, the peak memory allocation should not increase after
+        # switching to Lt, otherwise the temporary allocation would bump the peak
+        self.assertEqual(warmed_alloc, lt_alloc)
 
     def test_cublas_allow_tf32_get_set(self):
         skip_tf32_cublas = "TORCH_ALLOW_TF32_CUBLAS_OVERRIDE" in os.environ and int(
@@ -1113,7 +1133,7 @@ print(t.is_pinned())
         self.assertTrue(issubclass(type(cuda_event), torch.Event))
         self.assertTrue(torch.Event in type(cuda_event).mro())
 
-    def test_stream_compatibility(self):
+    def test_stream_event_compatibility(self):
         s1 = torch.cuda.Stream()
         s2 = torch.cuda.Stream()
         torch.accelerator.set_stream(s1)
@@ -1136,6 +1156,42 @@ print(t.is_pinned())
             RuntimeError, "Device index value .* is out of index range"
         ):
             torch.accelerator.current_stream(torch.accelerator.device_count())
+        e1 = torch.cuda.Event(enable_timing=True)
+        e2 = torch.cuda.Event(enable_timing=True)
+        e3 = torch.Event(enable_timing=True)
+        s3 = torch.Stream()
+        with s3:
+            self.assertEqual(torch.accelerator.current_stream(), s3)
+            e1.record(s3)
+            a = torch.randn(1000)
+            a_cuda = a.to("cuda")
+            del a_cuda
+            e2.record(s3)
+            e2.synchronize()
+            self.assertGreater(e1.elapsed_time(e2), 0)
+            e3.record(s3)
+        with self.assertRaisesRegex(
+            RuntimeError, "expected other to be a torch.cuda.Event object"
+        ):
+            e1.elapsed_time(e3)
+        with self.assertRaisesRegex(
+            RuntimeError, "expected other to be a torch.Event object"
+        ):
+            e3.elapsed_time(e1)
+        with self.assertRaisesRegex(
+            RuntimeError, "expected event to be a torch.Event object"
+        ):
+            s3.record_event(e1)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "expected stream to be a torch.Stream or torch.cuda.Stream object",
+        ):
+            e2.record(e2)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "expected stream to be a torch.Stream or torch.cuda.Stream object",
+        ):
+            e2.wait(e2)
 
     def test_record_stream(self):
         cycles_per_ms = get_cycles_per_ms()
@@ -2422,19 +2478,19 @@ exit(2)
         # warmup
         torch.mm(a, b)
 
-        free_bytes_before, total_bytes = torch.cuda.mem_get_info()
-        used_gb_before = (total_bytes - free_bytes_before) / 1e9
-
-        for _ in range(100):
+        for i in range(100):
             torch_graph = torch.cuda.CUDAGraph()
             with torch.cuda.graph(torch_graph):
                 torch.mm(a, b)
             torch_graph.replay()
+            if i == 0:
+                free_bytes_before, total_bytes = torch.cuda.mem_get_info()
+                used_gb_before = (total_bytes - free_bytes_before) / 1e9
 
         free_bytes_after, _ = torch.cuda.mem_get_info()
         used_gb_after = (total_bytes - free_bytes_after) / 1e9
 
-        self.assertFalse(used_gb_before + 0.1 < used_gb_after)
+        self.assertGreater(0.005 + used_gb_before, used_gb_after)
 
     @unittest.skipIf(
         not TEST_CUDA_GRAPH, "CUDA >= 11.0 or ROCM >= 5.3 required for graphs"
@@ -4172,6 +4228,48 @@ class TestCudaMallocAsync(TestCase):
         finally:
             torch.cuda.memory._record_memory_history(None)
 
+    @unittest.skipIf(
+        TEST_CUDAMALLOCASYNC, "setContextRecorder not supported by CUDAMallocAsync"
+    )
+    def test_memory_snapshot_forward_trace(self):
+        """Test that forward traces from anomaly mode are captured in memory snapshots."""
+        try:
+            torch.cuda.memory.empty_cache()
+            torch.cuda.memory._record_memory_history("all", stacks="python")
+
+            # Create a simple model with a backward pass
+            # Use detect_anomaly(check_nan=False) to capture forward traces
+            x = torch.randn(10, 10, device="cuda", requires_grad=True)
+
+            with torch.autograd.detect_anomaly(check_nan=False):
+                y = x * 2  # Forward pass - creates autograd node
+                z = y.sum()
+                z.backward()  # Backward pass - allocations here should have forward traces
+
+            ss = torch.cuda.memory._snapshot()
+
+            # Check that we have device traces with forward_frames
+            found_forward_frames = False
+            if "device_traces" in ss:
+                for device_trace in ss["device_traces"]:
+                    for entry in device_trace:
+                        if isinstance(entry, dict) and "forward_frames" in entry:
+                            # forward_frames should be a list of strings
+                            self.assertIsInstance(entry["forward_frames"], list)
+                            if len(entry["forward_frames"]) > 0:
+                                found_forward_frames = True
+                                # The forward frames should be strings
+                                self.assertIsInstance(entry["forward_frames"][0], str)
+
+            # forward_frames must be present when using detect_anomaly
+            self.assertTrue(
+                found_forward_frames,
+                "forward_frames should be present in memory snapshot when using detect_anomaly",
+            )
+
+        finally:
+            torch.cuda.memory._record_memory_history(None)
+
     @skipIfRocm(msg="ROCTracer does not capture Python stack frames in profiler output")
     def test_memory_profiler_viz(self):
         with torch.profiler.profile(
@@ -4899,6 +4997,14 @@ print(value, end="")
 
     def test_allocator_fuzz(self):
         # fuzz
+        if (
+            torch.version.hip
+            and "expandable_segments:True"
+            in torch._C._accelerator_getAllocatorSettings()
+        ):
+            raise unittest.SkipTest(
+                "ROCm needs https://github.com/ROCm/rocm-systems/pull/3023"
+            )
         state = random.getstate()
         random.seed(123)
         N = 10000
@@ -7522,9 +7628,6 @@ class TestCudaAutocast(TestAutocast):
                 _ = torch.ones(10)
 
 
-@unittest.skipIf(
-    os.environ.get("USE_LEGACY_DRIVER", None) == "1", "Doesn't work with older driver"
-)
 class TestCompileKernel(TestCase):
     @unittest.skipIf(not TEST_CUDA, "No CUDA")
     def test_compile_kernel(self):
