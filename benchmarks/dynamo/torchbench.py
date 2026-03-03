@@ -9,6 +9,7 @@ import sys
 import tempfile
 import warnings
 from collections import namedtuple
+from functools import cached_property
 from os.path import abspath, exists
 
 import torch
@@ -21,7 +22,6 @@ except ImportError:
 
 from torch._dynamo.testing import collect_results, reduce_to_scalar_loss
 from torch._dynamo.utils import clone_inputs
-from torch.testing._internal.common_utils import IS_FBCODE
 
 
 # We are primarily interested in tf32 datatype
@@ -221,6 +221,12 @@ class TorchBenchmarkRunner(BenchmarkRunner):
             "doctr_reco_predictor",
         }
 
+    @cached_property
+    def _fb_models_available(self):
+        """This property exists because importing IS_FBCODE causes some models to be
+        frozen out of setting certain config flags."""
+        return importlib.util.find_spec("torchbenchmark.models.fb") is not None
+
     def load_model(
         self,
         device,
@@ -240,7 +246,7 @@ class TorchBenchmarkRunner(BenchmarkRunner):
             f"torchbenchmark.models.{model_name}",
             f"torchbenchmark.canary_models.{model_name}",
         ]
-        if IS_FBCODE:
+        if self._fb_models_available:
             candidates.append(f"torchbenchmark.models.fb.{model_name}")
 
         for c in candidates:
