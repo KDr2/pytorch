@@ -1800,9 +1800,9 @@ class triton:
     # this could be helpful to avoid recompilations in some cases
     mix_order_reduction_non_strict_mode = False
 
-    enable_tlx_templates: bool = (
-        os.environ.get("TORCHINDUCTOR_ENABLE_TLX_TEMPLATES", "0") == "1"
-    )
+    # TLX template mode: "default", "allow", or "force"
+    tlx_mode: str = os.environ.get("TORCHINDUCTOR_TLX_MODE", "default")
+
 
     # Map for storing the amount of kernel runs with dumped input tensors
     # Based on hash of Triton source code to avoid bloating the folder

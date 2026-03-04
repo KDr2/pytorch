@@ -426,7 +426,7 @@ def tuned_mm(mat1, mat2, out_dtype=None, *, layout=None):
 
             if (
                 inductor_config.is_fbcode()
-                and inductor_config.triton.enable_tlx_templates
+                and inductor_config.triton.tlx_mode in ("allow", "force")
             ):
                 from torch._inductor.fb.tlx_templates.mm_templates import append_tlx
 
