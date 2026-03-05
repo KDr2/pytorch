@@ -12922,7 +12922,9 @@ def forward(self, arg0_1: "Sym(s77)", arg1_1: "Sym(s27)", arg2_1: "Sym(s53)", ar
 
         x = torch.tensor([-1.0], device=self.device)
         boundaries = torch.tensor([0.2, 0.5, 0.8], device=self.device)
-        expected = torch.tensor([boundaries.numel()], device=self.device, dtype=torch.int64)
+        expected = torch.tensor(
+            [boundaries.numel()], device=self.device, dtype=torch.int64
+        )
 
         for right in (False, True):
             self.assertEqual(fn(x, boundaries, right), expected)
