@@ -297,10 +297,11 @@ static PyObject* THPStream_enter(PyObject* _self, PyObject* unused) {
   //
   // self->context is initialized lazily as a PyList on first __enter__.
   if (!self->context) {
-    self->context = PyList_New(0);
-    if (!self->context) {
+    auto list = THPObjectPtr(PyList_New(0));
+    if (!list) {
       throw python_error();
     }
+    self->context = list.release();
   }
 
   c10::DeviceIndex cur_device_idx = at::accelerator::getDeviceIndex();
