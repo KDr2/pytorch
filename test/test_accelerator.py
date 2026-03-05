@@ -113,11 +113,16 @@ class TestAccelerator(TestCase):
 
     def test_stream_context_manager_reentrance(self):
         prev_stream = torch.accelerator.current_stream()
-        s = torch.Stream()
-        with s:
-            self.assertEqual(torch.accelerator.current_stream(), s)
-            with s:
-                self.assertEqual(torch.accelerator.current_stream(), s)
+        s0 = torch.Stream()
+        with s0, s0:
+            self.assertEqual(torch.accelerator.current_stream(), s0)
+        s1 = torch.Stream()
+        with s0:
+            self.assertEqual(torch.accelerator.current_stream(), s0)
+            with s1:
+                self.assertEqual(torch.accelerator.current_stream(), s1)
+                with s0:
+                    self.assertEqual(torch.accelerator.current_stream(), s0)
         self.assertEqual(torch.accelerator.current_stream(), prev_stream)
 
     @unittest.skipIf(not TEST_MULTIACCELERATOR, "only one accelerator detected")
