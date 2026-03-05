@@ -426,13 +426,21 @@ def tuned_mm(mat1, mat2, out_dtype=None, *, layout=None):
 
             if (
                 inductor_config.is_fbcode()
-                and inductor_config.triton.enable_tlx_templates
+                and inductor_config.triton.tlx_mode in ("allow", "force")
             ):
                 from torch._inductor.fb.tlx_templates.mm_templates import append_tlx
 
                 templates_to_use = append_tlx(templates_to_use)
 
         templates_to_use.append(mm_contiguous_subgraph_template)
+
+    # Apply TLX force mode filtering (fbcode only)
+    if inductor_config.is_fbcode() and inductor_config.triton.tlx_mode == "force":
+        from torch._inductor.fb.tlx_templates.mm_templates import (
+            filter_templates_for_tlx_force,
+        )
+
+        templates_to_use = filter_templates_for_tlx_force(templates_to_use)
 
     choices.extend(
         V.choices.get_template_configs(
