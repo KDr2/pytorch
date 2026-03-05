@@ -2070,6 +2070,9 @@ class SIMDScheduling(BaseScheduling):
         assert len(prologue_group) == 0
 
         # External template handlers (e.g. Helion) can override codegen
+        # to produce fused source. The override returns a source string;
+        # standard post-processing (define_kernel, call_kernel, cleanup)
+        # is handled by the caller.
         result = kernel.codegen_template_override(
             self,
             template_node,
@@ -2081,7 +2084,12 @@ class SIMDScheduling(BaseScheduling):
             only_gen_src_code,
         )
         if result is not None:
-            return result
+            if only_gen_src_code:
+                return result
+            # Override returned fused source — define kernel via standard flow
+            node_schedule = [*prologue_nodes, template_node, *epilogue_nodes]
+            kernel.kernel_name = self.define_kernel(result, node_schedule, kernel)
+            return kernel
 
         with kernel:
             if not only_gen_src_code:
@@ -2100,37 +2108,9 @@ class SIMDScheduling(BaseScheduling):
                         node.codegen(kernel.split_and_set_ranges(node.get_ranges()))
                     kernel.cse.invalidate(OrderedSet())
 
-            for input_name, buffer in kernel.named_input_nodes.items():
-                subgraph_name = f"<LOAD_INPUT_{input_name}>"
-                if prologue_group := buf_name_to_prologue_group.get(
-                    buffer.get_name(), []
-                ):
-                    can_codegen_without_upcast = all(
-                        p_n.can_codegen_without_upcasts() for p_n in prologue_group
-                    )
-
-                    # TODO - this doesn't work with libdevice calls, potentially other bugs
-                    # upcasting to fp32 and downcasting gives large slowdown
-                    with config.patch(
-                        "triton.codegen_upcast_to_fp32", not can_codegen_without_upcast
-                    ):
-                        with kernel.set_subgraph_body(subgraph_name):
-                            for prologue_node in prologue_group:
-                                if (
-                                    len(prologue_node.get_buffer_names()) == 1
-                                    and len(prologue_group) == 1
-                                ):
-                                    if prologue_preserves_zero_mask(prologue_node):
-                                        kernel.prologue_fused_inputs_preserve_zero |= (
-                                            prologue_node.get_buffer_names()
-                                        )
-
-                                prologue_node.codegen(
-                                    kernel.split_and_set_ranges(
-                                        prologue_node.get_ranges()
-                                    )
-                                )
-                            kernel.cse.invalidate(OrderedSet())
+            kernel.codegen_prologues_in_subgraphs(
+                buf_name_to_prologue_group, prologue_preserves_zero_mask
+            )
 
         # Template hooks must be finalised after kernel.remove_kernel_local_buffers
         # is called (this is called when the kernel context is exited above), and when
