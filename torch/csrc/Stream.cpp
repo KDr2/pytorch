@@ -285,12 +285,18 @@ static PyObject* THPStream_enter(PyObject* _self, PyObject* unused) {
   c10::DeviceIndex cur_device_idx = at::accelerator::getDeviceIndex();
   c10::DeviceIndex stream_device_idx =
       static_cast<c10::DeviceIndex>(self->device_index);
+  c10::Stream cur_stream = at::accelerator::getCurrentStream(stream_device_idx);
+  // No operation if the stream is the current stream of the current device.
+  if (cur_stream.id() == self->stream_id &&
+      cur_stream.device_index() == stream_device_idx) {
+    Py_INCREF(_self);
+    return _self;
+  }
   // If the stream is not on the current device, switch the current device to
   // the device of the stream.
   if (stream_device_idx != cur_device_idx) {
     at::accelerator::setDeviceIndex(stream_device_idx);
   }
-  c10::Stream cur_stream = at::accelerator::getCurrentStream(stream_device_idx);
   at::accelerator::setCurrentStream(c10::Stream::unpack3(
       self->stream_id, stream_device_idx, stream_device_type));
   // Save the current device index and previous stream to the context.
@@ -324,6 +330,10 @@ static PyObject* THPStream_exit(PyObject* _self, PyObject* unused) {
           static_cast<c10::DeviceType>(self->device_type)))) {
     Py_RETURN_NONE;
   }
+  // No operation if the stream is the current stream of the current device.
+  if (!self->context) {
+    Py_RETURN_NONE;
+  }
   PyObject* py_stream = nullptr;
   if (PyDict_GetItemStringRef(self->context, "_ctx_stream", &py_stream) < 0) {
     throw python_error();
@@ -342,6 +352,12 @@ static PyObject* THPStream_exit(PyObject* _self, PyObject* unused) {
       ctx_device_index.get(),
       "ctx_device_index should be present on the context dict.");
   auto prev_device_index = THPUtils_unpackDeviceIndex(ctx_device_index.get());
+  // No operation if the stream is the current stream of the current device when
+  // reentrance occurs.
+  if (prev_stream->stream_id == self->stream_id &&
+      prev_device_index == self->device_index) {
+    Py_RETURN_NONE;
+  }
   at::accelerator::setCurrentStream(c10::Stream::unpack3(
       prev_stream->stream_id,
       static_cast<c10::DeviceIndex>(prev_stream->device_index),
