@@ -116,6 +116,7 @@ class TestAccelerator(TestCase):
         s0 = torch.Stream()
         with s0, s0:
             self.assertEqual(torch.accelerator.current_stream(), s0)
+        self.assertEqual(torch.accelerator.current_stream(), prev_stream)
         s1 = torch.Stream()
         with s0:
             self.assertEqual(torch.accelerator.current_stream(), s0)
