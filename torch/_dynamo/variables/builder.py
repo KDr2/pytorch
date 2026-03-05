@@ -1520,6 +1520,12 @@ class VariableBuilder:
                 ScriptObjectQualifiedNameSource,
             )
 
+            # Unwrap FakeScriptObject to the underlying real object so the
+            # rest of this branch (guards, graph inputs, etc.) operates on
+            # the real opaque object type.
+            if isinstance(value, torch._library.fake_class_registry.FakeScriptObject):
+                value = value.real_obj
+
             # type: ignore[arg-type]
             if torch._library.fake_class_registry.tracing_with_real(value):
                 proxy = self.tx.output.root_tracer.create_graph_input(
